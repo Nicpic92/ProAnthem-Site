@@ -21,7 +21,6 @@ exports.handler = async (event) => {
     try {
         await client.connect();
 
-        // Find the user by their email
         const userQuery = 'SELECT * FROM users WHERE email = $1';
         const userResult = await client.query(userQuery, [email]);
 
@@ -31,19 +30,19 @@ exports.handler = async (event) => {
 
         const user = userResult.rows[0];
 
-        // Securely compare the provided password with the stored hash
         const isMatch = await bcrypt.compare(password, user.password_hash);
 
         if (!isMatch) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
 
-        // If credentials are correct, create a JWT
+        // UPDATED: Include band_id in the JWT payload
         const tokenPayload = {
             user: {
                 email: user.email,
                 role: user.role,
-                name: user.first_name
+                name: user.first_name,
+                band_id: user.band_id // Add the band ID here
             }
         };
         const token = jwt.sign(
