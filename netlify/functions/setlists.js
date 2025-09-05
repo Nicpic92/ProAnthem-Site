@@ -37,9 +37,9 @@ exports.handler = async (event) => {
                 const setlistResult = await client.query(query, [setlistId, bandId]);
                 if (setlistResult.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Setlist not found or access denied' }) };
 
-                // This query is correct and should now work
+                // --- FIX: Added 'ls.song_blocks' to the SELECT statement ---
                 const songsQuery = `
-                    SELECT ls.id, ls.title, ls.artist
+                    SELECT ls.id, ls.title, ls.artist, ls.song_blocks 
                     FROM setlist_songs ss
                     JOIN lyric_sheets ls ON ss.song_id = ls.id
                     WHERE ss.setlist_id = $1 AND ls.band_id = $2
@@ -57,35 +57,28 @@ exports.handler = async (event) => {
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body);
             if (setlistId && resourceType === 'songs') {
-                // --- FIX: Use a more robust "check-then-insert" logic ---
                 await client.query('BEGIN');
-
                 try {
-                    // 1. First, check if the song already exists in the setlist
                     const alreadyExistsQuery = 'SELECT 1 FROM setlist_songs WHERE setlist_id = $1 AND song_id = $2';
                     const existingResult = await client.query(alreadyExistsQuery, [setlistId, body.song_id]);
                     if (existingResult.rows.length > 0) {
-                        await client.query('COMMIT'); // Commit the empty transaction
+                        await client.query('COMMIT');
                         return { statusCode: 200, body: JSON.stringify({ message: 'Song is already in this setlist.' }) };
                     }
                     
-                    // 2. If it doesn't exist, get the next song order
                     const maxOrderQuery = 'SELECT MAX(song_order) as max_order FROM setlist_songs WHERE setlist_id = $1';
                     const maxOrderResult = await client.query(maxOrderQuery, [setlistId]);
                     const nextOrder = (maxOrderResult.rows[0].max_order === null) ? 0 : maxOrderResult.rows[0].max_order + 1;
 
-                    // 3. Insert the new song with the calculated order
                     const insertQuery = 'INSERT INTO setlist_songs (setlist_id, song_id, song_order) VALUES ($1, $2, $3) RETURNING *';
                     const result = await client.query(insertQuery, [setlistId, body.song_id, nextOrder]);
 
                     await client.query('COMMIT');
                     return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
-
                 } catch (e) {
                     await client.query('ROLLBACK');
-                    throw e; // Rethrow the error to be caught by the outer catch block
+                    throw e;
                 }
-
             } else {
                 const query = 'INSERT INTO setlists (name, user_email, band_id) VALUES ($1, $2, $3) RETURNING *';
                 const result = await client.query(query, [body.name, userEmail, bandId]);
@@ -127,7 +120,6 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     } catch (error) {
         console.error('API Error in /api/setlists:', error);
-        // Ensure rollback is attempted if a transaction was started
         await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error', error: error.message }) };
     } finally {
