@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadUsers() {
     const tableBody = document.getElementById('users-table-body');
     try {
-        const users = await apiRequest('admin-users'); // This is a GET request, so it works fine with the new default
+        const users = await apiRequest('admin-users'); // This endpoint name is an assumption
         tableBody.innerHTML = ''; // Clear "Loading..."
 
         users.forEach(user => {
@@ -56,7 +56,7 @@ async function loadUsers() {
         });
 
     } catch (error) {
-        tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load users.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load users. Your API might need an 'admin-users' endpoint.</td></tr>`;
         console.error('Failed to load users:', error);
     }
 }
@@ -89,32 +89,14 @@ async function deleteUser(email) {
     }
 }
 
-// --- NEW MIGRATION FUNCTION ---
 async function migrateUser(email) {
-    if (!confirm(`Migrate all ProAnthem data (songs, setlists) for ${email} to the new ProAnthem site? This will copy their data and create an account for them on the new site if one doesn't exist. This action cannot be undone.`)) {
+    if (!confirm(`This will migrate all data for ${email} from the old system to the new ProAnthem band-based system. The user must not already have an account on the new system. This action cannot be undone. Proceed?`)) {
         return;
     }
 
-    // IMPORTANT: This URL must be the full production URL of your NEW ProAnthem site.
-    const proAnthemApiUrl = 'https://proanthem.com/api/migrate-user';
-
     try {
-        const response = await fetch(proAnthemApiUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('user_token')}` // Send the admin token
-            },
-            body: JSON.stringify({ email: email })
-        });
-        
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.message || 'An unknown error occurred during migration.');
-        }
-
-        alert(`Successfully migrated user: ${email}. They can now log in to ProAnthem with their existing password.`);
+        const result = await apiRequest('migrate-user', { email }, 'POST');
+        alert(result.message || `Successfully migrated user: ${email}.`);
 
     } catch (error) {
         alert(`Migration failed: ${error.message}`);
