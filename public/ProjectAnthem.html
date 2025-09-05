@@ -363,9 +363,28 @@
                 const newSetlist = await api.createSetlist({ name });
                 newSetlistInput.value = '';
                 setStatus('Setlist created!', false);
-                await loadSetlists(newSetlist.id); // Reload and select the new one
+                await loadSetlists(newSetlist.id);
             } catch (error) {
                 setStatus(`Error creating setlist: ${error.message}`, true);
+            }
+        }
+        
+        async function handleAddSongToSetlist() {
+            const setlistId = setlistSelector.value;
+            if (!songData.id) {
+                alert('Please save the current song before adding it to a setlist.');
+                return;
+            }
+            if (!setlistId) {
+                alert('Please select a setlist first.');
+                return;
+            }
+            try {
+                await api.addSongToSetlist(setlistId, songData.id);
+                setStatus(`'${songData.title}' added to setlist.`, false);
+                await handleSetlistSelection(setlistId); // Refresh the song list in the modal
+            } catch(error) {
+                setStatus(`Failed to add song: ${error.message}`, true);
             }
         }
 
@@ -550,6 +569,7 @@
             setStatus('Loading song...');
             try {
                 const data = await api.getSheet(id);
+                // --- FIX: Ensure song_blocks is always an array, even if DB returns null ---
                 songData = {
                     id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url,
                     song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : []
@@ -689,6 +709,7 @@
         setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
         saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
         createSetlistBtn.addEventListener('click', handleCreateSetlist);
+        addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
 
         (function main(){
             populateTuningSelector(); 
