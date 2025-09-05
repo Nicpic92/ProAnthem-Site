@@ -220,7 +220,7 @@
         
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
-            songData.song_blocks.forEach(block => {
+            (songData.song_blocks || []).forEach(block => {
                 const blockEl = createBlockElement(block);
                 songBlocksContainer.appendChild(blockEl);
             });
@@ -554,7 +554,7 @@
         function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
         async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
         async function handleDelete() { if (!songData.id) return; if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); initializeNewSong(); await loadSheetList(); } catch (e) { setStatus('Failed to delete.', true); } } }
-        function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { index = sharpScale.indexOf(Object.keys(flatScale).find(key => flatScale[key] === note)); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
+        function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
         function updateTransposeStatus(steps) { musicalContext.transpose = steps; transposeStatus.textContent = steps > 0 ? `+${steps}` : steps; }
         function handleTranspose(amount) {
             updateTransposeStatus(musicalContext.transpose + amount);
@@ -605,10 +605,10 @@
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
-            if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => b.type !== 'reference' || b.originalId !== blockId); renderSongBlocks(); }} 
+            if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
             else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
             else if (e.target.classList.contains('fretboard-target-zone')) { const clickData = getFretFromClick(e, blockId); if (clickData) { const { string, fret, position } = clickData; const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose; if (!block.data) block.data = { notes: [] }; block.data.notes.push({ string, fret: fret + totalOffset, position }); drawNotesOnFretboard(blockId); renderPreview(); }}
-            else if (e.target.classList.contains('fretboard-note')) { const noteIndex = parseInt(e.target.dataset.noteIndex, 10); if (block?.data?.notes) { block.data.notes.splice(noteIndex, 1); drawNotesOnFretboard(blockId); renderPreview(); }}
+            else if (e.target.closest('.note-group')) { const noteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10); if (block?.data?.notes) { block.data.notes.splice(noteIndex, 1); drawNotesOnFretboard(blockId); renderPreview(); }}
             else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); }
         });
         addBlockButtonsContainer.addEventListener('click', e => {
