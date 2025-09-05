@@ -296,7 +296,7 @@
                 });
                 if (selectId) {
                     setlistSelector.value = selectId;
-                    handleSetlistSelection(selectId);
+                    await handleSetlistSelection(selectId);
                 }
             } catch (error) {
                 setStatus('Failed to load setlists.', true);
@@ -316,6 +316,7 @@
                 const setlist = await api.getSetlist(setlistId);
                 currentSetlistTitle.textContent = setlist.name;
                 document.getElementById('setlistVenue').value = setlist.venue || '';
+                // --- FIX: Add guard for null event_date to prevent crash ---
                 document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
                 document.getElementById('setlistLogoUrl').value = setlist.logo_url || '';
                 document.getElementById('setlistNotes').value = setlist.notes || '';
@@ -325,10 +326,10 @@
                     const li = document.createElement('li');
                     li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded';
                     li.dataset.songId = song.id;
-                    li.innerHTML = `<span>${song.title} - <em class="text-gray-400">${song.artist}</em></span><button class="btn btn-danger btn-sm">Remove</button>`;
+                    li.innerHTML = `<span>${song.title} - <em class="text-gray-400">${song.artist}</em></span><button data-action="remove-song" class="btn btn-danger btn-sm">Remove</button>`;
                     songsInSetlist.appendChild(li);
                 });
-                addSongToSetlistBtn.disabled = false;
+                addSongToSetlistBtn.disabled = !songData.id; // Disable if no song is loaded/saved
                 printSetlistBtn.disabled = false;
             } catch (error) {
                 setStatus(`Failed to load setlist details: ${error.message}`, true);
@@ -355,10 +356,7 @@
 
         async function handleCreateSetlist() {
             const name = newSetlistInput.value.trim();
-            if (!name) {
-                alert('Please enter a name for the new setlist.');
-                return;
-            }
+            if (!name) return alert('Please enter a name for the new setlist.');
             try {
                 const newSetlist = await api.createSetlist({ name });
                 newSetlistInput.value = '';
@@ -371,28 +369,34 @@
         
         async function handleAddSongToSetlist() {
             const setlistId = setlistSelector.value;
-            if (!songData.id) {
-                alert('Please save the current song before adding it to a setlist.');
-                return;
-            }
-            if (!setlistId) {
-                alert('Please select a setlist first.');
-                return;
-            }
+            if (!songData.id) return alert('Please save the current song before adding it to a setlist.');
+            if (!setlistId) return alert('Please select a setlist first.');
             try {
                 await api.addSongToSetlist(setlistId, songData.id);
                 setStatus(`'${songData.title}' added to setlist.`, false);
-                await handleSetlistSelection(setlistId); // Refresh the song list in the modal
+                await handleSetlistSelection(setlistId);
             } catch(error) {
                 setStatus(`Failed to add song: ${error.message}`, true);
+            }
+        }
+        
+        async function handleRemoveSongFromSetlist(songId) {
+            const setlistId = setlistSelector.value;
+            if (!setlistId || !songId) return;
+            if (confirm("Are you sure you want to remove this song from the setlist?")) {
+                 try {
+                    await api.removeSongFromSetlist(setlistId, songId);
+                    setStatus(`Song removed from setlist.`, false);
+                    await handleSetlistSelection(setlistId); // Refresh the list
+                } catch(error) {
+                    setStatus(`Failed to remove song: ${error.message}`, true);
+                }
             }
         }
 
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
-            (songData.song_blocks || []).forEach(block => {
-                songBlocksContainer.appendChild(createBlockElement(block));
-            });
+            (songData.song_blocks || []).forEach(block => songBlocksContainer.appendChild(createBlockElement(block)));
             renderAddBlockButtons();
             renderPreview();
             initializeSortable();
@@ -414,9 +418,7 @@
                 contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
             }
             div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type})</span></div>${headerControls}</div><div><button class="btn-sm text-xs hover:underline" data-action="edit-label">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`;
-            if (block.type === 'tab') {
-                setTimeout(() => drawFretboard(block.id), 0);
-            }
+            if (block.type === 'tab') setTimeout(() => drawFretboard(block.id), 0);
             return div;
         }
 
@@ -432,10 +434,7 @@
         function renderPreview() {
             let previewHtml = '';
             (songData.song_blocks || []).forEach(block => {
-                let blockToRender = block;
-                if (block.type === 'reference') {
-                    blockToRender = songData.song_blocks.find(b => b.id === block.originalId) || block;
-                }
+                let blockToRender = block.type === 'reference' ? (songData.song_blocks.find(b => b.id === block.originalId) || block) : block;
                 previewHtml += `<h4 class="text-lg font-bold mt-4 text-gray-400">${block.label}</h4>`;
                 if (blockToRender.type === 'lyrics') {
                     (blockToRender.content || '').split('\n').forEach(line => {
@@ -459,15 +458,9 @@
             const { frets, width, nutWidth, fretSpacing, dotFrets, dotRadius } = FRETBOARD_CONFIG;
             const { height, stringSpacing } = stringConfig;
             let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" /><g id="fretboard-notes-group-${blockId}"></g>`;
-            for (let i = 0; i < numStrings; i++) {
-                const y = stringSpacing / 2 + i * stringSpacing;
-                svgHTML += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
-            }
+            for (let i = 0; i < numStrings; i++) svgHTML += `<line class="fretboard-string" x1="0" y1="${stringSpacing / 2 + i * stringSpacing}" x2="${width}" y2="${stringSpacing / 2 + i * stringSpacing}" />`;
             svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
-            for (let i = 1; i <= frets; i++) {
-                const x = nutWidth + i * fretSpacing;
-                svgHTML += `<line class="fretboard-fret" x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
-            }
+            for (let i = 1; i <= frets; i++) svgHTML += `<line class="fretboard-fret" x1="${nutWidth + i * fretSpacing}" y1="0" x2="${nutWidth + i * fretSpacing}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
             dotFrets.forEach(fret => {
                 const x = nutWidth + (fret - 0.5) * fretSpacing;
                 if (fret % 12 === 0) {
@@ -501,8 +494,9 @@
         
         function getFretFromClick(evt, blockId) {
             const svg = document.getElementById(`fretboard-svg-${blockId}`);
+            if (!svg) return null;
             const block = songData.song_blocks.find(b => b.id === blockId);
-            if (!svg || !block) return null;
+            if (!block) return null;
             const numStrings = block.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
             const pt = svg.createSVGPoint();
@@ -510,7 +504,7 @@
             const ctm = svg.getScreenCTM();
             if(!ctm) return null;
             const svgPoint = pt.matrixTransform(ctm.inverse());
-            const stringIndex = Math.floor((svgPoint.y / stringConfig.stringSpacing));
+            const stringIndex = Math.floor(svgPoint.y / stringConfig.stringSpacing);
             const fret = Math.round((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing);
             if (stringIndex >= 0 && stringIndex < numStrings && fret >= 0 && fret <= FRETBOARD_CONFIG.frets) {
                 return { string: stringIndex, fret, position: Math.round(svgPoint.x) };
@@ -519,7 +513,7 @@
         }
 
         function renderTransposedTab(tabBlock) {
-            if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data for this section.';
+            if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data.';
             const numStrings = tabBlock.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
             const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
@@ -529,9 +523,7 @@
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
                 const charPosition = Math.floor(note.position / 12);
-                if (!positionMap.has(charPosition)) {
-                    positionMap.set(charPosition, Array(numStrings).fill(null));
-                }
+                if (!positionMap.has(charPosition)) positionMap.set(charPosition, Array(numStrings).fill(null));
                 positionMap.get(charPosition)[note.string] = transposedFret;
             });
             if (positionMap.size === 0) return 'Notes out of range for current settings.';
@@ -541,15 +533,10 @@
             sortedPositions.forEach(charPos => {
                 const notesAtPos = positionMap.get(charPos);
                 const padding = charPos - lastCharPos;
-                if (padding > 0) lines.forEach((line, i) => lines[i] += '-'.repeat(padding));
+                if (padding > 0) lines.forEach((_, i) => lines[i] += '-'.repeat(padding));
                 let maxFretWidth = 0;
-                notesAtPos.forEach(fret => {
-                    if (fret !== null) maxFretWidth = Math.max(maxFretWidth, String(fret).length);
-                });
-                lines.forEach((line, i) => {
-                    const fret = notesAtPos[i];
-                    lines[i] += (fret !== null) ? String(fret).padEnd(maxFretWidth, '-') : '-'.repeat(maxFretWidth);
-                });
+                notesAtPos.forEach(fret => { if (fret !== null) maxFretWidth = Math.max(maxFretWidth, String(fret).length) });
+                lines.forEach((_, i) => { lines[i] += (notesAtPos[i] !== null) ? String(notesAtPos[i]).padEnd(maxFretWidth, '-') : '-'.repeat(maxFretWidth) });
                 lastCharPos = charPos + maxFretWidth;
             });
             const maxLength = Math.max(...lines.map(l => l.length));
@@ -569,11 +556,7 @@
             setStatus('Loading song...');
             try {
                 const data = await api.getSheet(id);
-                // --- FIX: Ensure song_blocks is always an array, even if DB returns null ---
-                songData = {
-                    id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url,
-                    song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : []
-                };
+                songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [] };
                 titleInput.value = songData.title;
                 artistInput.value = songData.artist;
                 renderSongBlocks();
@@ -585,10 +568,7 @@
         }
 
         function initializeNewSong() {
-            songData = {
-                id: null, title: '', artist: '', audio_url: null,
-                song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '' }]
-            };
+            songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '' }] };
             titleInput.value = '';
             artistInput.value = '';
             songSelector.value = 'new';
@@ -601,10 +581,7 @@
             try {
                 songData.title = titleInput.value || 'Untitled';
                 songData.artist = artistInput.value || 'Unknown Artist';
-                const payload = { ...songData };
-                const savedSong = songData.id 
-                    ? await api.updateSheet(songData.id, payload) 
-                    : await api.createSheet(payload);
+                const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData);
                 songData.id = savedSong.id;
                 setStatus('Saved successfully!');
                 if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
@@ -710,6 +687,12 @@
         saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
         createSetlistBtn.addEventListener('click', handleCreateSetlist);
         addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
+        songsInSetlist.addEventListener('click', (e) => {
+            if (e.target.dataset.action === 'remove-song') {
+                const songId = e.target.closest('li').dataset.songId;
+                handleRemoveSongFromSetlist(songId);
+            }
+        });
 
         (function main(){
             populateTuningSelector(); 
