@@ -399,24 +399,60 @@
 
             setStatus('Generating PDF...');
             try {
-                // Fetch the full setlist data, which now includes song_blocks for each song
                 const setlist = await api.getSetlist(setlistId);
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
 
                 const leftMargin = 15;
+                const rightMargin = doc.internal.pageSize.getWidth() - 15;
+                let y = 20;
                 const pageHeight = doc.internal.pageSize.getHeight();
                 const marginBottom = 20;
-                let y = 20;
+                const maxWidth = rightMargin - leftMargin;
+
+                // --- NEW: Helper function to convert image to dataURL to embed in PDF
+                const getImageDataUrl = async (url) => {
+                    if (!url) return null;
+                    // Use a CORS proxy if images are on another domain, for development use a public one
+                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/'; 
+                    try {
+                        const response = await fetch(proxyUrl + url);
+                        if (!response.ok) throw new Error('Image fetch failed');
+                        const blob = await response.blob();
+                        return new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => resolve(reader.result);
+                            reader.onerror = reject;
+                            reader.readAsDataURL(blob);
+                        });
+                    } catch (e) {
+                        console.error('Failed to load watermark image:', e);
+                        return null; // Return null if image fails to load
+                    }
+                };
                 
-                const checkPageBreak = (neededHeight) => {
-                    if (y + neededHeight > pageHeight - marginBottom) {
-                        doc.addPage();
-                        y = 20;
+                const logoDataUrl = await getImageDataUrl(setlist.logo_url);
+                
+                const addWatermark = () => {
+                    if (logoDataUrl) {
+                        // Place watermark at top right
+                        doc.setGState(new doc.GState({opacity: 0.1}));
+                        doc.addImage(logoDataUrl, 'PNG', rightMargin - 20, 10, 20, 20);
+                        doc.setGState(new doc.GState({opacity: 1}));
                     }
                 };
 
-                // --- NEW: Title Page Generation ---
+                const checkPageBreak = (neededHeight) => {
+                    if (y + neededHeight > pageHeight - marginBottom) {
+                        addWatermark(); // Add watermark to the completed page before breaking
+                        doc.addPage();
+                        y = 20;
+                        addWatermark(); // Add watermark to the new page
+                    }
+                };
+
+                // --- Title Page ---
+                addWatermark();
                 doc.setFontSize(26);
                 doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
                 y += 15;
@@ -427,12 +463,10 @@
                     y += 8;
                 }
                 if (setlist.event_date) {
-                    const eventDate = new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' });
-                    doc.text(eventDate, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                    doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
                 }
                 y += 15;
 
-                // --- NEW: Song List on Title Page ---
                 doc.setFontSize(12);
                 doc.setFont(undefined, 'bold');
                 doc.text('Song List:', leftMargin, y);
@@ -441,26 +475,27 @@
                 doc.setFont(undefined, 'normal');
                 (setlist.songs || []).forEach((song, index) => {
                     checkPageBreak(8);
-                    doc.text(`${index + 1}. ${song.title} (${song.artist || 'Unknown'})`, leftMargin + 5, y);
-                    y+= 7;
+                    doc.text(`${index + 1}. ${song.title}`, leftMargin + 5, y, { maxWidth: maxWidth - 5 });
+                    y += 7;
                 });
 
 
-                // --- NEW: Loop for Individual Song Pages ---
+                // --- Individual Song Pages ---
                 for (let i = 0; i < setlist.songs.length; i++) {
                     const song = setlist.songs[i];
-
-                    doc.addPage(); // Each song gets a new page
+                    addWatermark();
+                    doc.addPage();
                     y = 20;
+                    addWatermark();
 
                     doc.setFontSize(18);
                     doc.setFont(undefined, 'bold');
-                    doc.text(song.title, leftMargin, y);
+                    doc.text(song.title, leftMargin, y, { maxWidth });
                     y += 8;
                     
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'italic');
-                    doc.text(song.artist || 'Unknown Artist', leftMargin, y);
+                    doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
                     y += 12;
                     
                     doc.setFont('Courier', 'normal');
@@ -474,32 +509,30 @@
 
                         checkPageBreak(12);
                         doc.setFont(undefined, 'bold');
-                        doc.text(block.label, leftMargin, y);
-                        y += 7;
+                        doc.text(block.label, leftMargin, y, { maxWidth });
+                        y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 7 : y + 7;
                         doc.setFont(undefined, 'normal');
 
                         const lines = block.content.split('\n');
                         for (const line of lines) {
                             const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
-                            
-                            // Estimate height needed for this chord/lyric pair
                             let neededHeight = lineHeight * 2.5;
-                            // Check for an empty line (just a single space, usually)
-                            if (parsed.chordLine.trim() === '' && parsed.lyricLine.trim() === '') {
-                                neededHeight = lineHeight; // Just need a small gap for empty lines
-                            }
+                            if (parsed.chordLine.trim() === '' && parsed.lyricLine.trim() === '') neededHeight = lineHeight;
+                            
                             checkPageBreak(neededHeight);
                             
                             doc.setTextColor(60, 60, 60);
-                            doc.text(parsed.chordLine, leftMargin, y);
-                            y += lineHeight;
+                            doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
+                            y = doc.lastAutoTable ? doc.lastAutoTable.finalY + lineHeight : y + lineHeight;
 
                             doc.setTextColor(0, 0, 0);
-                            doc.text(parsed.lyricLine, leftMargin, y);
-                            y += lineHeight * 1.5; 
+                            doc.text(parsed.lyricLine, leftMargin, y, { maxWidth });
+                            y = doc.lastAutoTable ? doc.lastAutoTable.finalY + (lineHeight * 1.5) : y + (lineHeight * 1.5);
                         }
                     }
                 }
+                
+                addWatermark(); // Add watermark to the last page
 
                 doc.save(`${setlist.name.replace(/\s/g, '_')}.pdf`);
                 setStatus('PDF generated.', false);
@@ -508,7 +541,6 @@
                  console.error("PDF generation error:", error);
             }
         }
-
 
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
