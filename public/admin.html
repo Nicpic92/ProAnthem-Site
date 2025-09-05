@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Spreadsheet Simplicity</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style> body { font-family: 'Inter', sans-serif; background-color: #f8fafc; } </style>
+</head>
+<body class="text-gray-800">
+
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <a href="/"><img src="/assets/logo_ss.png" alt="Spreadsheet Simplicity Logo" class="h-12"></a>
+                <nav id="main-nav" class="hidden md:flex items-center space-x-8">
+                    <a href="/" class="text-gray-600 hover:text-indigo-600 font-medium">Tools</a>
+                    <a href="/about.html" class="text-gray-600 hover:text-indigo-600 font-medium">Our Security Promise</a>
+                    <div id="nav-auth-section" class="pl-4"></div>
+                </nav>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="mobile-nav" class="hidden md:hidden mt-4">
+                <a href="/" class="block py-2 px-4 text-sm text-gray-700 hover:bg-gray-100">Tools</a>
+                <a href="/about.html" class="block py-2 px-4 text-sm text-gray-700 hover:bg-gray-100">Our Security Promise</a>
+                <div id="mobile-nav-auth-section" class="border-t mt-2 pt-2"></div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12">
+        <div id="admin-content" style="display: none;">
+             <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-4xl font-bold">Admin Panel</h1>
+                    <p class="text-lg text-gray-600">Manage users and tool access.</p>
+                </div>
+                <div class="flex space-x-4">
+                    <a href="/admin-guides.html" class="bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600">
+                        Guides & Checklists
+                    </a>
+                    <a href="/admin-sql.html" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-indigo-700">
+                        SQL Database Editor
+                    </a>
+                    <a href="/admin-blog.html" class="bg-green-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-700">
+                        Manage Blog &rarr;
+                    </a>
+                </div>
+            </div>
+
+            <div class="mt-12 bg-white p-8 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">All Users</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-3 text-left font-semibold">Email</th>
+                                <th class="p-3 text-left font-semibold">Role</th>
+                                <th class="p-3 text-left font-semibold">Signed Up</th>
+                                <th class="p-3 text-left font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                            <tr><td colspan="4" class="p-4 text-center">Loading users...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="access-denied" class="text-center py-20" style="display: none;">
+            <h2 class="text-3xl font-bold text-red-600">Access Denied</h2>
+            <p class="mt-4 text-lg">You must be an administrator to view this page.</p>
+            <a href="/dashboard.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg">Return to Dashboard</a>
+        </div>
+    </main>
+    
+    <div id="manage-user-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full z-50" style="display: none;">
+        <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                 <h3 class="text-2xl font-bold text-gray-900">Manage Custom Tools</h3>
+                 <button id="close-modal-button" class="text-gray-400 hover:text-gray-600 text-3xl font-bold">&times;</button>
+            </div>
+            <p class="text-gray-700 mt-4">For user: <strong id="modal-user-email"></strong></p>
+            <div id="modal-tools-list" class="mt-6 space-y-4">
+                <p>Loading custom tools...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/auth.js"></script>
+    <script src="/admin.js"></script>
+</body>
+</html>
