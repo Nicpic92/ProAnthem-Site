@@ -65,7 +65,15 @@ exports.handler = async (event) => {
 
                 const query = 'INSERT INTO setlist_songs (setlist_id, song_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *';
                 const result = await client.query(query, [setlistId, body.song_id]);
-                return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
+
+                // --- FIX: Handle the case where the song already exists in the setlist ---
+                if (result.rows.length > 0) {
+                    // Song was successfully inserted
+                    return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
+                } else {
+                    // Song was already in the setlist (ON CONFLICT was triggered)
+                    return { statusCode: 200, body: JSON.stringify({ message: 'Song is already in this setlist.' }) };
+                }
             } else {
                 const query = 'INSERT INTO setlists (name, user_email, band_id) VALUES ($1, $2, $3) RETURNING *';
                 const result = await client.query(query, [body.name, userEmail, bandId]);
