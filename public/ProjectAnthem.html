@@ -303,13 +303,9 @@
                 const totalOffset = tuningOffset + capoFret + transposeSteps;
                 
                 let maxPosition = 0;
-                tabData.notes.forEach(note => {
-                    maxPosition = Math.max(maxPosition, note.position + String(note.fret - totalOffset).length);
-                });
-
+                
                 const lines = STRING_NAMES.map(name => `${name}|`);
                 
-                // Sort notes by string, then position
                 const sortedNotes = [...tabData.notes].sort((a,b) => {
                     if (a.string !== b.string) return a.string - b.string;
                     return a.position - b.position;
@@ -317,7 +313,7 @@
 
                 sortedNotes.forEach(note => {
                     const transposedFret = note.fret - totalOffset;
-                    if (transposedFret < 0) return; // Don't render notes below open string
+                    if (transposedFret < 0) return;
 
                     let currentLine = lines[note.string];
                     const padding = note.position - currentLine.length;
@@ -325,11 +321,10 @@
                         lines[note.string] += '-'.repeat(padding);
                     }
                     lines[note.string] += transposedFret;
+                    maxPosition = Math.max(maxPosition, lines[note.string].length);
                 });
 
-                // Pad all lines to the same length
-                const maxLength = Math.max(...lines.map(l => l.length), maxPosition);
-                return lines.map(line => line.padEnd(maxLength, '-')).join('\n');
+                return lines.map(line => line.padEnd(maxPosition, '-')).join('\n');
             }
 
             function renderPreview() {
@@ -364,12 +359,11 @@
                     const savedSong = currentSongId ? await api.updateSheet(currentSongId, payload) : await api.createSheet(payload); 
                     currentSongId = savedSong.id; 
                     setStatus('Saved successfully!'); 
-                    // Update dropdown if it's a new song
                     if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
                         await loadSheetList(); 
                         songSelector.value = savedSong.id; 
                     } 
-                    updateTransposeStatus(0); 
+                    // No need to reset transpose steps on save
                     deleteBtn.disabled = false; 
                     addSongToSetlistBtn.disabled = !setlistSelector.value; 
                 } catch (e) { setStatus('Save failed.', true); } 
@@ -384,7 +378,8 @@
                     lyricsInput.value = song.content || '';
                     
                     tabData = song.tab_content && song.tab_content.notes ? song.tab_content : { notes: [] };
-                    const initialTabText = renderTransposedTab();
+                    updateTransposeStatus(0); // Reset transpose on load
+                    const initialTabText = renderTransposedTab(); // Render with 0 offset
                     tabEditorTextarea.value = initialTabText;
                     renderTabHighlight(initialTabText);
 
@@ -403,7 +398,6 @@
                     setStatus('Could not find song.', true);
                     initializeNewSong();
                 }
-                updateTransposeStatus(0); // Reset transpose on new song load
                 renderPreview();
                 updateKeyDisplay();
             }
@@ -449,14 +443,16 @@
             function renderChordQueue() { chordQueueDiv.innerHTML = ''; if (chordQueue.length === 0) { lyricsInput.classList.remove('placement-mode'); clearQueueBtn.disabled = true; return; } lyricsInput.classList.add('placement-mode'); clearQueueBtn.disabled = false; chordQueue.forEach((name, index) => { const pill = document.createElement('span'); pill.className = 'queue-pill'; if (index === chordQueueIndex) pill.classList.add('next'); pill.textContent = name; chordQueueDiv.appendChild(pill); }); }
             function handleEditorClick(event) { if (chordQueue.length > 0) { event.preventDefault(); const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`, p = lyricsInput.selectionStart; lyricsInput.value = `${lyricsInput.value.slice(0, p)}${t}${lyricsInput.value.slice(p)}`; lyricsInput.focus(); const np = p + t.length; lyricsInput.setSelectionRange(np, np); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; renderChordQueue(); renderPreview(); } }
             function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; const modifier = match[2]; let index = sharpScale.indexOf(note); if (index === -1) { index = flatScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + modifier; }
-            function handleTranspose(amount) { const currentText = lyricsInput.value; const transposedText = currentText.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`); lyricsInput.value = transposedText; updateTransposeStatus(transposeSteps + amount); renderPreview(); updateKeyDisplay(); }
+            function handleTranspose(amount) { const currentText = lyricsInput.value; const transposedText = currentText.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`); lyricsInput.value = transposedText; updateTransposeStatus(transposeSteps + amount); /* This now implicitly calls renderPreview via its own event listener */ }
             function updateTransposeStatus(steps) { transposeSteps = steps; transposeStatus.textContent = transposeSteps > 0 ? `+${steps}` : transposeSteps; }
             function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
             function updateKeyDisplay() { const firstChordMatch = lyricsInput.value.match(/\[([^\]]+)\]/); if (!firstChordMatch) { soundingKeyDisplay.textContent = 'N/A'; noCapoKeyDisplay.textContent = 'N/A'; return; } const writtenKey = firstChordMatch[1]; const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0; const capoFret = parseInt(capoFretInput.value, 10) || 0; const soundingKey = transposeChord(writtenKey, tuningOffset + capoFret); const noCapoKey = transposeChord(writtenKey, capoFret); soundingKeyDisplay.textContent = soundingKey; noCapoKeyDisplay.textContent = `${noCapoKey} (play these chords)`; }
             
-            const allMusicalInputs = [tuningSelector, capoFretInput, transposeUpBtn, transposeDownBtn];
+            // --- Event Listeners ---
+            const allMusicalInputs = [tuningSelector, capoFretInput];
             allMusicalInputs.forEach(el => el.addEventListener('input', () => { updateKeyDisplay(); renderPreview(); }));
-            allMusicalInputs.forEach(el => el.addEventListener('click', () => { updateKeyDisplay(); renderPreview(); })); // For buttons
+            transposeUpBtn.addEventListener('click', () => handleTranspose(1));
+            transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
             tabEditorTextarea.addEventListener('input', () => { tabData = parseTabTextToData(tabEditorTextarea.value); renderTabHighlight(tabEditorTextarea.value); renderPreview(); });
             tabEditorTextarea.addEventListener('scroll', () => { tabEditorHighlight.scrollTop = tabEditorTextarea.scrollTop; });
             lyricsInput.addEventListener('input', () => { renderPreview(); updateKeyDisplay(); });
