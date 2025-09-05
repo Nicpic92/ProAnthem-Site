@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProAnthem - Your Music, Organized.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+         <a href="/" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.png" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
+        </a>
+        <div>
+            <button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
+                Log In / Sign Up
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        <!-- ... (Main content is unchanged) ... -->
+    </main>
+
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <!-- ProAnthem Login/Signup Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
+        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-md w-full text-white" role="dialog" aria-modal="true">
+            <button id="close-modal-button" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button>
+            <div id="login-view">
+                <h2 class="text-3xl font-bold text-center mb-6">Log In to ProAnthem</h2>
+                <form id="login-form" class="space-y-6">
+                    <input id="login-email" name="email" type="email" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Email address">
+                    <input id="login-password" name="password" type="password" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Password">
+                    <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Log In</button>
+                </form>
+                <p id="login-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
+                <p class="text-center text-sm text-gray-400 mt-4">Don't have an account? <a href="#" id="show-signup" class="font-medium text-indigo-400 hover:text-indigo-300">Sign up here</a></p>
+            </div>
+            <div id="signup-view" class="hidden">
+                <h2 class="text-3xl font-bold text-center mb-6">Create Your ProAnthem Account</h2>
+                <form id="signup-form" class="space-y-4">
+                    <div class="flex gap-4">
+                        <input id="signup-firstname" name="firstName" type="text" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="First Name">
+                        <input id="signup-lastname" name="lastName" type="text" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Last Name">
+                    </div>
+                    <div>
+                        <input id="signup-artist-name" name="artistBandName" type="text" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Artist/Band Name">
+                    </div>
+                    <input id="signup-email" name="email" type="email" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Email address">
+                    <input id="signup-password" name="password" type="password" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Password">
+                    <button type="submit" class="w-full bg-gray-700 py-3 rounded-md font-semibold hover:bg-gray-600">Sign Up</button>
+                </form>
+                <p id="signup-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
+                <p class="text-center text-sm text-gray-400 mt-4">Already have an account? <a href="#" id="show-login" class="font-medium text-indigo-400 hover:text-indigo-300">Log in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Reference to a dedicated auth script for ProAnthem -->
+    <script src="/auth_proanthem.js"></script>
+    <script>
+        // Modal Control Logic for ProAnthem
+        const authModal = document.getElementById('auth-modal');
+        const loginModalButton = document.getElementById('login-modal-button');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const loginView = document.getElementById('login-view');
+        const signupView = document.getElementById('signup-view');
+        const showSignupLink = document.getElementById('show-signup');
+        const showLoginLink = document.getElementById('show-login');
+        const openModal = (view) => { authModal.classList.remove('hidden'); authModal.classList.add('flex'); loginView.classList.toggle('hidden', view !== 'login'); signupView.classList.toggle('hidden', view !== 'signup'); };
+        const closeModal = () => { authModal.classList.add('hidden'); authModal.classList.remove('flex'); };
+        loginModalButton.addEventListener('click', () => openModal('login'));
+        closeModalButton.addEventListener('click', closeModal);
+        authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
+        showSignupLink.addEventListener('click', (e) => { e.preventDefault(); openModal('signup'); });
+        showLoginLink.addEventListener('click', (e) => { e.preventDefault(); openModal('login'); });
+    </script>
+</body>
+</html>
