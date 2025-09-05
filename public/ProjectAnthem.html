@@ -71,6 +71,15 @@
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
                     </div>
                      <div class="space-y-3 pt-4 border-t border-gray-700">
+                        <h3 class="font-semibold text-lg">Chord Palette</h3>
+                        <p class="text-xs text-gray-400">Click to insert. Ctrl/Cmd+Click to add to queue.</p>
+                        <div id="chordPalette" class="flex flex-wrap gap-2"></div>
+                        <div class="flex gap-2">
+                            <input type="text" id="newChordInput" class="form-input text-sm" placeholder="e.g. F#m7">
+                            <button id="addChordBtn" class="btn btn-secondary btn-sm whitespace-nowrap">Add</button>
+                        </div>
+                    </div>
+                     <div class="space-y-3 pt-4 border-t border-gray-700">
                         <h3 class="font-semibold text-lg">Musical Settings</h3>
                         <div class="text-right">
                             <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
@@ -167,7 +176,7 @@
         const exportPdfBtn = document.getElementById('exportPdfBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         const statusMessage = document.getElementById('statusMessage');
-        const chordPalette = document.querySelector('#sidebar #chordPalette'); // More specific
+        const chordPalette = document.querySelector('#sidebar #chordPalette');
         const newChordInput = document.querySelector('#sidebar #newChordInput');
         const addChordBtn = document.querySelector('#sidebar #addChordBtn');
         const transposeDownBtn = document.getElementById('transposeDownBtn');
@@ -296,7 +305,7 @@
         
         function renderPreview() {
             let previewHtml = '';
-            songData.song_blocks.forEach(block => {
+            (songData.song_blocks || []).forEach(block => {
                 let blockToRender = block;
                 if (block.type === 'reference') {
                     blockToRender = songData.song_blocks.find(b => b.id === block.originalId) || block;
@@ -344,8 +353,8 @@
             dotFrets.forEach(fret => {
                 const x = nutWidth + (fret - 0.5) * fretSpacing;
                 if (fret % 12 === 0) {
-                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 1.5}" r="${dotRadius}" />`;
-                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height - (stringSpacing * 1.5)}" r="${dotRadius}" />`;
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * (numStrings / 4)}" r="${dotRadius}" />`;
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height - (stringSpacing * (numStrings / 4))}" r="${dotRadius}" />`;
                 } else {
                     svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
                 }
@@ -367,7 +376,7 @@
             const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
 
             (block.data?.notes || []).forEach((note, index) => {
-                if (note.string >= numStrings) return; // Don't draw notes for strings that don't exist
+                if (note.string >= numStrings) return;
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
 
@@ -467,11 +476,14 @@
             setStatus('Loading song...');
             try {
                 const data = await api.getSheet(id);
-                if (data.content && !data.song_blocks) {
+                if ((data.content || data.tab_content) && !data.song_blocks) {
                     setStatus('Migrating old song format...');
-                    data.song_blocks = [{
-                        id: `block_${Date.now()}`, type: 'lyrics', label: 'Main Section', content: data.content
-                    }];
+                    data.song_blocks = [];
+                    if (data.content) {
+                         data.song_blocks.push({
+                            id: `block_${Date.now()}`, type: 'lyrics', label: 'Main Section', content: data.content
+                        });
+                    }
                     if (data.tab_content && data.tab_content.notes) {
                         data.song_blocks.push({
                             id: `block_${Date.now()+1}`, type: 'tab', label: 'Tab Section 1', data: data.tab_content, strings: 6
@@ -593,7 +605,7 @@
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
-            if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId || (b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
+            if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => b.type !== 'reference' || b.originalId !== blockId); renderSongBlocks(); }} 
             else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
             else if (e.target.classList.contains('fretboard-target-zone')) { const clickData = getFretFromClick(e, blockId); if (clickData) { const { string, fret, position } = clickData; const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose; if (!block.data) block.data = { notes: [] }; block.data.notes.push({ string, fret: fret + totalOffset, position }); drawNotesOnFretboard(blockId); renderPreview(); }}
             else if (e.target.classList.contains('fretboard-note')) { const noteIndex = parseInt(e.target.dataset.noteIndex, 10); if (block?.data?.notes) { block.data.notes.splice(noteIndex, 1); drawNotesOnFretboard(blockId); renderPreview(); }}
