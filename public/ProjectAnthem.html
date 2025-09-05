@@ -410,56 +410,57 @@
                 const marginBottom = 20;
                 const maxWidth = rightMargin - leftMargin;
 
-                // --- NEW: Helper function to convert image to dataURL to embed in PDF
                 const getImageDataUrl = async (url) => {
-                    if (!url) return null;
-                    // Use a CORS proxy if images are on another domain, for development use a public one
-                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/'; 
-                    try {
-                        const response = await fetch(proxyUrl + url);
-                        if (!response.ok) throw new Error('Image fetch failed');
-                        const blob = await response.blob();
-                        return new Promise((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onloadend = () => resolve(reader.result);
-                            reader.onerror = reject;
-                            reader.readAsDataURL(blob);
-                        });
-                    } catch (e) {
-                        console.error('Failed to load watermark image:', e);
-                        return null; // Return null if image fails to load
-                    }
+                    if (!url) return Promise.resolve(null);
+                    return new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.crossOrigin = 'Anonymous'; // Crucial for loading cross-domain images
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            resolve(canvas.toDataURL('image/png'));
+                        };
+                        img.onerror = () => {
+                            console.error('Failed to load watermark image. Check URL and CORS policy.');
+                            resolve(null); // Resolve with null on error instead of rejecting
+                        };
+                        img.src = url;
+                    });
                 };
                 
                 const logoDataUrl = await getImageDataUrl(setlist.logo_url);
                 
-                const addWatermark = () => {
+                const addWatermarkToPage = () => {
                     if (logoDataUrl) {
-                        // Place watermark at top right
+                        const imgWidth = 20;
+                        const imgHeight = 20;
                         doc.setGState(new doc.GState({opacity: 0.1}));
-                        doc.addImage(logoDataUrl, 'PNG', rightMargin - 20, 10, 20, 20);
-                        doc.setGState(new doc.GState({opacity: 1}));
+                        doc.addImage(logoDataUrl, 'PNG', rightMargin - imgWidth, 10, imgWidth, imgHeight);
+                        doc.setGState(new doc.GState({opacity: 1.0}));
                     }
                 };
 
                 const checkPageBreak = (neededHeight) => {
                     if (y + neededHeight > pageHeight - marginBottom) {
-                        addWatermark(); // Add watermark to the completed page before breaking
+                        addWatermarkToPage();
                         doc.addPage();
                         y = 20;
-                        addWatermark(); // Add watermark to the new page
+                        addWatermarkToPage();
                     }
                 };
 
                 // --- Title Page ---
-                addWatermark();
+                addWatermarkToPage();
                 doc.setFontSize(26);
-                doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
                 y += 15;
                 
                 doc.setFontSize(16);
                 if (setlist.venue) {
-                    doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                    doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
                     y += 8;
                 }
                 if (setlist.event_date) {
@@ -475,28 +476,29 @@
                 doc.setFont(undefined, 'normal');
                 (setlist.songs || []).forEach((song, index) => {
                     checkPageBreak(8);
-                    doc.text(`${index + 1}. ${song.title}`, leftMargin + 5, y, { maxWidth: maxWidth - 5 });
-                    y += 7;
+                    const titleText = `${index + 1}. ${song.title} (${song.artist || 'Unknown'})`;
+                    const splitTitle = doc.splitTextToSize(titleText, maxWidth - 5);
+                    doc.text(splitTitle, leftMargin + 5, y);
+                    y += splitTitle.length * 7;
                 });
 
 
                 // --- Individual Song Pages ---
-                for (let i = 0; i < setlist.songs.length; i++) {
-                    const song = setlist.songs[i];
-                    addWatermark();
+                for (const song of (setlist.songs || [])) {
+                    addWatermarkToPage();
                     doc.addPage();
                     y = 20;
-                    addWatermark();
+                    addWatermarkToPage();
 
                     doc.setFontSize(18);
                     doc.setFont(undefined, 'bold');
                     doc.text(song.title, leftMargin, y, { maxWidth });
-                    y += 8;
+                    y = doc.autoTable? doc.autoTable.previous.finalY + 8 : y + 8;
                     
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'italic');
                     doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
-                    y += 12;
+                    y = doc.autoTable? doc.autoTable.previous.finalY + 12 : y + 12;
                     
                     doc.setFont('Courier', 'normal');
                     doc.setFontSize(11);
@@ -510,29 +512,28 @@
                         checkPageBreak(12);
                         doc.setFont(undefined, 'bold');
                         doc.text(block.label, leftMargin, y, { maxWidth });
-                        y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 7 : y + 7;
+                        y += 7;
                         doc.setFont(undefined, 'normal');
 
-                        const lines = block.content.split('\n');
-                        for (const line of lines) {
+                        for (const line of block.content.split('\n')) {
                             const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
-                            let neededHeight = lineHeight * 2.5;
-                            if (parsed.chordLine.trim() === '' && parsed.lyricLine.trim() === '') neededHeight = lineHeight;
                             
-                            checkPageBreak(neededHeight);
+                            checkPageBreak(lineHeight * 2.5);
                             
                             doc.setTextColor(60, 60, 60);
                             doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
-                            y = doc.lastAutoTable ? doc.lastAutoTable.finalY + lineHeight : y + lineHeight;
+                            y += lineHeight;
 
                             doc.setTextColor(0, 0, 0);
-                            doc.text(parsed.lyricLine, leftMargin, y, { maxWidth });
-                            y = doc.lastAutoTable ? doc.lastAutoTable.finalY + (lineHeight * 1.5) : y + (lineHeight * 1.5);
+                            const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
+                            doc.text(splitLyrics, leftMargin, y);
+                            y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
                         }
+                        y += lineHeight; // extra space after a block
                     }
                 }
                 
-                addWatermark(); // Add watermark to the last page
+                addWatermarkToPage();
 
                 doc.save(`${setlist.name.replace(/\s/g, '_')}.pdf`);
                 setStatus('PDF generated.', false);
