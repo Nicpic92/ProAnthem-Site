@@ -224,6 +224,9 @@
         const audioPlayer = document.getElementById('audioPlayer');
         const setlistModal = document.getElementById('setlistModal');
         const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
+        const createSetlistBtn = document.getElementById('createSetlistBtn');
+        const addSongToSetlistBtn = document.getElementById('addSongToSetlistBtn');
+        const printSetlistBtn = document.getElementById('printSetlistBtn');
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
@@ -257,7 +260,14 @@
             updateSheet: (id, data) => api.request(`/lyric-sheets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
             deleteSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'DELETE' }),
             getChords: () => api.request('/chords', { method: 'GET' }),
-            createChord: (data) => api.request('/chords', { method: 'POST', body: JSON.stringify(data) })
+            createChord: (data) => api.request('/chords', { method: 'POST', body: JSON.stringify(data) }),
+            getSetlists: () => api.request('/setlists', { method: 'GET' }),
+            getSetlist: (id) => api.request(`/setlists/${id}`, { method: 'GET' }),
+            createSetlist: (data) => api.request('/setlists', { method: 'POST', body: JSON.stringify(data) }),
+            addSongToSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs`, { method: 'POST', body: JSON.stringify({ song_id: songId }) }),
+            removeSongFromSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs/${songId}`, { method: 'DELETE' }),
+            updateSetlistDetails: (id, data) => api.request(`/setlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+            updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
         };
         
         function renderSongBlocks() {
@@ -665,6 +675,8 @@
         recordBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
         songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
+        setlistBtn.addEventListener('click', () => setlistModal.classList.remove('hidden'));
+        closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
 
         (function main(){
             populateTuningSelector(); 
