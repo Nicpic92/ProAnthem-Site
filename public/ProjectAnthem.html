@@ -48,7 +48,7 @@
     <div id="tool-content" class="max-w-6xl mx-auto hidden">
         <header class="border-b border-gray-700 pb-4 mb-6 flex justify-between items-center">
              <a href="/" class="flex items-center space-x-4">
-                <img src="/assets/logo_pa.png" alt="ProAnthem Logo" class="h-12">
+                <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
                 <h1 class="text-4xl font-bold">Project Anthem</h1>
             </a>
             <!-- ADDED: Logout button -->
@@ -195,7 +195,6 @@
             
             const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']; const flatScale = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab']; const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 }, };
             
-            // --- MODIFIED: api.request now sends the JWT ---
             const api = { 
                 request: async (endpoint, options = {}) => {
                     const token = localStorage.getItem('user_token');
@@ -239,7 +238,6 @@
                 updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
             };
             
-            // ... (The rest of the original script remains unchanged here) ...
             function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
             function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
             function renderPreview() { const rawText = lyricsInput.value; const lines = rawText.split('\n'); let html = ''; lines.forEach(line => { const parsed = parseLineForRender(line); html += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`; }); livePreview.innerHTML = html; }
