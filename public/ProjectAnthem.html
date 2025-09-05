@@ -316,20 +316,19 @@
                 const setlist = await api.getSetlist(setlistId);
                 currentSetlistTitle.textContent = setlist.name;
                 document.getElementById('setlistVenue').value = setlist.venue || '';
-                // --- FIX: Add guard for null event_date to prevent crash ---
                 document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
                 document.getElementById('setlistLogoUrl').value = setlist.logo_url || '';
                 document.getElementById('setlistNotes').value = setlist.notes || '';
                 setlistDetailsSection.classList.remove('hidden');
                 songsInSetlist.innerHTML = '';
-                setlist.songs.forEach(song => {
+                (setlist.songs || []).forEach(song => {
                     const li = document.createElement('li');
                     li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded';
                     li.dataset.songId = song.id;
                     li.innerHTML = `<span>${song.title} - <em class="text-gray-400">${song.artist}</em></span><button data-action="remove-song" class="btn btn-danger btn-sm">Remove</button>`;
                     songsInSetlist.appendChild(li);
                 });
-                addSongToSetlistBtn.disabled = !songData.id; // Disable if no song is loaded/saved
+                addSongToSetlistBtn.disabled = !songData.id;
                 printSetlistBtn.disabled = false;
             } catch (error) {
                 setStatus(`Failed to load setlist details: ${error.message}`, true);
@@ -387,10 +386,113 @@
                  try {
                     await api.removeSongFromSetlist(setlistId, songId);
                     setStatus(`Song removed from setlist.`, false);
-                    await handleSetlistSelection(setlistId); // Refresh the list
+                    await handleSetlistSelection(setlistId);
                 } catch(error) {
                     setStatus(`Failed to remove song: ${error.message}`, true);
                 }
+            }
+        }
+        
+        // --- NEW PRINT FUNCTION ---
+        async function handlePrintSetlist() {
+            const setlistId = setlistSelector.value;
+            if (!setlistId) return;
+
+            setStatus('Generating PDF...');
+            try {
+                const setlist = await api.getSetlist(setlistId);
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                // Constants for layout
+                const leftMargin = 15;
+                const rightMargin = 195;
+                let y = 20;
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const marginBottom = 20;
+                
+                // Helper to check for page breaks
+                const checkPageBreak = (neededHeight) => {
+                    if (y + neededHeight > pageHeight - marginBottom) {
+                        doc.addPage();
+                        y = 20;
+                        return true;
+                    }
+                    return false;
+                };
+
+                // Title Page
+                doc.setFontSize(26);
+                doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                y += 15;
+                doc.setFontSize(16);
+                if (setlist.venue) {
+                    doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                    y += 8;
+                }
+                if (setlist.event_date) {
+                    const eventDate = new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' });
+                    doc.text(eventDate, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+                    y+= 8;
+                }
+
+                doc.addPage();
+                y = 20;
+
+                // Songs
+                for (let i = 0; i < setlist.songs.length; i++) {
+                    const song = setlist.songs[i];
+                    
+                    checkPageBreak(20); 
+
+                    doc.setFontSize(16);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(`${i + 1}. ${song.title}`, leftMargin, y);
+                    y += 7;
+
+                    doc.setFontSize(12);
+                    doc.setFont(undefined, 'italic');
+                    doc.text(`   ${song.artist || 'Unknown Artist'}`, leftMargin, y);
+                    y += 10;
+                    
+                    doc.setFont('Courier', 'normal');
+                    doc.setFontSize(11);
+                    const lineHeight = 5;
+
+                    const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
+
+                    for (const block of songBlocks) {
+                        if (block.type !== 'lyrics' || !block.content) continue;
+
+                        checkPageBreak(12);
+                        doc.setFont(undefined, 'bold');
+                        doc.text(block.label, leftMargin, y);
+                        y += 7;
+                        doc.setFont(undefined, 'normal');
+
+                        const lines = block.content.split('\n');
+                        for (const line of lines) {
+                            checkPageBreak(lineHeight * 2);
+                            const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
+                            
+                            // Draw Chords
+                            doc.setTextColor(60, 60, 60); // Dark grey for chords
+                            doc.text(parsed.chordLine, leftMargin, y);
+                            y += lineHeight;
+
+                            // Draw Lyrics
+                            doc.setTextColor(0, 0, 0); // Black for lyrics
+                            doc.text(parsed.lyricLine, leftMargin, y);
+                            y += lineHeight * 1.5; 
+                        }
+                    }
+                     y += 10; // Extra space between songs
+                }
+
+                doc.save(`${setlist.name.replace(/ /g, '_')}.pdf`);
+                setStatus('PDF generated.', false);
+            } catch (error) {
+                 setStatus(`Failed to generate PDF: ${error.message}`, true);
             }
         }
 
@@ -607,7 +709,7 @@
         }
         
         function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
-        function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
+        function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || ' ', lyricLine: lyricLine.trimEnd() || ' ' }; }
         function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
         async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
         async function handleDelete() { if (!songData.id) return; if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); initializeNewSong(); await loadSheetList(); } catch (e) { setStatus('Failed to delete.', true); } } }
@@ -687,6 +789,7 @@
         saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
         createSetlistBtn.addEventListener('click', handleCreateSetlist);
         addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
+        printSetlistBtn.addEventListener('click', handlePrintSetlist);
         songsInSetlist.addEventListener('click', (e) => {
             if (e.target.dataset.action === 'remove-song') {
                 const songId = e.target.closest('li').dataset.songId;
