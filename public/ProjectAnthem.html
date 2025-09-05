@@ -38,7 +38,7 @@
         
         /* --- VISUAL FRETBOARD STYLES --- */
         #fretboard-container { user-select: none; }
-        .fretboard-fret { fill: #4a5563; }
+        .fretboard-fret { stroke: #4a5563; stroke-width: 1px; }
         .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
         .fretboard-dot { fill: #6b7280; }
         .fretboard-note { fill: #facc15; cursor: pointer; transition: r 0.1s; }
@@ -154,7 +154,7 @@
                     </div>
                     <textarea id="lyricsInput" class="form-textarea" placeholder="Type lyrics and [chords]..."></textarea>
                     
-                    <!-- NEW VISUAL FRETBOARD EDITOR -->
+                    <!-- VISUAL FRETBOARD EDITOR -->
                     <div class="mt-4">
                         <div class="flex justify-between items-center mb-2">
                             <label class="block text-lg font-semibold">Interactive Fretboard Editor</label>
@@ -283,7 +283,6 @@
                 updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
             };
             
-            // --- NEW VISUAL FRETBOARD ENGINE ---
             const FRETBOARD_CONFIG = {
                 frets: 15, width: 800, height: 180,
                 stringSpacing: 28, fretSpacing: 50, nutWidth: 10,
@@ -292,37 +291,30 @@
 
             function drawFretboard() {
                 const { frets, width, height, stringSpacing, fretSpacing, nutWidth, dotFrets, dotRadius } = FRETBOARD_CONFIG;
-                let svg = `<svg id="fretboard-svg" width="100%" viewBox="0 0 ${width} ${height}">`;
-                svg += `<rect class="fretboard-bg" width="${width}" height="${height}" />`;
-                svg += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
+                let svgHTML = `<svg id="fretboard-svg" width="100%" viewBox="0 0 ${width} ${height}">`;
+                svgHTML += `<rect class="fretboard-bg" width="${width}" height="${height}" />`;
+                svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
                 for (let i = 1; i <= frets; i++) {
                     const x = nutWidth + i * fretSpacing;
-                    svg += `<line class="fretboard-fret" x1="${x}" y1="0" x2="${x}" y2="${height}" />`;
+                    svgHTML += `<line class="fretboard-fret" x1="${x}" y1="0" x2="${x}" y2="${height}" />`;
                 }
                 for (let i = 0; i < 6; i++) {
                     const y = stringSpacing / 2 + i * stringSpacing;
-                    svg += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
+                    svgHTML += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
                 }
                 dotFrets.forEach(fret => {
                     const x = nutWidth + (fret - 0.5) * fretSpacing;
                     if (fret === 12) {
-                        svg += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 1.5}" r="${dotRadius}" />`;
-                        svg += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 4.5}" r="${dotRadius}" />`;
+                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 1.5}" r="${dotRadius}" />`;
+                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 4.5}" r="${dotRadius}" />`;
                     } else {
-                        svg += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
+                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
                     }
                 });
-                svg += `<rect id="fretboard-target-zone" x="0" y="0" width="${width}" height="${height}" fill="transparent" />`;
-                
-                const notesGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                notesGroup.id = 'fretboard-notes-group';
-                
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(svg + '</svg>', "image/svg+xml");
-                svgDoc.documentElement.appendChild(notesGroup);
-                
-                fretboardContainer.innerHTML = '';
-                fretboardContainer.appendChild(svgDoc.documentElement);
+                svgHTML += `<rect id="fretboard-target-zone" x="0" y="0" width="${width}" height="${height}" fill="transparent" />`;
+                svgHTML += `<g id="fretboard-notes-group"></g>`;
+                svgHTML += `</svg>`;
+                fretboardContainer.innerHTML = svgHTML;
                 drawNotesOnFretboard();
             }
 
@@ -336,33 +328,45 @@
                 const totalOffset = tuningOffset + capoFret + transposeSteps;
 
                 tabData.notes.forEach((note, index) => {
-                    const { string, fret, position } = note;
+                    const { string, fret } = note;
                     const transposedFret = fret - totalOffset;
                     if (transposedFret < 0) return;
 
                     const y = FRETBOARD_CONFIG.stringSpacing / 2 + string * FRETBOARD_CONFIG.stringSpacing;
-                    const x = FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing;
+                    const x = (transposedFret === 0) 
+                        ? FRETBOARD_CONFIG.nutWidth / 2 
+                        : FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing;
                     
-                    const noteGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                    noteGroup.innerHTML = `
-                        <circle class="fretboard-note" cx="${x}" cy="${y}" r="10" data-note-index="${index}" />
-                        <text class="fretboard-note-text" x="${x}" y="${y+1}">${transposedFret}</text>
-                    `;
-                    notesGroup.appendChild(noteGroup);
+                    const noteCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    noteCircle.setAttribute('class', 'fretboard-note');
+                    noteCircle.setAttribute('cx', x);
+                    noteCircle.setAttribute('cy', y);
+                    noteCircle.setAttribute('r', 10);
+                    noteCircle.dataset.noteIndex = index;
+                    
+                    const noteText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    noteText.setAttribute('class', 'fretboard-note-text');
+                    noteText.setAttribute('x', x);
+                    noteText.setAttribute('y', y + 1);
+                    noteText.textContent = transposedFret;
+
+                    notesGroup.appendChild(noteCircle);
+                    notesGroup.appendChild(noteText);
                 });
             }
 
             function getFretFromClick(evt) {
                 const svg = fretboardContainer.querySelector('svg');
+                if (!svg) return null;
                 const pt = svg.createSVGPoint();
                 pt.x = evt.clientX;
                 pt.y = evt.clientY;
                 const svgPoint = pt.matrixTransform(svg.getScreenCTM().inverse());
 
                 const stringIndex = Math.round((svgPoint.y - (FRETBOARD_CONFIG.stringSpacing / 2)) / FRETBOARD_CONFIG.stringSpacing);
-                const fret = Math.floor((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing) + 1;
+                const fret = Math.round((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing);
 
-                if (stringIndex >= 0 && stringIndex < 6 && fret >= 1 && fret <= FRETBOARD_CONFIG.frets) {
+                if (stringIndex >= 0 && stringIndex < 6 && fret >= 0 && fret <= FRETBOARD_CONFIG.frets) {
                     return { string: stringIndex, fret };
                 }
                 return null;
@@ -372,7 +376,6 @@
                 generatedTabOutput.textContent = renderTransposedTab();
             }
 
-            // --- UPDATED FUNCTIONS ---
             function renderPreview() {
                 const rawLyrics = lyricsInput.value;
                 const showTabs = showTabsToggle.checked;
@@ -466,29 +469,33 @@
             }
             
             function renderTransposedTab() {
-                if (!tabData || !tabData.notes || tabData.notes.length === 0) return 'No tab data entered.';
+                if (!tabData || !tabData.notes || tabData.notes.length === 0) return 'Click the fretboard to add notes to the tab...';
                 const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0;
                 const capoFret = parseInt(capoFretInput.value, 10) || 0;
                 const totalOffset = tuningOffset + capoFret + transposeSteps;
 
                 const positionMap = new Map();
+                let maxPosition = 0;
                 tabData.notes.forEach(note => {
+                    const transposedFret = note.fret - totalOffset;
+                    if (transposedFret < 0) return;
+
                     if (!positionMap.has(note.position)) {
                         positionMap.set(note.position, Array(6).fill(null));
                     }
-                    positionMap.get(note.position)[note.string] = note.fret - totalOffset;
+                    positionMap.get(note.position)[note.string] = transposedFret;
+                    maxPosition = Math.max(maxPosition, note.position);
                 });
 
                 const sortedPositions = [...positionMap.keys()].sort((a,b) => a - b);
-                let maxPosition = 0;
-                sortedPositions.forEach(pos => maxPosition = Math.max(maxPosition, pos));
-
+                
                 const lines = STRING_NAMES.map(name => `${name}|`);
-                let lastPos = 2;
+                let lastCharPos = 1;
                 
                 sortedPositions.forEach(pos => {
                     const notesAtPos = positionMap.get(pos);
-                    const padding = pos - lastPos;
+                    const padding = pos - lastCharPos;
+
                     if (padding > 0) {
                         lines.forEach( (line, i) => lines[i] += '-'.repeat(padding) );
                     }
@@ -506,14 +513,13 @@
                             lines[i] += '-'.repeat(maxFretWidth);
                         }
                     });
-                    lastPos = pos + maxFretWidth;
+                    lastCharPos = pos + maxFretWidth;
                 });
 
                 const maxLength = Math.max(...lines.map(l => l.length));
                 return lines.map(line => line.padEnd(maxLength, '-')).join('\n');
             }
             
-            // ... (The rest of the script is unchanged but included for completeness)
             function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
             function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
             async function handleExportPDF() { const { jsPDF } = jspdf; const doc = new jsPDF(); const title = titleInput.value || 'Untitled'; const artist = artistInput.value || 'Artist'; let y = 20; doc.setFontSize(18).text(title, 15, y); y += 7; doc.setFontSize(14).text(artist, 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); lyricsInput.value.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } const p = parseLineForRender(line); const cl = p.chordLine.replace(/&nbsp;/g, ' '); const ll = p.lyricLine.replace(/&nbsp;/g, ' '); doc.setTextColor('#d9a40d').text(cl, 15, y); y += 7; doc.setTextColor('#000000').text(ll, 15, y); y += 10.5; }); if(tabData.notes.length > 0) { const transposedTab = renderTransposedTab(); doc.addPage(); y = 20; doc.setFontSize(14).text('Guitar Tab', 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); transposedTab.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 15, y); y += 7; }); } doc.save(`${title.toLowerCase().replace(/\s/g, '_')}.pdf`); }
@@ -565,7 +571,7 @@
                         tabData.notes.push({
                             string: string,
                             fret: fret + totalOffset,
-                            position: parseInt(tabPositionSlider.value, 10)
+                            position: Math.round(parseInt(tabPositionSlider.value, 10) * 0.8) // Scale slider value to fretboard width
                         });
                         drawFretboard();
                         renderGeneratedTab();
@@ -605,7 +611,7 @@
                     document.getElementById('audioSection').innerHTML = '<p class="text-red-500">Audio recording is not configured.</p>';
                 }
                 populateTuningSelector(); 
-                initializeNewSong(); 
+                initializeNewSong(); // This will call drawFretboard
                 loadSheetList(); 
                 loadChords(); 
                 renderFrequentChords(); 
