@@ -18,7 +18,7 @@
         .form-textarea.placement-mode { cursor: crosshair; }
         .live-preview { font-family: 'Courier New', Courier, monospace; line-height: 1.6; white-space: pre; background-color: #1e1e1e; padding: 1rem; border-radius: 6px; border: 1px solid #4a4a4a; }
         .live-preview-chords { color: #f2c94c; }
-        .tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; }
+        .tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; color: #a5b4fc; }
         .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
         .btn:disabled { background-color: #4b5563; cursor: not-allowed; opacity: 0.6; }
         .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
@@ -35,6 +35,11 @@
         .hidden { display: none; }
         .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
         .queue-pill.next { background-color: #535bf2; font-weight: bold; }
+        /* NEW: Styles for the smart tab editor */
+        #tab-editor { position: relative; background: #2f2f2f; border-radius: 6px; border: 1px solid #555; padding: 0.5rem 1rem; min-height: 20vh; }
+        #tab-editor-textarea { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: white; resize: none; border: none; outline: none; padding: inherit; font-family: 'Courier New', Courier, monospace; line-height: 1.6; }
+        #tab-editor-highlight { pointer-events: none; white-space: pre-wrap; word-wrap: break-word; color: #cbd5e1; font-family: 'Courier New', Courier, monospace; line-height: 1.6; }
+        #tab-editor-highlight .string-name { color: #9ca3af; font-weight: bold; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -96,7 +101,6 @@
                 <div>
                     <div class="flex justify-between items-center mb-2">
                          <h3 class="text-lg font-semibold">Live Preview</h3>
-                         <!-- NEW: Show Tabs Toggle -->
                          <label class="flex items-center text-sm cursor-pointer">
                             <input type="checkbox" id="showTabsToggle" class="mr-2"> Show Tabs
                          </label>
@@ -142,10 +146,13 @@
                     </div>
                     <textarea id="lyricsInput" class="form-textarea" placeholder="Type lyrics and [chords]..."></textarea>
                     
-                    <!-- NEW: Tab Content Editor -->
+                    <!-- NEW: Smart Tab Editor -->
                     <div class="mt-4">
-                        <label for="tabInput" class="block text-lg font-semibold mb-2">Guitar Tab</label>
-                        <textarea id="tabInput" class="form-textarea" style="min-height: 20vh;" placeholder="e|--0--|&#10;B|--0--|&#10;G|--1--|&#10;D|--2--|&#10;A|--2--|&#10;E|--0--|"></textarea>
+                        <label for="tab-editor-textarea" class="block text-lg font-semibold mb-2">Interactive Guitar Tab</label>
+                        <div id="tab-editor">
+                            <div id="tab-editor-highlight"></div>
+                            <textarea id="tab-editor-textarea" spellcheck="false" placeholder="e|--0--2--...&#10;B|--0--3--...&#10;G|--1--2--...&#10;D|--2--0--...&#10;A|--2-----...&#10;E|--0-----..."></textarea>
+                        </div>
                     </div>
 
                 </div>
@@ -203,18 +210,20 @@
         function initializeApp() {
             // --- Element References (with new additions) ---
             const lyricsInput = document.getElementById('lyricsInput');
-            const tabInput = document.getElementById('tabInput'); // NEW
-            const showTabsToggle = document.getElementById('showTabsToggle'); // NEW
+            const tabEditorTextarea = document.getElementById('tab-editor-textarea');
+            const tabEditorHighlight = document.getElementById('tab-editor-highlight');
+            const showTabsToggle = document.getElementById('showTabsToggle');
             const livePreview = document.getElementById('livePreview');
             // ... (all other existing element references) ...
             const songSelector = document.getElementById('songSelector'); const titleInput = document.getElementById('titleInput'); const artistInput = document.getElementById('artistInput'); const saveBtn = document.getElementById('saveBtn'); const deleteBtn = document.getElementById('deleteBtn'); const exportPdfBtn = document.getElementById('exportPdfBtn'); const statusMessage = document.getElementById('statusMessage'); const chordPalette = document.getElementById('chordPalette'); const newChordInput = document.getElementById('newChordInput'); const addChordBtn = document.getElementById('addChordBtn'); const setlistBtn = document.getElementById('setlistBtn'); const setlistModal = document.getElementById('setlistModal'); const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn'); const setlistSelector = document.getElementById('setlistSelector'); const newSetlistInput = document.getElementById('newSetlistInput'); const createSetlistBtn = document.getElementById('createSetlistBtn'); const currentSetlistTitle = document.getElementById('currentSetlistTitle'); const songsInSetlist = document.getElementById('songsInSetlist'); const addSongToSetlistBtn = document.getElementById('addSongToSetlistBtn'); const printSetlistBtn = document.getElementById('printSetlistBtn'); const frequentChords = document.getElementById('frequentChords'); const chordQueueDiv = document.getElementById('chordQueue'); const clearQueueBtn = document.getElementById('clearQueueBtn'); const transposeDownBtn = document.getElementById('transposeDownBtn'); const transposeUpBtn = document.getElementById('transposeUpBtn'); const transposeStatus = document.getElementById('transposeStatus'); const tuningSelector = document.getElementById('tuningSelector'); const capoFretInput = document.getElementById('capoFretInput'); const soundingKeyDisplay = document.getElementById('soundingKeyDisplay'); const noCapoKeyDisplay = document.getElementById('noCapoKeyDisplay'); const recordBtn = document.getElementById('recordBtn'); const stopBtn = document.getElementById('stopBtn'); const recordingStatus = document.getElementById('recordingStatus'); const audioPlayerContainer = document.getElementById('audioPlayerContainer'); const audioPlayer = document.getElementById('audioPlayer'); const logoutBtn = document.getElementById('logoutBtn');
-            let currentSongId = null; let currentSetlist = null; let sortable = null; let chordQueue = []; let chordQueueIndex = 0; let transposeSteps = 0; let mediaRecorder; let audioChunks = []; let currentAudioUrl = null;
+            let currentSongId = null; let currentSetlist = null; let sortable = null; let chordQueue = []; let chordQueueIndex = 0; let transposeSteps = 0; let mediaRecorder; let audioChunks = []; let currentAudioUrl = null; let tabData = { notes: [] };
             
             const CLOUDINARY_CLOUD_NAME = 'dawbku2eq';
             const CLOUDINARY_UPLOAD_PRESET = 'project-anthem-unsigned'; 
             
             const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']; const flatScale = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab']; const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 }, };
-            
+            const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+
             const api = { 
                 request: async (endpoint, options = {}) => {
                     const token = localStorage.getItem('user_token');
@@ -258,12 +267,60 @@
                 updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
             };
             
+            // --- NEW TAB ENGINE ---
+            function parseTabTextToData(text) {
+                const notes = [];
+                const lines = text.split('\n');
+                lines.forEach((line, lineIndex) => {
+                    const stringMatch = line.match(/^([eBGDAE])\|/);
+                    if (stringMatch) {
+                        const stringName = stringMatch[1];
+                        const stringIndex = STRING_NAMES.indexOf(stringName);
+                        const fretRegex = /(\d+)/g;
+                        let match;
+                        while ((match = fretRegex.exec(line)) !== null) {
+                            notes.push({
+                                string: stringIndex,
+                                fret: parseInt(match[1], 10),
+                                position: match.index
+                            });
+                        }
+                    }
+                });
+                return { notes };
+            }
+
+            function renderTabHighlight(text) {
+                const lines = text.split('\n');
+                const highlightedLines = lines.map(line => {
+                    return line.replace(/^([eBGDAE])\|/, '<span class="string-name">$1|</span>');
+                });
+                tabEditorHighlight.innerHTML = highlightedLines.join('\n');
+            }
+
+            function renderTransposedTab() {
+                if (!tabData || !tabData.notes) return '';
+                const tuningOffset = TUNINGS[tuningSelector.value].offset;
+                const capoFret = parseInt(capoFretInput.value, 10) || 0;
+                const totalOffset = tuningOffset + capoFret + transposeSteps;
+
+                const lines = STRING_NAMES.map(name => `${name}|`);
+                tabData.notes.forEach(note => {
+                    const transposedFret = note.fret - totalOffset;
+                    const stringLine = lines[note.string];
+                    const padding = note.position - stringLine.length;
+                    if (padding > 0) lines[note.string] += '-'.repeat(padding);
+                    lines[note.string] += transposedFret;
+                });
+
+                return lines.join('\n');
+            }
+
             // --- UPDATED FUNCTIONS ---
             function renderPreview() {
                 const rawLyrics = lyricsInput.value;
-                const rawTabs = tabInput.value;
                 const showTabs = showTabsToggle.checked;
-
+                
                 const lyricLines = rawLyrics.split('\n');
                 let lyricHtml = '';
                 lyricLines.forEach(line => {
@@ -272,8 +329,8 @@
                 });
 
                 let tabHtml = '';
-                if (showTabs && rawTabs) {
-                    tabHtml = `<div class="tab-preview">${rawTabs}</div>`;
+                if (showTabs && tabData && tabData.notes.length > 0) {
+                    tabHtml = `<div class="tab-preview">${renderTransposedTab()}</div>`;
                 }
                 
                 livePreview.innerHTML = lyricHtml + tabHtml;
@@ -284,7 +341,7 @@
                     title: titleInput.value || 'Untitled', 
                     artist: artistInput.value || 'Unknown Artist', 
                     content: lyricsInput.value, 
-                    tab_content: tabInput.value, // NEW
+                    tab_content: tabData, // Save the structured data
                     audio_url: currentAudioUrl 
                 }; 
                 try { 
@@ -308,7 +365,13 @@
                     titleInput.value = song.title;
                     artistInput.value = song.artist;
                     lyricsInput.value = song.content || '';
-                    tabInput.value = song.tab_content || ''; // NEW
+                    
+                    // Load and parse tab data
+                    tabData = song.tab_content && song.tab_content.notes ? song.tab_content : { notes: [] };
+                    const initialTabText = renderTransposedTab(); // Render with 0 offset
+                    tabEditorTextarea.value = initialTabText;
+                    renderTabHighlight(initialTabText);
+
                     currentSongId = song.id;
                     currentAudioUrl = song.audio_url;
                     if (currentAudioUrl) {
@@ -336,7 +399,9 @@
                 titleInput.value = '';
                 artistInput.value = '';
                 lyricsInput.value = '';
-                tabInput.value = ''; // NEW
+                tabEditorTextarea.value = '';
+                tabData = { notes: [] };
+                renderTabHighlight('');
                 songSelector.value = 'new';
                 deleteBtn.disabled = true;
                 addSongToSetlistBtn.disabled = true;
@@ -348,7 +413,7 @@
             // --- UNCHANGED FUNCTIONS ---
             function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
             function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
-            async function handleExportPDF() { const { jsPDF } = jspdf; const doc = new jsPDF(); const title = titleInput.value || 'Untitled'; const artist = artistInput.value || 'Artist'; let y = 20; doc.setFontSize(18).text(title, 15, y); y += 7; doc.setFontSize(14).text(artist, 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); lyricsInput.value.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } const p = parseLineForRender(line); const cl = p.chordLine.replace(/&nbsp;/g, ' '); const ll = p.lyricLine.replace(/&nbsp;/g, ' '); doc.setTextColor('#d9a40d').text(cl, 15, y); y += 7; doc.setTextColor('#000000').text(ll, 15, y); y += 10.5; }); if(tabInput.value) { doc.addPage(); y = 20; doc.setFontSize(14).text('Guitar Tab', 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); tabInput.value.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 15, y); y += 7; }); } doc.save(`${title.toLowerCase().replace(/\s/g, '_')}.pdf`); }
+            async function handleExportPDF() { const { jsPDF } = jspdf; const doc = new jsPDF(); const title = titleInput.value || 'Untitled'; const artist = artistInput.value || 'Artist'; let y = 20; doc.setFontSize(18).text(title, 15, y); y += 7; doc.setFontSize(14).text(artist, 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); lyricsInput.value.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } const p = parseLineForRender(line); const cl = p.chordLine.replace(/&nbsp;/g, ' '); const ll = p.lyricLine.replace(/&nbsp;/g, ' '); doc.setTextColor('#d9a40d').text(cl, 15, y); y += 7; doc.setTextColor('#000000').text(ll, 15, y); y += 10.5; }); if(tabData.notes.length > 0) { const transposedTab = renderTransposedTab(); doc.addPage(); y = 20; doc.setFontSize(14).text('Guitar Tab', 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); transposedTab.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 15, y); y += 7; }); } doc.save(`${title.toLowerCase().replace(/\s/g, '_')}.pdf`); }
             function handleChordButtonClick(event, chordName) { if (event.ctrlKey || event.metaKey) { chordQueue.push(chordName); renderChordQueue(); } else { const t = `[${chordName}] `, p = lyricsInput.selectionStart; lyricsInput.value = `${lyricsInput.value.slice(0, p)}${t}${lyricsInput.value.slice(p)}`; lyricsInput.focus(); const np = p + t.length; lyricsInput.setSelectionRange(np, np); renderPreview(); } }
             async function loadChords() { try { const chords = await api.getChords(); chordPalette.innerHTML = ''; chords.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = c.name; btn.addEventListener('click', (e) => handleChordButtonClick(e, c.name)); chordPalette.appendChild(btn); }); } catch (e) { setStatus('Failed to load chords.', true); } }
             async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await api.createChord({ name }); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
@@ -364,61 +429,4 @@
             async function handlePrintSetlist() { if (!currentSetlist) return; try { const setlist = await api.getSetlist(currentSetlist.id); const songListHtml = setlist.songs.map(song => `<li>${song.title || 'Untitled'}</li>`).join(''); let formattedDate = 'N/A'; if (setlist.event_date) { const dateParts = setlist.event_date.split('T')[0].split('-'); const date = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2])); formattedDate = date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }); } let printHtml = `<!DOCTYPE html><html><head><title>${setlist.name}</title><style> @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Roboto:wght@400;700&display=swap'); body { font-family: 'Roboto', sans-serif; line-height: 1.6; color: #000; } .watermark-container { position: relative; } .watermark::before { content: ''; position: fixed; top: 25vh; left: 25vw; width: 50vw; height: 50vh; background-image: url('${setlist.logo_url || ''}'); background-repeat: no-repeat; background-position: center; background-size: contain; opacity: 0.1; z-index: -1; } .page { page-break-after: always; padding: 1in; } .page:last-of-type { page-break-after: auto; } .title-page { page-break-after: always; font-family: 'Special Elite', cursive; } h1 { font-size: 28pt; margin-bottom: 0; text-align: center;} h2 { font-size: 20pt; margin-bottom: 5px; } h3 { font-size: 14pt; color: #555; margin-top: 0; margin-bottom: 20px; font-weight: normal; } h4 { font-size: 18pt; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; } .setlist-details, .song-list { border: 1px solid #ccc; padding: 15px; margin: 20px 0 30px 0; } .song-list ol { padding-left: 20px; margin: 0; } .song-list li { padding-left: 5px; margin-bottom: 5px; font-size: 14pt; } .section-header { font-weight: bold; margin-top: 1em; margin-bottom: 0.2em; } .chords, .lyrics { font-family: 'Courier New', Courier, monospace; font-size: 12pt; white-space: pre; margin-bottom: 0.5em; } .chords { color: #333; font-weight: bold; } .lyrics { color: #000; } @media print { body { -webkit-print-color-adjust: exact; } } </style></head><body><div class="watermark-container"><div class="watermark"></div><div class="title-page"><h1>${setlist.name}</h1><div class="setlist-details"><strong>Venue:</strong> ${setlist.venue || 'N/A'}<br><strong>Date:</strong> ${formattedDate}<br><strong>Notes:</strong> ${setlist.notes || 'None'}</div><div class="song-list"><h4>Song List</h4><ol>${songListHtml}</ol></div></div>`; setlist.songs.forEach(song => { printHtml += `<div class="page"><h2>${song.title || 'Untitled'}</h2><h3>${song.artist || 'Unknown Artist'}</h3>`; (song.content || '').split('\n').forEach(line => { if (line.trim() === '') { printHtml += '<br>'; } else if (line.includes('[') && line.includes(']')) { const parsed = parseLineForRender(line); printHtml += `<div class="chords">${parsed.chordLine.replace(/&nbsp;/g, ' ')}</div><div class="lyrics">${parsed.lyricLine.replace(/&nbsp;/g, ' ')}</div>`; } else { printHtml += `<div class="section-header">${line}</div>`; } }); printHtml += `</div>`; }); printHtml += '</div></body></html>'; const printWindow = window.open('', '_blank'); if (!printWindow) { setStatus('Popup blocked! Please allow popups.', true); alert('Your browser blocked the print window. Please allow popups for this site and try again.'); return; } printWindow.document.write(printHtml); printWindow.document.close(); setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500); } catch(e) { console.error("Error during print generation:", e); setStatus('An error occurred while preparing the print view.', true); } }
             async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
             function stopRecording() { mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
-            async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); currentAudioUrl = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; loadSheet(currentSongId); } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
-            function renderFrequentChords() { const frequentChordNames = ['Am', 'G', 'D', 'C', 'F']; frequentChords.innerHTML = ''; frequentChordNames.forEach(name => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = name; btn.addEventListener('click', (e) => handleChordButtonClick(e, name)); frequentChords.appendChild(btn); }); }
-            function renderChordQueue() { chordQueueDiv.innerHTML = ''; if (chordQueue.length === 0) { lyricsInput.classList.remove('placement-mode'); clearQueueBtn.disabled = true; return; } lyricsInput.classList.add('placement-mode'); clearQueueBtn.disabled = false; chordQueue.forEach((name, index) => { const pill = document.createElement('span'); pill.className = 'queue-pill'; if (index === chordQueueIndex) pill.classList.add('next'); pill.textContent = name; chordQueueDiv.appendChild(pill); }); }
-            function handleEditorClick(event) { if (chordQueue.length > 0) { event.preventDefault(); const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`, p = lyricsInput.selectionStart; lyricsInput.value = `${lyricsInput.value.slice(0, p)}${t}${lyricsInput.value.slice(p)}`; lyricsInput.focus(); const np = p + t.length; lyricsInput.setSelectionRange(np, np); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; renderChordQueue(); renderPreview(); } }
-            function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; const modifier = match[2]; let index = sharpScale.indexOf(note); if (index === -1) { index = flatScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + modifier; }
-            function handleTranspose(amount) { const currentText = lyricsInput.value; const transposedText = currentText.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`); lyricsInput.value = transposedText; updateTransposeStatus(transposeSteps + amount); renderPreview(); updateKeyDisplay(); }
-            function updateTransposeStatus(steps) { transposeSteps = steps; transposeStatus.textContent = transposeSteps > 0 ? `+${steps}` : transposeSteps; }
-            function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
-            function updateKeyDisplay() { const firstChordMatch = lyricsInput.value.match(/\[([^\]]+)\]/); if (!firstChordMatch) { soundingKeyDisplay.textContent = 'N/A'; noCapoKeyDisplay.textContent = 'N/A'; return; } const writtenKey = firstChordMatch[1]; const tuningOffset = TUNINGS[tuningSelector.value].offset; const capoFret = parseInt(capoFretInput.value, 10) || 0; const soundingKey = transposeChord(writtenKey, tuningOffset + capoFret); const noCapoKey = transposeChord(writtenKey, capoFret); soundingKeyDisplay.textContent = soundingKey; noCapoKeyDisplay.textContent = `${noCapoKey} (play these chords)`; }
-            
-            // --- Event Listeners (with new additions) ---
-            lyricsInput.addEventListener('input', renderPreview);
-            tabInput.addEventListener('input', renderPreview); // NEW
-            showTabsToggle.addEventListener('change', renderPreview); // NEW
-            songSelector.addEventListener('change',()=>songSelector.value==='new'?initializeNewSong():loadSheet(songSelector.value));
-            lyricsInput.addEventListener('click', handleEditorClick);
-            saveBtn.addEventListener('click',handleSave);
-            deleteBtn.addEventListener('click',handleDelete);
-            exportPdfBtn.addEventListener('click',handleExportPDF);
-            addChordBtn.addEventListener('click',handleAddChord);
-            newChordInput.addEventListener('keyup',(e)=>e.key==='Enter'&&handleAddChord());
-            setlistBtn.addEventListener('click', openSetlistModal);
-            closeSetlistModalBtn.addEventListener('click', closeSetlistModal);
-            setlistSelector.addEventListener('change', displaySongsInSelectedSetlist);
-            createSetlistBtn.addEventListener('click', handleCreateSetlist);
-            addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
-            printSetlistBtn.addEventListener('click', handlePrintSetlist);
-            document.getElementById('saveSetlistDetailsBtn').addEventListener('click', handleSaveSetlistDetails);
-            clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
-            transposeUpBtn.addEventListener('click', () => handleTranspose(1));
-            transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
-            tuningSelector.addEventListener('change', updateKeyDisplay);
-            capoFretInput.addEventListener('input', updateKeyDisplay);
-            recordBtn.addEventListener('click', startRecording);
-            stopBtn.addEventListener('click', stopRecording);
-            logoutBtn.addEventListener('click', () => {
-                localStorage.removeItem('user_token');
-                localStorage.removeItem('userRole');
-                window.location.href = '/proanthem_index.html';
-            });
-
-            // --- Initial Load ---
-            (function(){
-                if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_CLOUD_NAME.includes('<')) { 
-                    console.error("Cloudinary environment variables not set!"); 
-                    document.getElementById('audioSection').innerHTML = '<p class="text-red-500">Audio recording is not configured. Please hardcode variables in the HTML file.</p>';
-                }
-                populateTuningSelector(); 
-                initializeNewSong(); 
-                loadSheetList(); 
-                loadChords(); 
-                renderFrequentChords(); 
-                renderChordQueue(); 
-            })();
-        }
-    </script>
-</body>
-</html>
+            async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); currentAudioUrl = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; loadSheet(currentSongId); } catch (error) { setStatus('Fai
