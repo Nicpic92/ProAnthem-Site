@@ -99,6 +99,9 @@
         </main>
     </div>
     <!-- Setlist Modal and other modals would go here, unchanged for now -->
+    <div id="setlistModal" class="hidden fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
+        <!-- Content for setlist modal would go here -->
+    </div>
 
     <script>
     // --- GATEKEEPER ---
@@ -110,7 +113,7 @@
         } else {
             document.getElementById('tool-content').classList.remove('hidden');
             document.getElementById('access-denied').classList.add('hidden');
-            initializeApp();
+            initializeApp(); // This is the corrected call
         }
     });
 
@@ -142,19 +145,22 @@
         const exportPdfBtn = document.getElementById('exportPdfBtn');
         const logoutBtn = document.getElementById('logoutBtn');
         const statusMessage = document.getElementById('statusMessage');
+        const setlistBtn = document.getElementById('setlistBtn');
 
         // --- CONSTANTS ---
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
         const FRETBOARD_CONFIG = { frets: 24, width: 8000, height: 180, stringSpacing: 28, fretSpacing: 80, nutWidth: 15, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 };
 
-        // --- API OBJECT (UNCHANGED FROM PREVIOUS) ---
+        // --- API OBJECT ---
         const api = { 
             request: async (endpoint, options = {}) => {
                 const token = localStorage.getItem('user_token');
                 if (!token) { setStatus('You are not logged in.', true); window.location.href = '/proanthem_index.html'; throw new Error('No token found'); }
                 const url = `/api${endpoint}`;
                 const config = { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`}, ...options };
+                 if(options.body) config.body = options.body;
+                 if(options.method) config.method = options.method;
                 const response = await fetch(url, config);
                 if (!response.ok) {
                     if (response.status === 401) { setStatus('Session expired. Please log in.', true); localStorage.removeItem('user_token'); window.location.href = '/proanthem_index.html'; }
@@ -169,7 +175,6 @@
             deleteSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'DELETE' })
         };
         
-        // --- CORE RENDERING & LOGIC ---
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
             songData.song_blocks.forEach(block => {
@@ -188,7 +193,7 @@
 
             let contentHtml = '';
             if (block.type === 'lyrics') {
-                contentHtml = `<textarea class="form-input" style="min-height: 150px;" data-field="content" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea>`;
+                contentHtml = `<textarea class="form-textarea" data-field="content" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea>`;
             } else if (block.type === 'tab') {
                 contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
             } else if (block.type === 'reference') {
@@ -210,7 +215,6 @@
                 <div class="block-content">${contentHtml}</div>
             `;
             
-            // Post-render initialization for complex elements
             if (block.type === 'tab') {
                 setTimeout(() => drawFretboard(block.id), 0);
             }
@@ -265,7 +269,6 @@
             livePreview.innerHTML = previewHtml;
         }
 
-        // --- FRETBOARD LOGIC (scoped to a block) ---
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
             if (!container) return;
@@ -274,7 +277,7 @@
             const { frets, width, height, stringSpacing, fretSpacing, nutWidth, dotFrets, dotRadius } = FRETBOARD_CONFIG;
             let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;">`;
             svgHTML += `<rect class="fretboard-bg" width="${width}" height="${height}" />`;
-            svgHTML += `<g id="fretboard-notes-group-${blockId}"></g>`; // Notes go here to be under strings
+            svgHTML += `<g id="fretboard-notes-group-${blockId}"></g>`;
             for (let i = 0; i < 6; i++) {
                 const y = stringSpacing / 2 + i * stringSpacing;
                 svgHTML += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
@@ -314,10 +317,10 @@
                 const y = FRETBOARD_CONFIG.stringSpacing / 2 + note.string * FRETBOARD_CONFIG.stringSpacing;
                 const x = (transposedFret === 0) 
                     ? FRETBOARD_CONFIG.nutWidth / 2 
-                    : FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing + note.position;
+                    : FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing + (note.position || 0);
                 
                 notesGroup.innerHTML += `
-                    <g>
+                    <g class="note-group">
                         <circle class="fretboard-note" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" />
                         <text class="fretboard-note-text" x="${x}" y="${y+1}">${transposedFret}</text>
                     </g>
@@ -330,13 +333,16 @@
             if (!svg) return null;
             const pt = svg.createSVGPoint();
             pt.x = evt.clientX; pt.y = evt.clientY;
-            const svgPoint = pt.matrixTransform(svg.getScreenCTM().inverse());
+            const ctm = svg.getScreenCTM();
+            if(!ctm) return null;
+            const svgPoint = pt.matrixTransform(ctm.inverse());
             
             const stringIndex = Math.floor((svgPoint.y / FRETBOARD_CONFIG.stringSpacing));
             const fret = Math.round((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing);
+            const position = svgPoint.x - (FRETBOARD_CONFIG.nutWidth + (fret - 0.5) * FRETBOARD_CONFIG.fretSpacing);
             
             if (stringIndex >= 0 && stringIndex < 6 && fret >= 0 && fret <= FRETBOARD_CONFIG.frets) {
-                return { string: stringIndex, fret, position: svgPoint.x - (FRETBOARD_CONFIG.nutWidth + (fret - 0.5) * FRETBOARD_CONFIG.fretSpacing) };
+                return { string: stringIndex, fret, position: Math.round(svgPoint.x) };
             }
             return null;
         }
@@ -349,7 +355,7 @@
             tabBlockData.notes.forEach(note => {
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
-                const charPosition = Math.floor(note.position / 10);
+                const charPosition = Math.floor(note.position / 12);
                 if (!positionMap.has(charPosition)) {
                     positionMap.set(charPosition, Array(6).fill(null));
                 }
@@ -383,7 +389,6 @@
             return lines.map(line => line.padEnd(maxLength, '-')).join('\n');
         }
 
-        // --- DATA HANDLING ---
         function updateBlockData(blockId, field, value) {
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (block) {
@@ -404,6 +409,9 @@
                     audio_url: data.audio_url,
                     song_blocks: data.song_blocks || []
                 };
+                if(songData.song_blocks.length === 0) { // Default block for old songs
+                     songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '' });
+                }
                 titleInput.value = songData.title;
                 artistInput.value = songData.artist;
                 renderSongBlocks();
@@ -446,18 +454,11 @@
             } catch (error) { setStatus(`Save failed: ${error.message}`, true); }
         }
         
-        // --- EVENT LISTENERS ---
-        titleInput.addEventListener('input', () => songData.title = titleInput.value);
-        artistInput.addEventListener('input', () => songData.artist = artistInput.value);
-        tuningSelector.addEventListener('input', () => { musicalContext.tuning = tuningSelector.value; renderSongBlocks(); });
-        capoFretInput.addEventListener('input', () => { musicalContext.capo = parseInt(capoFretInput.value, 10) || 0; renderSongBlocks(); });
-        songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
-        saveBtn.addEventListener('click', handleSave);
-        logoutBtn.addEventListener('click', () => { localStorage.removeItem('user_token'); localStorage.removeItem('userRole'); window.location.href = '/proanthem_index.html'; });
-
         songBlocksContainer.addEventListener('input', e => {
+            const blockEl = e.target.closest('.song-block');
+            if (!blockEl) return;
+            const blockId = blockEl.dataset.blockId;
             if (e.target.dataset.field) {
-                const blockId = e.target.closest('.song-block').dataset.blockId;
                 updateBlockData(blockId, e.target.dataset.field, e.target.value);
             }
         });
@@ -466,35 +467,45 @@
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
+            const block = songData.song_blocks.find(b => b.id === blockId);
 
             if (e.target.dataset.action === 'delete') {
                 if (confirm('Are you sure you want to delete this section?')) {
                     songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId);
-                    // Also remove references to this block
                     songData.song_blocks = songData.song_blocks.filter(b => b.type !== 'reference' || b.originalId !== blockId);
                     renderSongBlocks();
                 }
             } else if (e.target.dataset.action === 'edit-label') {
-                const block = songData.song_blocks.find(b => b.id === blockId);
                 const newLabel = prompt('Enter new section label:', block.label);
                 if (newLabel) {
                     block.label = newLabel;
                     renderSongBlocks();
                 }
+            } else if (e.target.classList.contains('fretboard-target-zone')) {
+                const clickData = getFretFromClick(e, blockId);
+                if (clickData) {
+                    const { string, fret, position } = clickData;
+                    const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                    if (!block.data) block.data = { notes: [] };
+                    block.data.notes.push({ string, fret: fret + totalOffset, position });
+                    drawNotesOnFretboard(blockId);
+                    renderPreview();
+                }
+            } else if (e.target.classList.contains('fretboard-note')) {
+                const noteIndex = parseInt(e.target.dataset.noteIndex, 10);
+                if (block && block.data && block.data.notes) {
+                    block.data.notes.splice(noteIndex, 1);
+                    drawNotesOnFretboard(blockId);
+                    renderPreview();
+                }
             }
-        });
-        
-        fretboardContainer.addEventListener('click', e => {
-            const blockId = e.target.closest('.song-block')?.dataset.blockId;
-            if(!blockId) return;
-            // ... fretboard click logic
         });
         
         addBlockButtonsContainer.addEventListener('click', e => {
             const target = e.target;
             if (target.id === 'insert-ref-btn') {
                 document.getElementById('ref-dropdown').classList.toggle('hidden');
-            } else if (target.parentElement.id === 'ref-dropdown') {
+            } else if (target.closest('#ref-dropdown')) {
                 const originalId = target.dataset.originalId;
                 const originalBlock = songData.song_blocks.find(b => b.id === originalId);
                 if(originalBlock) {
@@ -509,7 +520,7 @@
                 document.getElementById('ref-dropdown').classList.add('hidden');
             } else if (target.dataset.action === 'add') {
                 const type = target.dataset.type;
-                const count = songData.song_blocks.filter(b => b.type === 'lyrics').length + 1;
+                const count = songData.song_blocks.filter(b => b.label.toLowerCase().includes(target.textContent.trim().toLowerCase())).length + 1;
                 const label = `${target.textContent.trim()} ${count}`;
                 const newBlock = { id: `block_${Date.now()}`, type, label };
                 if (type === 'lyrics') newBlock.content = '';
@@ -520,26 +531,39 @@
         });
 
         function initializeSortable() {
-            new Sortable(songBlocksContainer, {
+            if (songBlocksContainer.sortableInstance) {
+                songBlocksContainer.sortableInstance.destroy();
+            }
+            songBlocksContainer.sortableInstance = new Sortable(songBlocksContainer, {
                 animation: 150,
                 handle: '.block-header',
                 onEnd: (evt) => {
                     const { oldIndex, newIndex } = evt;
                     const [movedItem] = songData.song_blocks.splice(oldIndex, 1);
                     songData.song_blocks.splice(newIndex, 0, movedItem);
-                    renderPreview(); // Update preview with new order
+                    renderPreview();
                 }
             });
         }
         
-        // --- UTILITY & UNCHANGED FUNCTIONS ---
         function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
         function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
         function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
         async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
+        async function handleDelete() { if (!songData.id) return; if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); initializeNewSong(); await loadSheetList(); } catch (e) { setStatus('Failed to delete.', true); } } }
+        
+        // Connect event listeners
+        const musicalInputs = [tuningSelector, capoFretInput];
+        musicalInputs.forEach(el => el.addEventListener('input', () => {
+            musicalContext.tuning = tuningSelector.value;
+            musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
+            renderSongBlocks(); // This will re-render everything with new context
+        }));
+        saveBtn.addEventListener('click', handleSave);
+        deleteBtn.addEventListener('click', handleDelete);
+        logoutBtn.addEventListener('click', () => { localStorage.removeItem('user_token'); localStorage.removeItem('userRole'); window.location.href = '/proanthem_index.html'; });
 
-
-        // --- INITIAL LOAD ---
+        // Initial Load
         (function(){
             populateTuningSelector(); 
             loadSheetList();
