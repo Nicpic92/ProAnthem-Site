@@ -284,7 +284,7 @@
             handleSetlistSelection(null);
         }
 
-        async function loadSetlists() {
+        async function loadSetlists(selectId = null) {
             try {
                 const lists = await api.getSetlists();
                 setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>';
@@ -294,6 +294,10 @@
                     option.textContent = list.name;
                     setlistSelector.appendChild(option);
                 });
+                if (selectId) {
+                    setlistSelector.value = selectId;
+                    handleSetlistSelection(selectId);
+                }
             } catch (error) {
                 setStatus('Failed to load setlists.', true);
             }
@@ -346,6 +350,22 @@
                 setStatus('Setlist details saved!', false);
             } catch (error) {
                 setStatus(`Error saving details: ${error.message}`, true);
+            }
+        }
+
+        async function handleCreateSetlist() {
+            const name = newSetlistInput.value.trim();
+            if (!name) {
+                alert('Please enter a name for the new setlist.');
+                return;
+            }
+            try {
+                const newSetlist = await api.createSetlist({ name });
+                newSetlistInput.value = '';
+                setStatus('Setlist created!', false);
+                await loadSetlists(newSetlist.id); // Reload and select the new one
+            } catch (error) {
+                setStatus(`Error creating setlist: ${error.message}`, true);
             }
         }
 
@@ -668,6 +688,7 @@
         closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
         setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
         saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
+        createSetlistBtn.addEventListener('click', handleCreateSetlist);
 
         (function main(){
             populateTuningSelector(); 
