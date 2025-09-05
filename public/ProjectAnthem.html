@@ -57,7 +57,7 @@
             <button id="logoutBtn" class="btn btn-secondary">Log Out</button>
         </header>
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <aside id="sidebar" class="md:col-span-1">
+            <aside id="sidebar" class="md-col-span-1">
                 <div class="space-y-6 sticky top-8">
                     <div>
                         <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
@@ -222,13 +222,18 @@
         const recordingStatus = document.getElementById('recordingStatus');
         const audioPlayerContainer = document.getElementById('audioPlayerContainer');
         const audioPlayer = document.getElementById('audioPlayer');
+        
+        // Setlist Modal Elements
         const setlistModal = document.getElementById('setlistModal');
         const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
+        const setlistSelector = document.getElementById('setlistSelector');
         const createSetlistBtn = document.getElementById('createSetlistBtn');
         const addSongToSetlistBtn = document.getElementById('addSongToSetlistBtn');
         const printSetlistBtn = document.getElementById('printSetlistBtn');
         const newSetlistInput = document.getElementById('newSetlistInput');
         const songsInSetlist = document.getElementById('songsInSetlist');
+        const currentSetlistTitle = document.getElementById('currentSetlistTitle');
+        const setlistDetailsSection = document.getElementById('setlistDetailsSection');
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
@@ -271,6 +276,72 @@
             updateSetlistDetails: (id, data) => api.request(`/setlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
             updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
         };
+        
+        // --- START NEW/REFACTORED SETLIST LOGIC ---
+        
+        async function openSetlistManager() {
+            setlistModal.classList.remove('hidden');
+            await loadSetlists();
+        }
+
+        async function loadSetlists() {
+            try {
+                const lists = await api.getSetlists();
+                setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>';
+                lists.forEach(list => {
+                    const option = document.createElement('option');
+                    option.value = list.id;
+                    option.textContent = list.name;
+                    setlistSelector.appendChild(option);
+                });
+            } catch (error) {
+                setStatus('Failed to load setlists.', true);
+            }
+        }
+
+        async function handleSetlistSelection(setlistId) {
+            if (!setlistId) {
+                currentSetlistTitle.textContent = 'Select a setlist';
+                setlistDetailsSection.classList.add('hidden');
+                songsInSetlist.innerHTML = '';
+                addSongToSetlistBtn.disabled = true;
+                printSetlistBtn.disabled = true;
+                return;
+            }
+
+            try {
+                const setlist = await api.getSetlist(setlistId);
+                currentSetlistTitle.textContent = setlist.name;
+                
+                // Populate details form
+                document.getElementById('setlistVenue').value = setlist.venue || '';
+                document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
+                document.getElementById('setlistLogoUrl').value = setlist.logo_url || '';
+                document.getElementById('setlistNotes').value = setlist.notes || '';
+                setlistDetailsSection.classList.remove('hidden');
+
+                // Populate song list
+                songsInSetlist.innerHTML = '';
+                setlist.songs.forEach(song => {
+                    const li = document.createElement('li');
+                    li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded';
+                    li.dataset.songId = song.id;
+                    li.innerHTML = `
+                        <span>${song.title} - <em class="text-gray-400">${song.artist}</em></span>
+                        <button class="btn btn-danger btn-sm">Remove</button>
+                    `;
+                    songsInSetlist.appendChild(li);
+                });
+
+                addSongToSetlistBtn.disabled = false;
+                printSetlistBtn.disabled = false;
+
+            } catch (error) {
+                setStatus(`Failed to load setlist details: ${error.message}`, true);
+            }
+        }
+
+        // --- END NEW/REFACTORED SETLIST LOGIC ---
         
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
@@ -677,8 +748,11 @@
         recordBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
         songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
-        setlistBtn.addEventListener('click', () => setlistModal.classList.remove('hidden'));
+        
+        // --- UPDATED AND NEW EVENT LISTENERS ---
+        setlistBtn.addEventListener('click', openSetlistManager);
         closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
+        setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
 
         (function main(){
             populateTuningSelector(); 
