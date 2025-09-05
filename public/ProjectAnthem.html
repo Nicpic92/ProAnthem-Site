@@ -412,9 +412,9 @@
 
                 const getImageDataUrl = async (url) => {
                     if (!url) return Promise.resolve(null);
-                    return new Promise((resolve, reject) => {
+                    return new Promise((resolve) => {
                         const img = new Image();
-                        img.crossOrigin = 'Anonymous'; // Crucial for loading cross-domain images
+                        img.crossOrigin = 'Anonymous';
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
                             canvas.width = img.width;
@@ -424,8 +424,8 @@
                             resolve(canvas.toDataURL('image/png'));
                         };
                         img.onerror = () => {
-                            console.error('Failed to load watermark image. Check URL and CORS policy.');
-                            resolve(null); // Resolve with null on error instead of rejecting
+                            console.error('Failed to load watermark image.');
+                            resolve(null);
                         };
                         img.src = url;
                     });
@@ -452,7 +452,7 @@
                     }
                 };
 
-                // --- Title Page ---
+                // Title Page
                 addWatermarkToPage();
                 doc.setFontSize(26);
                 doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
@@ -483,7 +483,7 @@
                 });
 
 
-                // --- Individual Song Pages ---
+                // Individual Song Pages
                 for (const song of (setlist.songs || [])) {
                     addWatermarkToPage();
                     doc.addPage();
@@ -493,12 +493,12 @@
                     doc.setFontSize(18);
                     doc.setFont(undefined, 'bold');
                     doc.text(song.title, leftMargin, y, { maxWidth });
-                    y = doc.autoTable? doc.autoTable.previous.finalY + 8 : y + 8;
+                    y += 8;
                     
                     doc.setFontSize(14);
                     doc.setFont(undefined, 'italic');
                     doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
-                    y = doc.autoTable? doc.autoTable.previous.finalY + 12 : y + 12;
+                    y += 12;
                     
                     doc.setFont('Courier', 'normal');
                     doc.setFontSize(11);
@@ -506,16 +506,28 @@
 
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
 
+                    // --- FIX: Logic to handle referenced blocks in PDF ---
                     for (const block of songBlocks) {
-                        if (block.type !== 'lyrics' || !block.content) continue;
+                        // Determine which block's content to render
+                        let blockToRender = block;
+                        if (block.type === 'reference' && block.originalId) {
+                            const originalBlock = songBlocks.find(b => b.id === block.originalId);
+                            if (originalBlock) {
+                                blockToRender = originalBlock; // Use the original block for content
+                            }
+                        }
+
+                        if (blockToRender.type !== 'lyrics' || !blockToRender.content) continue;
 
                         checkPageBreak(12);
                         doc.setFont(undefined, 'bold');
+                        // Always use the label from the block in the loop, even if it's a reference
                         doc.text(block.label, leftMargin, y, { maxWidth });
                         y += 7;
                         doc.setFont(undefined, 'normal');
 
-                        for (const line of block.content.split('\n')) {
+                        const lines = blockToRender.content.split('\n');
+                        for (const line of lines) {
                             const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
                             
                             checkPageBreak(lineHeight * 2.5);
@@ -529,7 +541,7 @@
                             doc.text(splitLyrics, leftMargin, y);
                             y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
                         }
-                        y += lineHeight; // extra space after a block
+                        y += lineHeight;
                     }
                 }
                 
@@ -542,6 +554,7 @@
                  console.error("PDF generation error:", error);
             }
         }
+
 
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
