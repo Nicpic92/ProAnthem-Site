@@ -13,7 +13,7 @@ exports.handler = async (event) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userEmail = decoded.user.email;
-        bandId = decoded.user.band_id; // Get band_id from token
+        bandId = decoded.user.band_id;
         if (!userEmail || !bandId) throw new Error("Invalid token payload for ProAnthem");
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
@@ -37,12 +37,13 @@ exports.handler = async (event) => {
                 const setlistResult = await client.query(query, [setlistId, bandId]);
                 if (setlistResult.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Setlist not found or access denied' }) };
 
+                // This query is correct and should now work
                 const songsQuery = `
-                    SELECT ls.id, ls.title, ls.artist, ls.content
+                    SELECT ls.id, ls.title, ls.artist
                     FROM setlist_songs ss
                     JOIN lyric_sheets ls ON ss.song_id = ls.id
                     WHERE ss.setlist_id = $1 AND ls.band_id = $2
-                    ORDER BY ss.song_order ASC;
+                    ORDER BY ss.song_order ASC, ls.title ASC;
                 `;
                 const songsResult = await client.query(songsQuery, [setlistId, bandId]);
                 
@@ -56,24 +57,35 @@ exports.handler = async (event) => {
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body);
             if (setlistId && resourceType === 'songs') {
-                const checkQuery = `
-                    SELECT 1 FROM setlists s JOIN lyric_sheets ls ON s.id = $1 AND ls.id = $2
-                    WHERE s.band_id = $3 AND ls.band_id = $3
-                `;
-                const checkResult = await client.query(checkQuery, [setlistId, body.song_id, bandId]);
-                if (checkResult.rows.length === 0) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Setlist or song does not belong to the band.' }) };
+                // --- FIX: Use a more robust "check-then-insert" logic ---
+                await client.query('BEGIN');
 
-                const query = 'INSERT INTO setlist_songs (setlist_id, song_id) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING *';
-                const result = await client.query(query, [setlistId, body.song_id]);
+                try {
+                    // 1. First, check if the song already exists in the setlist
+                    const alreadyExistsQuery = 'SELECT 1 FROM setlist_songs WHERE setlist_id = $1 AND song_id = $2';
+                    const existingResult = await client.query(alreadyExistsQuery, [setlistId, body.song_id]);
+                    if (existingResult.rows.length > 0) {
+                        await client.query('COMMIT'); // Commit the empty transaction
+                        return { statusCode: 200, body: JSON.stringify({ message: 'Song is already in this setlist.' }) };
+                    }
+                    
+                    // 2. If it doesn't exist, get the next song order
+                    const maxOrderQuery = 'SELECT MAX(song_order) as max_order FROM setlist_songs WHERE setlist_id = $1';
+                    const maxOrderResult = await client.query(maxOrderQuery, [setlistId]);
+                    const nextOrder = (maxOrderResult.rows[0].max_order === null) ? 0 : maxOrderResult.rows[0].max_order + 1;
 
-                // --- FIX: Handle the case where the song already exists in the setlist ---
-                if (result.rows.length > 0) {
-                    // Song was successfully inserted
+                    // 3. Insert the new song with the calculated order
+                    const insertQuery = 'INSERT INTO setlist_songs (setlist_id, song_id, song_order) VALUES ($1, $2, $3) RETURNING *';
+                    const result = await client.query(insertQuery, [setlistId, body.song_id, nextOrder]);
+
+                    await client.query('COMMIT');
                     return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
-                } else {
-                    // Song was already in the setlist (ON CONFLICT was triggered)
-                    return { statusCode: 200, body: JSON.stringify({ message: 'Song is already in this setlist.' }) };
+
+                } catch (e) {
+                    await client.query('ROLLBACK');
+                    throw e; // Rethrow the error to be caught by the outer catch block
                 }
+
             } else {
                 const query = 'INSERT INTO setlists (name, user_email, band_id) VALUES ($1, $2, $3) RETURNING *';
                 const result = await client.query(query, [body.name, userEmail, bandId]);
@@ -115,6 +127,8 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     } catch (error) {
         console.error('API Error in /api/setlists:', error);
+        // Ensure rollback is attempted if a transaction was started
+        await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error', error: error.message }) };
     } finally {
         if (client) await client.end();
