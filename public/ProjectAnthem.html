@@ -27,7 +27,6 @@
         .block-header:active { cursor: grabbing; }
         .block-content { padding: 1rem; }
         .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
-        #fretboard-container { user-select: none; }
         .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
         .fretboard-note { fill: #facc15; cursor: pointer; }
         .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; }
@@ -37,17 +36,18 @@
         .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
         .btn-record.recording { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
+        .sortable-ghost { opacity: 0.4; background: #4a5568; }
     </style>
 </head>
 <body class="p-4 md:p-8">
-    <!-- Access Denied Message -->
     <div id="access-denied" class="hidden text-center p-20">
         <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
         <p class="mt-4 text-lg">You must be logged in to use Project Anthem.</p>
         <a href="/proanthem_index.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg">Log In or Sign Up</a>
     </div>
 
-    <!-- Main Tool Content -->
     <div id="tool-content" class="max-w-6xl mx-auto hidden">
         <header class="border-b border-gray-700 pb-4 mb-6 flex justify-between items-center">
              <a href="/" class="flex items-center space-x-4">
@@ -131,17 +131,47 @@
 
                 <div>
                     <h3 class="text-lg font-semibold mb-2">Song Builder</h3>
-                    <div id="song-blocks-container" class="space-y-4">
-                        <!-- Song blocks will be rendered here -->
-                    </div>
-                    <div id="add-block-buttons" class="mt-4 flex flex-wrap gap-2">
-                        <!-- Add block buttons are rendered here -->
-                    </div>
+                    <div id="song-blocks-container" class="space-y-4"></div>
+                    <div id="add-block-buttons" class="mt-4 flex flex-wrap gap-2"></div>
                 </div>
             </div>
         </main>
     </div>
-    <!-- Setlist Modal would go here -->
+
+    <div id="setlistModal" class="modal-overlay hidden">
+        <div class="modal-content space-y-4">
+            <div class="flex justify-between items-center"><h2 class="text-2xl font-bold">Setlist Manager</h2><button id="closeSetlistModalBtn" class="text-2xl">&times;</button></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="setlistSelector" class="block text-sm font-medium text-gray-300 mb-1">Select Setlist</label>
+                    <select id="setlistSelector" class="form-select"></select>
+                </div>
+                <div>
+                    <label for="newSetlistInput" class="block text-sm font-medium text-gray-300 mb-1">Or Create New</label>
+                    <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
+                </div>
+            </div>
+            <div id="setlistDetailsSection" class="hidden space-y-3 p-4 border border-gray-600 rounded-lg">
+                <h3 class="text-lg font-semibold">Gig Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="setlistVenue" class="block text-sm">Venue</label><input type="text" id="setlistVenue" class="form-input"></div>
+                    <div><label for="setlistDate" class="block text-sm">Date</label><input type="date" id="setlistDate" class="form-input"></div>
+                </div>
+                <div><label for="setlistLogoUrl" class="block text-sm">Band Logo Image URL (for watermark)</label><input type="text" id="setlistLogoUrl" class="form-input" placeholder="https://.../logo.png"></div>
+                <div><label for="setlistNotes" class="block text-sm">Notes</label><textarea id="setlistNotes" class="form-input" rows="2"></textarea></div>
+                <div class="text-right"><button id="saveSetlistDetailsBtn" class="btn btn-primary btn-sm">Save Details</button></div>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-md">
+                <h3 id="currentSetlistTitle" class="text-xl font-semibold mb-2">Select a setlist</h3>
+                <p class="text-sm text-gray-400 mb-2">Drag and drop songs to reorder.</p>
+                <ul id="songsInSetlist" class="space-y-2"></ul>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Setlist</button>
+                <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song to Setlist</button>
+            </div>
+        </div>
+    </div>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -192,6 +222,8 @@
         const recordingStatus = document.getElementById('recordingStatus');
         const audioPlayerContainer = document.getElementById('audioPlayerContainer');
         const audioPlayer = document.getElementById('audioPlayer');
+        const setlistModal = document.getElementById('setlistModal');
+        const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
@@ -592,6 +624,9 @@
         }
         async function loadChords() { try { const chords = await api.getChords(); chordPalette.innerHTML = ''; chords.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.onclick = (e) => { if (e.ctrlKey || e.metaKey) { chordQueue.push(c.name); renderChordQueue(); } else if (lastFocusedLyricsBlock) { const t = `[${c.name}]`; const p = lastFocusedLyricsBlock.selectionStart; lastFocusedLyricsBlock.value = lastFocusedLyricsBlock.value.slice(0, p) + t + lastFocusedLyricsBlock.value.slice(p); lastFocusedLyricsBlock.focus(); lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); updateBlockData(lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', lastFocusedLyricsBlock.value); }}; btn.textContent = c.name; chordPalette.appendChild(btn); }); } catch (e) { setStatus('Failed to load chords.', true); } }
         async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await api.createChord({ name }); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
+        async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
+        function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
+        async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
 
         const musicalInputs = [tuningSelector, capoFretInput];
         musicalInputs.forEach(el => el.addEventListener('input', () => {
@@ -627,6 +662,9 @@
             else if (target.closest('#ref-dropdown')) { const originalId = target.dataset.originalId; const originalBlock = songData.song_blocks.find(b => b.id === originalId); if(originalBlock) { songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId }); renderSongBlocks(); } document.getElementById('ref-dropdown').classList.add('hidden'); }
             else if (target.dataset.action === 'add') { const type = target.dataset.type; const baseLabel = target.textContent.trim().replace('+', '').trim(); const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1; const label = `${baseLabel} ${count}`; const newBlock = { id: `block_${Date.now()}`, type, label }; if (type === 'lyrics') newBlock.content = ''; if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; } songData.song_blocks.push(newBlock); renderSongBlocks(); }
         });
+        recordBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+        songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
 
         (function main(){
             populateTuningSelector(); 
