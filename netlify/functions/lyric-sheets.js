@@ -42,10 +42,11 @@ exports.handler = async (event) => {
             }
             if (event.httpMethod === 'PUT') {
                 const { title, artist, audio_url, song_blocks } = JSON.parse(event.body);
-                // Ensure song_blocks is a valid JSON array or null
-                const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
+                // --- FIX: Pass the song_blocks array directly to the DB driver ---
+                // The pg driver will handle JSON.stringify automatically for JSON/JSONB columns.
+                const finalSongBlocks = Array.isArray(song_blocks) ? song_blocks : null;
                 const query = 'UPDATE lyric_sheets SET title = $1, artist = $2, audio_url = $3, song_blocks = $4, updated_at = NOW() WHERE id = $5 AND band_id = $6 RETURNING *';
-                const result = await client.query(query, [title, artist, audio_url, songBlocksJson, id, bandId]);
+                const result = await client.query(query, [title, artist, audio_url, finalSongBlocks, id, bandId]);
                 return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
             }
             if (event.httpMethod === 'DELETE') {
@@ -59,9 +60,10 @@ exports.handler = async (event) => {
             }
             if (event.httpMethod === 'POST') {
                 const { title, artist, song_blocks } = JSON.parse(event.body);
-                const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
+                // --- FIX: Pass the song_blocks array directly to the DB driver ---
+                const finalSongBlocks = Array.isArray(song_blocks) ? song_blocks : null;
                 const query = 'INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks) VALUES($1, $2, $3, $4, $5) RETURNING *';
-                const result = await client.query(query, [title, artist, userEmail, bandId, songBlocksJson]);
+                const result = await client.query(query, [title, artist, userEmail, bandId, finalSongBlocks]);
                 return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
             }
         }
