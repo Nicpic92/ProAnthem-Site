@@ -393,38 +393,34 @@
             }
         }
         
-        // --- NEW PRINT FUNCTION ---
         async function handlePrintSetlist() {
             const setlistId = setlistSelector.value;
             if (!setlistId) return;
 
             setStatus('Generating PDF...');
             try {
+                // Fetch the full setlist data, which now includes song_blocks for each song
                 const setlist = await api.getSetlist(setlistId);
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
 
-                // Constants for layout
                 const leftMargin = 15;
-                const rightMargin = 195;
-                let y = 20;
                 const pageHeight = doc.internal.pageSize.getHeight();
                 const marginBottom = 20;
+                let y = 20;
                 
-                // Helper to check for page breaks
                 const checkPageBreak = (neededHeight) => {
                     if (y + neededHeight > pageHeight - marginBottom) {
                         doc.addPage();
                         y = 20;
-                        return true;
                     }
-                    return false;
                 };
 
-                // Title Page
+                // --- NEW: Title Page Generation ---
                 doc.setFontSize(26);
                 doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
                 y += 15;
+                
                 doc.setFontSize(16);
                 if (setlist.venue) {
                     doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
@@ -433,27 +429,39 @@
                 if (setlist.event_date) {
                     const eventDate = new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' });
                     doc.text(eventDate, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
-                    y+= 8;
                 }
+                y += 15;
 
-                doc.addPage();
-                y = 20;
+                // --- NEW: Song List on Title Page ---
+                doc.setFontSize(12);
+                doc.setFont(undefined, 'bold');
+                doc.text('Song List:', leftMargin, y);
+                y += 8;
+                
+                doc.setFont(undefined, 'normal');
+                (setlist.songs || []).forEach((song, index) => {
+                    checkPageBreak(8);
+                    doc.text(`${index + 1}. ${song.title} (${song.artist || 'Unknown'})`, leftMargin + 5, y);
+                    y+= 7;
+                });
 
-                // Songs
+
+                // --- NEW: Loop for Individual Song Pages ---
                 for (let i = 0; i < setlist.songs.length; i++) {
                     const song = setlist.songs[i];
-                    
-                    checkPageBreak(20); 
 
-                    doc.setFontSize(16);
+                    doc.addPage(); // Each song gets a new page
+                    y = 20;
+
+                    doc.setFontSize(18);
                     doc.setFont(undefined, 'bold');
-                    doc.text(`${i + 1}. ${song.title}`, leftMargin, y);
-                    y += 7;
-
-                    doc.setFontSize(12);
+                    doc.text(song.title, leftMargin, y);
+                    y += 8;
+                    
+                    doc.setFontSize(14);
                     doc.setFont(undefined, 'italic');
-                    doc.text(`   ${song.artist || 'Unknown Artist'}`, leftMargin, y);
-                    y += 10;
+                    doc.text(song.artist || 'Unknown Artist', leftMargin, y);
+                    y += 12;
                     
                     doc.setFont('Courier', 'normal');
                     doc.setFontSize(11);
@@ -472,29 +480,35 @@
 
                         const lines = block.content.split('\n');
                         for (const line of lines) {
-                            checkPageBreak(lineHeight * 2);
                             const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
                             
-                            // Draw Chords
-                            doc.setTextColor(60, 60, 60); // Dark grey for chords
+                            // Estimate height needed for this chord/lyric pair
+                            let neededHeight = lineHeight * 2.5;
+                            // Check for an empty line (just a single space, usually)
+                            if (parsed.chordLine.trim() === '' && parsed.lyricLine.trim() === '') {
+                                neededHeight = lineHeight; // Just need a small gap for empty lines
+                            }
+                            checkPageBreak(neededHeight);
+                            
+                            doc.setTextColor(60, 60, 60);
                             doc.text(parsed.chordLine, leftMargin, y);
                             y += lineHeight;
 
-                            // Draw Lyrics
-                            doc.setTextColor(0, 0, 0); // Black for lyrics
+                            doc.setTextColor(0, 0, 0);
                             doc.text(parsed.lyricLine, leftMargin, y);
                             y += lineHeight * 1.5; 
                         }
                     }
-                     y += 10; // Extra space between songs
                 }
 
-                doc.save(`${setlist.name.replace(/ /g, '_')}.pdf`);
+                doc.save(`${setlist.name.replace(/\s/g, '_')}.pdf`);
                 setStatus('PDF generated.', false);
             } catch (error) {
                  setStatus(`Failed to generate PDF: ${error.message}`, true);
+                 console.error("PDF generation error:", error);
             }
         }
+
 
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
