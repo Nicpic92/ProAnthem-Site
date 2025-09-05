@@ -37,6 +37,8 @@
         .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
         .btn-record.recording { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
+        .modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -141,7 +143,41 @@
             </div>
         </main>
     </div>
-    <!-- Setlist Modal would go here -->
+    <!-- Setlist Modal -->
+    <div id="setlistModal" class="modal-overlay hidden">
+        <div class="modal-content space-y-4">
+            <div class="flex justify-between items-center"><h2 class="text-2xl font-bold">Setlist Manager</h2><button id="closeSetlistModalBtn" class="text-2xl">&times;</button></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="setlistSelector" class="block text-sm font-medium text-gray-300 mb-1">Select Setlist</label>
+                    <select id="setlistSelector" class="form-select"></select>
+                </div>
+                <div>
+                    <label for="newSetlistInput" class="block text-sm font-medium text-gray-300 mb-1">Or Create New</label>
+                    <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
+                </div>
+            </div>
+            <div id="setlistDetailsSection" class="hidden space-y-3 p-4 border border-gray-600 rounded-lg">
+                <h3 class="text-lg font-semibold">Gig Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="setlistVenue" class="block text-sm">Venue</label><input type="text" id="setlistVenue" class="form-input"></div>
+                    <div><label for="setlistDate" class="block text-sm">Date</label><input type="date" id="setlistDate" class="form-input"></div>
+                </div>
+                <div><label for="setlistLogoUrl" class="block text-sm">Band Logo Image URL (for watermark)</label><input type="text" id="setlistLogoUrl" class="form-input" placeholder="https://.../logo.png"></div>
+                <div><label for="setlistNotes" class="block text-sm">Notes</label><textarea id="setlistNotes" class="form-input" rows="2"></textarea></div>
+                <div class="text-right"><button id="saveSetlistDetailsBtn" class="btn btn-primary btn-sm">Save Details</button></div>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-md">
+                <h3 id="currentSetlistTitle" class="text-xl font-semibold mb-2">Select a setlist</h3>
+                <p class="text-sm text-gray-400 mb-2">Drag and drop songs to reorder.</p>
+                <ul id="songsInSetlist" class="space-y-2"></ul>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Setlist</button>
+                <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song to Setlist</button>
+            </div>
+        </div>
+    </div>
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -184,6 +220,9 @@
         const transposeStatus = document.getElementById('transposeStatus');
         const chordQueueDiv = document.getElementById('chordQueue');
         const clearQueueBtn = document.getElementById('clearQueueBtn');
+        const setlistBtn = document.getElementById('setlistBtn');
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
