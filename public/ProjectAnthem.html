@@ -34,6 +34,7 @@
         .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
         .queue-pill.next { background-color: #535bf2; font-weight: bold; }
         .form-textarea.placement-mode { cursor: crosshair; }
+        .drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
         .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
         .btn-record.recording { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
@@ -424,7 +425,7 @@
                             resolve(canvas.toDataURL('image/png'));
                         };
                         img.onerror = () => {
-                            console.error('Failed to load watermark image.');
+                            console.error('Failed to load watermark image. Check URL and CORS policy.');
                             resolve(null);
                         };
                         img.src = url;
@@ -482,7 +483,6 @@
                     y += splitTitle.length * 7;
                 });
 
-
                 // Individual Song Pages
                 for (const song of (setlist.songs || [])) {
                     addWatermarkToPage();
@@ -500,46 +500,50 @@
                     doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
                     y += 12;
                     
-                    doc.setFont('Courier', 'normal');
-                    doc.setFontSize(11);
                     const lineHeight = 5;
 
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
-
-                    // --- FIX: Logic to handle referenced blocks in PDF ---
+                    
                     for (const block of songBlocks) {
-                        // Determine which block's content to render
+                        // --- FIX: Handle referenced blocks correctly ---
                         let blockToRender = block;
                         if (block.type === 'reference' && block.originalId) {
                             const originalBlock = songBlocks.find(b => b.id === block.originalId);
                             if (originalBlock) {
-                                blockToRender = originalBlock; // Use the original block for content
+                                blockToRender = originalBlock;
                             }
                         }
 
-                        if (blockToRender.type !== 'lyrics' || !blockToRender.content) continue;
+                        // Now use blockToRender for content, but the original block for the label
+                        if (!blockToRender.content) continue;
 
                         checkPageBreak(12);
                         doc.setFont(undefined, 'bold');
-                        // Always use the label from the block in the loop, even if it's a reference
-                        doc.text(block.label, leftMargin, y, { maxWidth });
+                        doc.setFontSize(12);
+                        doc.text(block.label, leftMargin, y, { maxWidth }); // Use original block label
                         y += 7;
-                        doc.setFont(undefined, 'normal');
+                        
+                        doc.setFont('Courier', 'normal');
+                        doc.setFontSize(11);
 
-                        const lines = blockToRender.content.split('\n');
-                        for (const line of lines) {
-                            const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
-                            
+                        for (const line of blockToRender.content.split('\n')) {
                             checkPageBreak(lineHeight * 2.5);
-                            
-                            doc.setTextColor(60, 60, 60);
-                            doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
-                            y += lineHeight;
 
-                            doc.setTextColor(0, 0, 0);
-                            const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
-                            doc.text(splitLyrics, leftMargin, y);
-                            y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
+                            if (blockToRender.type === 'lyrics') {
+                                const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
+                                doc.setTextColor(60, 60, 60);
+                                doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
+                                y += lineHeight;
+                                doc.setTextColor(0, 0, 0);
+                                const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
+                                doc.text(splitLyrics, leftMargin, y);
+                                y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
+                            } else if (blockToRender.type === 'drum_tab') {
+                                doc.setTextColor(0, 0, 0);
+                                const splitText = doc.splitTextToSize(line, maxWidth);
+                                doc.text(splitText, leftMargin, y);
+                                y += (splitText.length * lineHeight) + (lineHeight * 0.5);
+                            }
                         }
                         y += lineHeight;
                     }
@@ -554,7 +558,6 @@
                  console.error("PDF generation error:", error);
             }
         }
-
 
         function renderSongBlocks() {
             songBlocksContainer.innerHTML = '';
@@ -575,6 +578,8 @@
                 const numStrings = block.strings || 6;
                 contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
                 headerControls = `<div class="flex items-center gap-2"><label for="strings-${block.id}" class="text-xs text-gray-300">Strings:</label><select id="strings-${block.id}" data-action="change-strings" class="form-select text-xs p-1" style="width: 70px;"><option value="6" ${numStrings === 6 ? 'selected' : ''}>6</option><option value="7" ${numStrings === 7 ? 'selected' : ''}>7</option><option value="8" ${numStrings === 8 ? 'selected' : ''}>8</option></select></div>`;
+            } else if (block.type === 'drum_tab') {
+                contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" placeholder="Enter drum tab notation...">${block.content || ''}</textarea>`;
             } else if (block.type === 'reference') {
                 const originalBlock = songData.song_blocks.find(b => b.id === block.originalId);
                 contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
@@ -590,7 +595,7 @@
             if (createdSections.length > 0) {
                 referenceButtonsHtml = `<div class="relative inline-block text-left"><button id="insert-ref-btn" class="btn btn-secondary">Insert Existing Section</button><div id="ref-dropdown" class="hidden origin-top-right absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-gray-700 ring-1 ring-black ring-opacity-5 z-10"><div class="py-1" role="menu" aria-orientation="vertical">${createdSections.map(b => `<a href="#" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600" data-original-id="${b.id}" role="menuitem">${b.label}</a>`).join('')}</div></div></div>`;
             }
-            addBlockButtonsContainer.innerHTML = `<button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Verse </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Chorus </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Bridge </button><button class="btn btn-secondary" data-action="add" data-type="tab"> + Tab Section </button>${referenceButtonsHtml}`;
+            addBlockButtonsContainer.innerHTML = `<button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Verse </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Chorus </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Bridge </button><button class="btn btn-secondary" data-action="add" data-type="tab"> + Tab Section </button><button class="btn btn-secondary" data-action="add" data-type="drum_tab"> + Drum Tab </button>${referenceButtonsHtml}`;
         }
         
         function renderPreview() {
@@ -605,6 +610,8 @@
                     });
                 } else if (blockToRender.type === 'tab') {
                     previewHtml += `<div class="tab-preview">${renderTransposedTab(blockToRender)}</div>`;
+                } else if (blockToRender.type === 'drum_tab') {
+                     previewHtml += `<div class="tab-preview">${blockToRender.content || 'No drum tab.'}</div>`;
                 }
             });
             livePreview.innerHTML = previewHtml;
@@ -837,7 +844,17 @@
             const target = e.target;
             if (target.id === 'insert-ref-btn') { document.getElementById('ref-dropdown').classList.toggle('hidden'); }
             else if (target.closest('#ref-dropdown')) { const originalId = target.dataset.originalId; const originalBlock = songData.song_blocks.find(b => b.id === originalId); if(originalBlock) { songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId }); renderSongBlocks(); } document.getElementById('ref-dropdown').classList.add('hidden'); }
-            else if (target.dataset.action === 'add') { const type = target.dataset.type; const baseLabel = target.textContent.trim().replace('+', '').trim(); const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1; const label = `${baseLabel} ${count}`; const newBlock = { id: `block_${Date.now()}`, type, label }; if (type === 'lyrics') newBlock.content = ''; if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; } songData.song_blocks.push(newBlock); renderSongBlocks(); }
+            else if (target.dataset.action === 'add') {
+                const type = target.dataset.type;
+                const baseLabel = target.textContent.trim().replace('+', '').trim();
+                const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
+                const label = `${baseLabel} ${count}`;
+                const newBlock = { id: `block_${Date.now()}`, type, label };
+                if (type === 'lyrics' || type === 'drum_tab') newBlock.content = '';
+                if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; }
+                songData.song_blocks.push(newBlock);
+                renderSongBlocks();
+            }
         });
         recordBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
