@@ -234,6 +234,7 @@
         const songsInSetlist = document.getElementById('songsInSetlist');
         const currentSetlistTitle = document.getElementById('currentSetlistTitle');
         const setlistDetailsSection = document.getElementById('setlistDetailsSection');
+        const saveSetlistDetailsBtn = document.getElementById('saveSetlistDetailsBtn');
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
@@ -282,6 +283,7 @@
         async function openSetlistManager() {
             setlistModal.classList.remove('hidden');
             await loadSetlists();
+            handleSetlistSelection(null); // Reset the view
         }
 
         async function loadSetlists() {
@@ -338,6 +340,26 @@
 
             } catch (error) {
                 setStatus(`Failed to load setlist details: ${error.message}`, true);
+            }
+        }
+        
+        async function handleSaveSetlistDetails() {
+            const setlistId = setlistSelector.value;
+            if (!setlistId) return;
+
+            const payload = {
+                name: currentSetlistTitle.textContent, // The name is not editable in this form, but required by API
+                venue: document.getElementById('setlistVenue').value,
+                event_date: document.getElementById('setlistDate').value,
+                logo_url: document.getElementById('setlistLogoUrl').value,
+                notes: document.getElementById('setlistNotes').value
+            };
+
+            try {
+                await api.updateSetlistDetails(setlistId, payload);
+                setStatus('Setlist details saved!', false);
+            } catch (error) {
+                setStatus(`Error saving details: ${error.message}`, true);
             }
         }
 
@@ -749,10 +771,11 @@
         stopBtn.addEventListener('click', stopRecording);
         songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
         
-        // --- UPDATED AND NEW EVENT LISTENERS ---
+        // --- SETLIST MODAL EVENT LISTENERS ---
         setlistBtn.addEventListener('click', openSetlistManager);
         closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
         setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
+        saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
 
         (function main(){
             populateTuningSelector(); 
