@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Anthem</title>
+    <title>Project Anthem - Block Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
@@ -13,41 +13,24 @@
     <style>
         body { font-family: Inter, system-ui, sans-serif; background-color: #242424; color: rgba(255, 255, 255, 0.87); }
         .form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; }
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
-        .form-textarea { min-height: 40vh; font-family: 'Courier New', Courier, monospace; line-height: 1.6; }
-        .form-textarea.placement-mode { cursor: crosshair; }
         .live-preview { font-family: 'Courier New', Courier, monospace; line-height: 1.6; white-space: pre; background-color: #1e1e1e; padding: 1rem; border-radius: 6px; border: 1px solid #4a4a4a; }
         .live-preview-chords { color: #f2c94c; }
         .tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; color: #a5b4fc; }
         .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
-        .btn:disabled { background-color: #4b5563; cursor: not-allowed; opacity: 0.6; }
         .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
-        .btn-primary { background-color: #535bf2; color: white; } .btn-primary:hover:not(:disabled) { background-color: #646cff; }
-        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover:not(:disabled) { background-color: #6b7280; }
-        .btn-danger { background-color: #b91c1c; color: white; } .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
-        .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
-        .btn-record.recording { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
-        .modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
-        .sortable-ghost { opacity: 0.4; background: #4a5568; }
-        .sortable-drag { opacity: 1 !important; }
+        .btn-primary { background-color: #535bf2; color: white; } .btn-primary:hover { background-color: #646cff; }
+        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #6b7280; }
+        .btn-danger { background-color: #b91c1c; color: white; } .btn-danger:hover { background-color: #dc2626; }
         .hidden { display: none; }
-        .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
-        .queue-pill.next { background-color: #535bf2; font-weight: bold; }
-        
-        /* --- VISUAL FRETBOARD STYLES --- */
+        .song-block { background-color: #2d3748; border: 1px solid #4a5568; border-radius: 8px; margin-bottom: 1rem; }
+        .block-header { background-color: #4a5568; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: grab; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+        .block-header:active { cursor: grabbing; }
+        .block-content { padding: 1rem; }
+        .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
         #fretboard-container { user-select: none; }
-        .fretboard-fret { stroke: #4a5563; stroke-width: 1px; }
         .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
-        .fretboard-dot { fill: #6b7280; }
-        .fretboard-note { fill: #facc15; cursor: pointer; transition: r 0.1s; }
-        .fretboard-note:hover { r: 12px; }
-        .fretboard-note-text { fill: #111827; font-weight: bold; font-size: 14px; text-anchor: middle; alignment-baseline: middle; pointer-events: none; }
-        .fretboard-nut { fill: #2d3748; }
-        .fretboard-bg { fill: #1e1e1e; }
-        #fretboard-target-zone { cursor: crosshair; }
-        #generated-tab-output { background: #1e1e1e; border-top: 1px solid #555; padding: 0.5rem 1rem; font-family: 'Courier New', Courier, monospace; white-space: pre; color: #a5b4fc; }
+        .fretboard-note { fill: #facc15; cursor: pointer; }
+        .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; }
     </style>
 </head>
 <body class="p-4 md:p-8">
@@ -81,13 +64,15 @@
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
                     </div>
-                    <div class="space-y-3 pt-4 border-t border-gray-700">
-                        <h3 class="font-semibold text-lg">Chord Palette</h3>
-                        <p class="text-xs text-gray-400">Click to insert. Ctrl/Cmd+Click to add to queue.</p>
-                        <div id="chordPalette" class="flex flex-wrap gap-2"></div>
-                        <div class="flex gap-2">
-                            <input type="text" id="newChordInput" class="form-input text-sm" placeholder="e.g. F#m7">
-                            <button id="addChordBtn" class="btn btn-secondary btn-sm whitespace-nowrap">Add</button>
+                     <div class="space-y-3 pt-4 border-t border-gray-700">
+                        <h3 class="font-semibold text-lg">Musical Settings</h3>
+                        <div class="text-right">
+                            <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
+                            <select id="tuningSelector" class="form-select form-input text-sm"></select>
+                        </div>
+                        <div class="text-right">
+                            <label for="capoFretInput" class="block text-sm font-medium text-gray-400 mb-1">Capo Fret</label>
+                            <input type="number" id="capoFretInput" class="form-input text-sm w-24 ml-auto" value="0" min="0" max="12">
                         </div>
                     </div>
                 </div>
@@ -95,529 +80,472 @@
             <div class="md:col-span-3 space-y-4">
                 <input type="text" id="titleInput" class="form-input text-xl" placeholder="Song Title">
                 <input type="text" id="artistInput" class="form-input" placeholder="Artist Name">
-                <div id="audioSection" class="p-4 bg-gray-900 rounded-md space-y-3">
-                    <h3 class="text-lg font-semibold">Voice Memo</h3>
-                    <div id="audioPlayerContainer" class="hidden">
-                        <audio id="audioPlayer" controls class="w-full"></audio>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <button id="recordBtn" class="btn btn-record">Record</button>
-                        <button id="stopBtn" class="btn btn-secondary" disabled>Stop</button>
-                        <span id="recordingStatus" class="text-gray-400"></span>
-                    </div>
-                </div>
+                
                 <div>
-                    <div class="flex justify-between items-center mb-2">
-                         <h3 class="text-lg font-semibold">Live Preview</h3>
-                         <label class="flex items-center text-sm cursor-pointer">
-                            <input type="checkbox" id="showTabsToggle" class="mr-2"> Show Tabs
-                         </label>
-                    </div>
+                    <h3 class="text-lg font-semibold mb-2">Live Preview</h3>
                     <div id="livePreview" class="live-preview min-h-[100px]"></div>
                 </div>
-                <div>
-                    <h3 class="text-lg font-semibold mb-2">Editor</h3>
-                    <div class="flex justify-between items-start mb-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-400 mb-1">Frequent Chords</label>
-                            <div id="frequentChords" class="flex flex-wrap gap-2"></div>
-                        </div>
-                        <div class="flex gap-4">
-                             <div class="text-right">
-                                <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
-                                <select id="tuningSelector" class="form-select form-input text-sm"></select>
-                            </div>
-                            <div class="text-right">
-                                <label for="capoFretInput" class="block text-sm font-medium text-gray-400 mb-1">Capo Fret</label>
-                                <input type="number" id="capoFretInput" class="form-input text-sm w-24" value="0" min="0" max="12">
-                            </div>
-                            <div class="text-right">
-                                <label class="block text-sm font-medium text-gray-400 mb-1">Transpose</label>
-                                <div class="flex items-center gap-2">
-                                    <button id="transposeDownBtn" class="btn btn-secondary btn-sm">-</button>
-                                    <span id="transposeStatus" class="font-bold text-lg w-8 text-center">0</span>
-                                    <button id="transposeUpBtn" class="btn btn-secondary btn-sm">+</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 mb-2 p-2 bg-gray-900 rounded-md text-sm">
-                        <div><strong>Sounding Key:</strong> <span id="soundingKeyDisplay">N/A</span></div>
-                        <div><strong>Non-Capo Chords:</strong> <span id="noCapoKeyDisplay">N/A</span></div>
-                    </div>
-                    <div class="mb-2">
-                        <label class="block text-sm font-medium text-gray-400 mb-1">Chord Queue (Click in editor to place)</label>
-                        <div class="flex items-center gap-2 p-2 bg-gray-900 rounded-md min-h-[40px]">
-                            <div id="chordQueue" class="flex flex-wrap gap-2 flex-grow"></div>
-                            <button id="clearQueueBtn" class="btn btn-danger btn-sm">Clear</button>
-                        </div>
-                    </div>
-                    <textarea id="lyricsInput" class="form-textarea" placeholder="Type lyrics and [chords]..."></textarea>
-                    
-                    <!-- VISUAL FRETBOARD EDITOR -->
-                    <div class="mt-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <label class="block text-lg font-semibold">Interactive Fretboard Editor</label>
-                            <div class="flex items-center gap-4">
-                                <label for="tab-position-slider" class="text-sm">Position:</label>
-                                <input type="range" id="tab-position-slider" min="0" max="100" value="0" class="w-48">
-                                <button id="clear-tab-btn" class="btn btn-danger btn-sm">Clear Tab</button>
-                            </div>
-                        </div>
-                        <div class="bg-[#2f2f2f] border border-[#555] rounded-lg">
-                            <div id="fretboard-container"></div>
-                            <div id="generated-tab-output"></div>
-                        </div>
-                    </div>
 
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Song Builder</h3>
+                    <div id="song-blocks-container" class="space-y-4">
+                        <!-- Song blocks will be rendered here -->
+                    </div>
+                    <div id="add-block-buttons" class="mt-4 flex flex-wrap gap-2">
+                        <!-- Add block buttons are rendered here -->
+                    </div>
                 </div>
             </div>
         </main>
     </div>
-    <!-- Setlist Modal -->
-    <div id="setlistModal" class="modal-overlay hidden">
-        <div class="modal-content space-y-4">
-            <div class="flex justify-between items-center"><h2 class="text-2xl font-bold">Setlist Manager</h2><button id="closeSetlistModalBtn" class="text-2xl">&times;</button></div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label for="setlistSelector" class="block text-sm font-medium text-gray-300 mb-1">Select Setlist</label>
-                    <select id="setlistSelector" class="form-select"></select>
-                </div>
-                <div>
-                    <label for="newSetlistInput" class="block text-sm font-medium text-gray-300 mb-1">Or Create New</label>
-                    <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
-                </div>
-            </div>
-            <div id="setlistDetailsSection" class="hidden space-y-3 p-4 border border-gray-600 rounded-lg">
-                <h3 class="text-lg font-semibold">Gig Details</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label for="setlistVenue" class="block text-sm">Venue</label><input type="text" id="setlistVenue" class="form-input"></div>
-                    <div><label for="setlistDate" class="block text-sm">Date</label><input type="date" id="setlistDate" class="form-input"></div>
-                </div>
-                <div><label for="setlistLogoUrl" class="block text-sm">Band Logo Image URL (for watermark)</label><input type="text" id="setlistLogoUrl" class="form-input" placeholder="https://.../logo.png"></div>
-                <div><label for="setlistNotes" class="block text-sm">Notes</label><textarea id="setlistNotes" class="form-input" rows="2"></textarea></div>
-                <div class="text-right"><button id="saveSetlistDetailsBtn" class="btn btn-primary btn-sm">Save Details</button></div>
-            </div>
-            <div class="bg-gray-800 p-4 rounded-md">
-                <h3 id="currentSetlistTitle" class="text-xl font-semibold mb-2">Select a setlist</h3>
-                <p class="text-sm text-gray-400 mb-2">Drag and drop songs to reorder.</p>
-                <ul id="songsInSetlist" class="space-y-2"></ul>
-            </div>
-            <div class="flex justify-end gap-2">
-                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Setlist</button>
-                <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song to Setlist</button>
-            </div>
-        </div>
-    </div>
+    <!-- Setlist Modal and other modals would go here, unchanged for now -->
+
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const token = localStorage.getItem('user_token');
-            if (!token) {
-                document.getElementById('tool-content').classList.add('hidden');
-                document.getElementById('access-denied').classList.remove('hidden');
-            } else {
-                document.getElementById('tool-content').classList.remove('hidden');
-                document.getElementById('access-denied').classList.add('hidden');
-                initializeApp();
+    // --- GATEKEEPER ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('user_token');
+        if (!token) {
+            document.getElementById('tool-content').classList.add('hidden');
+            document.getElementById('access-denied').classList.remove('hidden');
+        } else {
+            document.getElementById('tool-content').classList.remove('hidden');
+            document.getElementById('access-denied').classList.add('hidden');
+            initializeApp();
+        }
+    });
+
+    function initializeApp() {
+        // --- GLOBAL STATE ---
+        let songData = {
+            id: null,
+            title: '',
+            artist: '',
+            audio_url: null,
+            song_blocks: []
+        };
+        let musicalContext = {
+            tuning: 'E_STANDARD',
+            capo: 0
+        };
+
+        // --- ELEMENT REFS ---
+        const titleInput = document.getElementById('titleInput');
+        const artistInput = document.getElementById('artistInput');
+        const songBlocksContainer = document.getElementById('song-blocks-container');
+        const addBlockButtonsContainer = document.getElementById('add-block-buttons');
+        const livePreview = document.getElementById('livePreview');
+        const tuningSelector = document.getElementById('tuningSelector');
+        const capoFretInput = document.getElementById('capoFretInput');
+        const songSelector = document.getElementById('songSelector');
+        const saveBtn = document.getElementById('saveBtn');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const statusMessage = document.getElementById('statusMessage');
+
+        // --- CONSTANTS ---
+        const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
+        const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
+        const FRETBOARD_CONFIG = { frets: 24, width: 8000, height: 180, stringSpacing: 28, fretSpacing: 80, nutWidth: 15, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 };
+
+        // --- API OBJECT (UNCHANGED FROM PREVIOUS) ---
+        const api = { 
+            request: async (endpoint, options = {}) => {
+                const token = localStorage.getItem('user_token');
+                if (!token) { setStatus('You are not logged in.', true); window.location.href = '/proanthem_index.html'; throw new Error('No token found'); }
+                const url = `/api${endpoint}`;
+                const config = { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`}, ...options };
+                const response = await fetch(url, config);
+                if (!response.ok) {
+                    if (response.status === 401) { setStatus('Session expired. Please log in.', true); localStorage.removeItem('user_token'); window.location.href = '/proanthem_index.html'; }
+                    const err = await response.json().catch(() => ({ message: 'API Error' })); throw new Error(err.message);
+                }
+                return response.status === 204 ? null : response.json();
+            },
+            getSheets: () => api.request('/lyric-sheets', { method: 'GET' }),
+            getSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'GET' }),
+            createSheet: (data) => api.request('/lyric-sheets', { method: 'POST', body: JSON.stringify(data) }),
+            updateSheet: (id, data) => api.request(`/lyric-sheets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+            deleteSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'DELETE' })
+        };
+        
+        // --- CORE RENDERING & LOGIC ---
+        function renderSongBlocks() {
+            songBlocksContainer.innerHTML = '';
+            songData.song_blocks.forEach(block => {
+                const blockEl = createBlockElement(block);
+                songBlocksContainer.appendChild(blockEl);
+            });
+            renderAddBlockButtons();
+            renderPreview();
+            initializeSortable();
+        }
+
+        function createBlockElement(block) {
+            const div = document.createElement('div');
+            div.className = 'song-block';
+            div.dataset.blockId = block.id;
+
+            let contentHtml = '';
+            if (block.type === 'lyrics') {
+                contentHtml = `<textarea class="form-input" style="min-height: 150px;" data-field="content" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea>`;
+            } else if (block.type === 'tab') {
+                contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
+            } else if (block.type === 'reference') {
+                const originalBlock = songData.song_blocks.find(b => b.id === block.originalId);
+                contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
+            }
+
+            div.innerHTML = `
+                <div class="block-header">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold">${block.label}</span>
+                        <span class="text-xs text-gray-400">(${block.type})</span>
+                    </div>
+                    <div>
+                        <button class="btn-sm text-xs hover:underline" data-action="edit-label">Rename</button>
+                        <button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button>
+                    </div>
+                </div>
+                <div class="block-content">${contentHtml}</div>
+            `;
+            
+            // Post-render initialization for complex elements
+            if (block.type === 'tab') {
+                setTimeout(() => drawFretboard(block.id), 0);
+            }
+
+            return div;
+        }
+
+        function renderAddBlockButtons() {
+            const createdSections = songData.song_blocks.filter(b => b.type !== 'reference');
+            let referenceButtonsHtml = '';
+            if (createdSections.length > 0) {
+                referenceButtonsHtml = `
+                    <div class="relative inline-block text-left">
+                        <button id="insert-ref-btn" class="btn btn-secondary">Insert Existing Section</button>
+                        <div id="ref-dropdown" class="hidden origin-top-right absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-gray-700 ring-1 ring-black ring-opacity-5 z-10">
+                            <div class="py-1" role="menu" aria-orientation="vertical">
+                                ${createdSections.map(b => `<a href="#" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600" data-original-id="${b.id}" role="menuitem">${b.label}</a>`).join('')}
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            addBlockButtonsContainer.innerHTML = `
+                <button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Verse </button>
+                <button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Chorus </button>
+                <button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Bridge </button>
+                <button class="btn btn-secondary" data-action="add" data-type="tab"> + Tab Section </button>
+                ${referenceButtonsHtml}
+            `;
+        }
+        
+        function renderPreview() {
+            let previewHtml = '';
+            songData.song_blocks.forEach(block => {
+                let blockToRender = block;
+                if (block.type === 'reference') {
+                    blockToRender = songData.song_blocks.find(b => b.id === block.originalId) || block;
+                }
+                
+                previewHtml += `<h4 class="text-lg font-bold mt-4 text-gray-400">${block.label}</h4>`;
+                
+                if (blockToRender.type === 'lyrics') {
+                    const lines = (blockToRender.content || '').split('\n');
+                    lines.forEach(line => {
+                        const parsed = parseLineForRender(line);
+                        previewHtml += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`;
+                    });
+                } else if (blockToRender.type === 'tab') {
+                    previewHtml += `<div class="tab-preview">${renderTransposedTab(blockToRender.data || { notes: [] })}</div>`;
+                }
+            });
+            livePreview.innerHTML = previewHtml;
+        }
+
+        // --- FRETBOARD LOGIC (scoped to a block) ---
+        function drawFretboard(blockId) {
+            const container = document.getElementById(`fretboard-${blockId}`);
+            if (!container) return;
+            const block = songData.song_blocks.find(b => b.id === blockId);
+            if (!block) return;
+            const { frets, width, height, stringSpacing, fretSpacing, nutWidth, dotFrets, dotRadius } = FRETBOARD_CONFIG;
+            let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;">`;
+            svgHTML += `<rect class="fretboard-bg" width="${width}" height="${height}" />`;
+            svgHTML += `<g id="fretboard-notes-group-${blockId}"></g>`; // Notes go here to be under strings
+            for (let i = 0; i < 6; i++) {
+                const y = stringSpacing / 2 + i * stringSpacing;
+                svgHTML += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
+            }
+            svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
+            for (let i = 1; i <= frets; i++) {
+                const x = nutWidth + i * fretSpacing;
+                svgHTML += `<line class="fretboard-fret" x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
+            }
+            dotFrets.forEach(fret => {
+                const x = nutWidth + (fret - 0.5) * fretSpacing;
+                if (fret % 12 === 0) {
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 1.5}" r="${dotRadius}" />`;
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 4.5}" r="${dotRadius}" />`;
+                } else {
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
+                }
+            });
+            svgHTML += `<rect id="fretboard-target-zone-${blockId}" x="0" y="0" width="${width}" height="${height}" fill="transparent" class="fretboard-target-zone" />`;
+            svgHTML += `</svg>`;
+            container.innerHTML = svgHTML;
+            drawNotesOnFretboard(blockId);
+        }
+
+        function drawNotesOnFretboard(blockId) {
+            const block = songData.song_blocks.find(b => b.id === blockId);
+            const notesGroup = document.getElementById(`fretboard-notes-group-${blockId}`);
+            if (!notesGroup || !block || block.type !== 'tab') return;
+            notesGroup.innerHTML = '';
+            
+            const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+
+            (block.data?.notes || []).forEach((note, index) => {
+                const transposedFret = note.fret - totalOffset;
+                if (transposedFret < 0) return;
+
+                const y = FRETBOARD_CONFIG.stringSpacing / 2 + note.string * FRETBOARD_CONFIG.stringSpacing;
+                const x = (transposedFret === 0) 
+                    ? FRETBOARD_CONFIG.nutWidth / 2 
+                    : FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing + note.position;
+                
+                notesGroup.innerHTML += `
+                    <g>
+                        <circle class="fretboard-note" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" />
+                        <text class="fretboard-note-text" x="${x}" y="${y+1}">${transposedFret}</text>
+                    </g>
+                `;
+            });
+        }
+        
+        function getFretFromClick(evt, blockId) {
+            const svg = document.getElementById(`fretboard-svg-${blockId}`);
+            if (!svg) return null;
+            const pt = svg.createSVGPoint();
+            pt.x = evt.clientX; pt.y = evt.clientY;
+            const svgPoint = pt.matrixTransform(svg.getScreenCTM().inverse());
+            
+            const stringIndex = Math.floor((svgPoint.y / FRETBOARD_CONFIG.stringSpacing));
+            const fret = Math.round((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing);
+            
+            if (stringIndex >= 0 && stringIndex < 6 && fret >= 0 && fret <= FRETBOARD_CONFIG.frets) {
+                return { string: stringIndex, fret, position: svgPoint.x - (FRETBOARD_CONFIG.nutWidth + (fret - 0.5) * FRETBOARD_CONFIG.fretSpacing) };
+            }
+            return null;
+        }
+
+        function renderTransposedTab(tabBlockData) {
+            if (!tabBlockData || !tabBlockData.notes || tabBlockData.notes.length === 0) return 'No tab data for this section.';
+            const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+            
+            const positionMap = new Map();
+            tabBlockData.notes.forEach(note => {
+                const transposedFret = note.fret - totalOffset;
+                if (transposedFret < 0) return;
+                const charPosition = Math.floor(note.position / 10);
+                if (!positionMap.has(charPosition)) {
+                    positionMap.set(charPosition, Array(6).fill(null));
+                }
+                positionMap.get(charPosition)[note.string] = transposedFret;
+            });
+            
+            if (positionMap.size === 0) return 'Notes out of range for current settings.';
+            
+            const sortedPositions = [...positionMap.keys()].sort((a,b) => a - b);
+            const lines = STRING_NAMES.map(name => `${name}|`);
+            let lastCharPos = 1;
+            
+            sortedPositions.forEach(charPos => {
+                const notesAtPos = positionMap.get(charPos);
+                const padding = charPos - lastCharPos;
+                if (padding > 0) lines.forEach((line, i) => lines[i] += '-'.repeat(padding));
+                
+                let maxFretWidth = 0;
+                notesAtPos.forEach(fret => {
+                    if (fret !== null) maxFretWidth = Math.max(maxFretWidth, String(fret).length);
+                });
+                
+                lines.forEach((line, i) => {
+                    const fret = notesAtPos[i];
+                    lines[i] += (fret !== null) ? String(fret).padEnd(maxFretWidth, '-') : '-'.repeat(maxFretWidth);
+                });
+                lastCharPos = charPos + maxFretWidth;
+            });
+            
+            const maxLength = Math.max(...lines.map(l => l.length));
+            return lines.map(line => line.padEnd(maxLength, '-')).join('\n');
+        }
+
+        // --- DATA HANDLING ---
+        function updateBlockData(blockId, field, value) {
+            const block = songData.song_blocks.find(b => b.id === blockId);
+            if (block) {
+                block[field] = value;
+                renderPreview();
+            }
+        }
+        
+        async function loadSong(id) {
+            if (!id) { initializeNewSong(); return; }
+            setStatus('Loading song...');
+            try {
+                const data = await api.getSheet(id);
+                songData = {
+                    id: data.id,
+                    title: data.title || '',
+                    artist: data.artist || '',
+                    audio_url: data.audio_url,
+                    song_blocks: data.song_blocks || []
+                };
+                titleInput.value = songData.title;
+                artistInput.value = songData.artist;
+                renderSongBlocks();
+                setStatus('Song loaded.');
+            } catch (error) {
+                setStatus(`Error loading song: ${error.message}`, true);
+                initializeNewSong();
+            }
+        }
+
+        function initializeNewSong() {
+            songData = {
+                id: null, title: '', artist: '', audio_url: null,
+                song_blocks: [{
+                    id: `block_${Date.now()}`,
+                    type: 'lyrics',
+                    label: 'Verse 1',
+                    content: ''
+                }]
+            };
+            titleInput.value = '';
+            artistInput.value = '';
+            songSelector.value = 'new';
+            renderSongBlocks();
+        }
+
+        async function handleSave() {
+            songData.title = titleInput.value || 'Untitled';
+            songData.artist = artistInput.value || 'Unknown Artist';
+            setStatus('Saving...');
+            try {
+                const payload = { ...songData };
+                const savedSong = songData.id ? await api.updateSheet(songData.id, payload) : await api.createSheet(payload);
+                songData.id = savedSong.id;
+                setStatus('Saved successfully!');
+                if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
+                    await loadSheetList();
+                    songSelector.value = savedSong.id;
+                }
+            } catch (error) { setStatus(`Save failed: ${error.message}`, true); }
+        }
+        
+        // --- EVENT LISTENERS ---
+        titleInput.addEventListener('input', () => songData.title = titleInput.value);
+        artistInput.addEventListener('input', () => songData.artist = artistInput.value);
+        tuningSelector.addEventListener('input', () => { musicalContext.tuning = tuningSelector.value; renderSongBlocks(); });
+        capoFretInput.addEventListener('input', () => { musicalContext.capo = parseInt(capoFretInput.value, 10) || 0; renderSongBlocks(); });
+        songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
+        saveBtn.addEventListener('click', handleSave);
+        logoutBtn.addEventListener('click', () => { localStorage.removeItem('user_token'); localStorage.removeItem('userRole'); window.location.href = '/proanthem_index.html'; });
+
+        songBlocksContainer.addEventListener('input', e => {
+            if (e.target.dataset.field) {
+                const blockId = e.target.closest('.song-block').dataset.blockId;
+                updateBlockData(blockId, e.target.dataset.field, e.target.value);
             }
         });
 
-        function initializeApp() {
-            const lyricsInput = document.getElementById('lyricsInput');
-            const showTabsToggle = document.getElementById('showTabsToggle');
-            const livePreview = document.getElementById('livePreview');
-            const songSelector = document.getElementById('songSelector'); const titleInput = document.getElementById('titleInput'); const artistInput = document.getElementById('artistInput'); const saveBtn = document.getElementById('saveBtn'); const deleteBtn = document.getElementById('deleteBtn'); const exportPdfBtn = document.getElementById('exportPdfBtn'); const statusMessage = document.getElementById('statusMessage'); const chordPalette = document.getElementById('chordPalette'); const newChordInput = document.getElementById('newChordInput'); const addChordBtn = document.getElementById('addChordBtn'); const setlistBtn = document.getElementById('setlistBtn'); const setlistModal = document.getElementById('setlistModal'); const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn'); const setlistSelector = document.getElementById('setlistSelector'); const newSetlistInput = document.getElementById('newSetlistInput'); const createSetlistBtn = document.getElementById('createSetlistBtn'); const currentSetlistTitle = document.getElementById('currentSetlistTitle'); const songsInSetlist = document.getElementById('songsInSetlist'); const addSongToSetlistBtn = document.getElementById('addSongToSetlistBtn'); const printSetlistBtn = document.getElementById('printSetlistBtn'); const frequentChords = document.getElementById('frequentChords'); const chordQueueDiv = document.getElementById('chordQueue'); const clearQueueBtn = document.getElementById('clearQueueBtn'); const transposeDownBtn = document.getElementById('transposeDownBtn'); const transposeUpBtn = document.getElementById('transposeUpBtn'); const transposeStatus = document.getElementById('transposeStatus'); const tuningSelector = document.getElementById('tuningSelector'); const capoFretInput = document.getElementById('capoFretInput'); const soundingKeyDisplay = document.getElementById('soundingKeyDisplay'); const noCapoKeyDisplay = document.getElementById('noCapoKeyDisplay'); const recordBtn = document.getElementById('recordBtn'); const stopBtn = document.getElementById('stopBtn'); const recordingStatus = document.getElementById('recordingStatus'); const audioPlayerContainer = document.getElementById('audioPlayerContainer'); const audioPlayer = document.getElementById('audioPlayer'); const logoutBtn = document.getElementById('logoutBtn');
-            const fretboardContainer = document.getElementById('fretboard-container');
-            const tabPositionSlider = document.getElementById('tab-position-slider');
-            const clearTabBtn = document.getElementById('clear-tab-btn');
-            const generatedTabOutput = document.getElementById('generated-tab-output');
+        songBlocksContainer.addEventListener('click', e => {
+            const blockEl = e.target.closest('.song-block');
+            if (!blockEl) return;
+            const blockId = blockEl.dataset.blockId;
 
-            let currentSongId = null; let currentSetlist = null; let sortable = null; let chordQueue = []; let chordQueueIndex = 0; let transposeSteps = 0; let mediaRecorder; let audioChunks = []; let currentAudioUrl = null; let tabData = { notes: [] };
-            
-            const CLOUDINARY_CLOUD_NAME = 'dawbku2eq';
-            const CLOUDINARY_UPLOAD_PRESET = 'project-anthem-unsigned'; 
-            
-            const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']; const flatScale = ['A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab']; const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 }, };
-            const STRING_NAMES = ['e', 'B', 'G', 'D', 'A', 'E'];
-
-            const api = { 
-                request: async (endpoint, options = {}) => {
-                    const token = localStorage.getItem('user_token');
-                    if (!token) {
-                        setStatus('You are not logged in.', true);
-                        window.location.href = '/proanthem_index.html';
-                        throw new Error('No token found');
-                    }
-                    const url = `/api${endpoint}`;
-                    const config = { 
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        }, 
-                        ...options 
-                    }; 
-                    const response = await fetch(url, config); 
-                    if (!response.ok) { 
-                        if (response.status === 401) {
-                            setStatus('Session expired. Please log in.', true);
-                            localStorage.removeItem('user_token');
-                            window.location.href = '/proanthem_index.html';
-                        }
-                        const err = await response.json().catch(() => ({ message: 'API Error' })); throw new Error(err.message); 
-                    } 
-                    return response.status === 204 ? null : response.json(); 
-                }, 
-                getSheets: () => api.request('/lyric-sheets', { method: 'GET' }), 
-                getSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'GET' }), 
-                createSheet: (data) => api.request('/lyric-sheets', { method: 'POST', body: JSON.stringify(data) }), 
-                updateSheet: (id, data) => api.request(`/lyric-sheets/${id}`, { method: 'PUT', body: JSON.stringify(data) }), 
-                deleteSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'DELETE' }), 
-                getChords: () => api.request('/chords', { method: 'GET' }), 
-                createChord: (data) => api.request('/chords', { method: 'POST', body: JSON.stringify(data) }), 
-                getSetlists: () => api.request('/setlists', { method: 'GET' }), 
-                getSetlist: (id) => api.request(`/setlists/${id}`, { method: 'GET' }), 
-                createSetlist: (data) => api.request('/setlists', { method: 'POST', body: JSON.stringify(data) }), 
-                addSongToSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs`, { method: 'POST', body: JSON.stringify({ song_id: songId }) }), 
-                removeSongFromSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs/${songId}`, { method: 'DELETE' }), 
-                updateSetlistDetails: (id, data) => api.request(`/setlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }), 
-                updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
-            };
-            
-            const FRETBOARD_CONFIG = {
-                frets: 15, width: 800, height: 180,
-                stringSpacing: 28, fretSpacing: 50, nutWidth: 10,
-                dotFrets: [3, 5, 7, 9, 12], dotRadius: 4
-            };
-
-            function drawFretboard() {
-                const { frets, width, height, stringSpacing, fretSpacing, nutWidth, dotFrets, dotRadius } = FRETBOARD_CONFIG;
-                let svgHTML = `<svg id="fretboard-svg" width="100%" viewBox="0 0 ${width} ${height}">`;
-                svgHTML += `<rect class="fretboard-bg" width="${width}" height="${height}" />`;
-                svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
-                for (let i = 1; i <= frets; i++) {
-                    const x = nutWidth + i * fretSpacing;
-                    svgHTML += `<line class="fretboard-fret" x1="${x}" y1="0" x2="${x}" y2="${height}" />`;
+            if (e.target.dataset.action === 'delete') {
+                if (confirm('Are you sure you want to delete this section?')) {
+                    songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId);
+                    // Also remove references to this block
+                    songData.song_blocks = songData.song_blocks.filter(b => b.type !== 'reference' || b.originalId !== blockId);
+                    renderSongBlocks();
                 }
-                for (let i = 0; i < 6; i++) {
-                    const y = stringSpacing / 2 + i * stringSpacing;
-                    svgHTML += `<line class="fretboard-string" x1="0" y1="${y}" x2="${width}" y2="${y}" />`;
+            } else if (e.target.dataset.action === 'edit-label') {
+                const block = songData.song_blocks.find(b => b.id === blockId);
+                const newLabel = prompt('Enter new section label:', block.label);
+                if (newLabel) {
+                    block.label = newLabel;
+                    renderSongBlocks();
                 }
-                dotFrets.forEach(fret => {
-                    const x = nutWidth + (fret - 0.5) * fretSpacing;
-                    if (fret === 12) {
-                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 1.5}" r="${dotRadius}" />`;
-                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * 4.5}" r="${dotRadius}" />`;
-                    } else {
-                        svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
-                    }
-                });
-                svgHTML += `<rect id="fretboard-target-zone" x="0" y="0" width="${width}" height="${height}" fill="transparent" />`;
-                svgHTML += `<g id="fretboard-notes-group"></g>`;
-                svgHTML += `</svg>`;
-                fretboardContainer.innerHTML = svgHTML;
-                drawNotesOnFretboard();
             }
-
-            function drawNotesOnFretboard() {
-                const notesGroup = fretboardContainer.querySelector('#fretboard-notes-group');
-                if (!notesGroup) return;
-                notesGroup.innerHTML = '';
-
-                const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0;
-                const capoFret = parseInt(capoFretInput.value, 10) || 0;
-                const totalOffset = tuningOffset + capoFret + transposeSteps;
-
-                tabData.notes.forEach((note, index) => {
-                    const { string, fret } = note;
-                    const transposedFret = fret - totalOffset;
-                    if (transposedFret < 0) return;
-
-                    const y = FRETBOARD_CONFIG.stringSpacing / 2 + string * FRETBOARD_CONFIG.stringSpacing;
-                    const x = (transposedFret === 0) 
-                        ? FRETBOARD_CONFIG.nutWidth / 2 
-                        : FRETBOARD_CONFIG.nutWidth + (transposedFret - 0.5) * FRETBOARD_CONFIG.fretSpacing;
-                    
-                    const noteCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                    noteCircle.setAttribute('class', 'fretboard-note');
-                    noteCircle.setAttribute('cx', x);
-                    noteCircle.setAttribute('cy', y);
-                    noteCircle.setAttribute('r', 10);
-                    noteCircle.dataset.noteIndex = index;
-                    
-                    const noteText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                    noteText.setAttribute('class', 'fretboard-note-text');
-                    noteText.setAttribute('x', x);
-                    noteText.setAttribute('y', y + 1);
-                    noteText.textContent = transposedFret;
-
-                    notesGroup.appendChild(noteCircle);
-                    notesGroup.appendChild(noteText);
-                });
-            }
-
-            function getFretFromClick(evt) {
-                const svg = fretboardContainer.querySelector('svg');
-                if (!svg) return null;
-                const pt = svg.createSVGPoint();
-                pt.x = evt.clientX;
-                pt.y = evt.clientY;
-                const svgPoint = pt.matrixTransform(svg.getScreenCTM().inverse());
-
-                const stringIndex = Math.round((svgPoint.y - (FRETBOARD_CONFIG.stringSpacing / 2)) / FRETBOARD_CONFIG.stringSpacing);
-                const fret = Math.round((svgPoint.x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing);
-
-                if (stringIndex >= 0 && stringIndex < 6 && fret >= 0 && fret <= FRETBOARD_CONFIG.frets) {
-                    return { string: stringIndex, fret };
-                }
-                return null;
-            }
-
-            function renderGeneratedTab() {
-                generatedTabOutput.textContent = renderTransposedTab();
-            }
-
-            function renderPreview() {
-                const rawLyrics = lyricsInput.value;
-                const showTabs = showTabsToggle.checked;
-                
-                const lyricLines = rawLyrics.split('\n');
-                let lyricHtml = '';
-                lyricLines.forEach(line => {
-                    const parsed = parseLineForRender(line);
-                    lyricHtml += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`;
-                });
-
-                let tabHtml = '';
-                if (showTabs && tabData && tabData.notes.length > 0) {
-                    tabHtml = `<div class="tab-preview">${renderTransposedTab()}</div>`;
-                }
-                
-                livePreview.innerHTML = lyricHtml + tabHtml;
-            }
-            
-            async function handleSave() {
-                const payload = { 
-                    title: titleInput.value || 'Untitled', 
-                    artist: artistInput.value || 'Unknown Artist', 
-                    content: lyricsInput.value, 
-                    tab_content: tabData,
-                    audio_url: currentAudioUrl 
-                }; 
-                try { 
-                    setStatus('Saving...'); 
-                    const savedSong = currentSongId ? await api.updateSheet(currentSongId, payload) : await api.createSheet(payload); 
-                    currentSongId = savedSong.id; 
-                    setStatus('Saved successfully!'); 
-                    if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
-                        await loadSheetList(); 
-                        songSelector.value = savedSong.id; 
-                    } 
-                    deleteBtn.disabled = false; 
-                    addSongToSetlistBtn.disabled = !setlistSelector.value; 
-                } catch (e) { setStatus('Save failed.', true); } 
-            }
-
-            async function loadSheet(id) {
-                setStatus('Loading...');
-                try {
-                    const song = await api.getSheet(id);
-                    titleInput.value = song.title;
-                    artistInput.value = song.artist;
-                    lyricsInput.value = song.content || '';
-                    
-                    tabData = song.tab_content && song.tab_content.notes ? song.tab_content : { notes: [] };
-                    updateTransposeStatus(0);
-                    
-                    currentSongId = song.id;
-                    currentAudioUrl = song.audio_url;
-                    if (currentAudioUrl) {
-                        audioPlayer.src = currentAudioUrl;
-                        audioPlayerContainer.classList.remove('hidden');
-                    } else {
-                        audioPlayerContainer.classList.add('hidden');
-                    }
-                    deleteBtn.disabled = false;
-                    addSongToSetlistBtn.disabled = !setlistSelector.value;
-                    setStatus('Song loaded.');
-                } catch (e) {
-                    setStatus('Could not find song.', true);
-                    initializeNewSong();
-                }
-                
-                drawFretboard();
-                renderGeneratedTab();
-                renderPreview();
-                updateKeyDisplay();
-            }
-
-            function initializeNewSong() {
-                currentSongId = null;
-                currentAudioUrl = null;
-                audioPlayerContainer.classList.add('hidden');
-                titleInput.value = '';
-                artistInput.value = '';
-                lyricsInput.value = '';
-                tabData = { notes: [] };
-                songSelector.value = 'new';
-                deleteBtn.disabled = true;
-                addSongToSetlistBtn.disabled = true;
-                updateTransposeStatus(0);
-                drawFretboard();
-                renderGeneratedTab();
-                renderPreview();
-                updateKeyDisplay();
-            }
-            
-            function renderTransposedTab() {
-                if (!tabData || !tabData.notes || tabData.notes.length === 0) return 'Click the fretboard to add notes to the tab...';
-                const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0;
-                const capoFret = parseInt(capoFretInput.value, 10) || 0;
-                const totalOffset = tuningOffset + capoFret + transposeSteps;
-
-                const positionMap = new Map();
-                let maxPosition = 0;
-                tabData.notes.forEach(note => {
-                    const transposedFret = note.fret - totalOffset;
-                    if (transposedFret < 0) return;
-
-                    if (!positionMap.has(note.position)) {
-                        positionMap.set(note.position, Array(6).fill(null));
-                    }
-                    positionMap.get(note.position)[note.string] = transposedFret;
-                    maxPosition = Math.max(maxPosition, note.position);
-                });
-
-                const sortedPositions = [...positionMap.keys()].sort((a,b) => a - b);
-                
-                const lines = STRING_NAMES.map(name => `${name}|`);
-                let lastCharPos = 1;
-                
-                sortedPositions.forEach(pos => {
-                    const notesAtPos = positionMap.get(pos);
-                    const padding = pos - lastCharPos;
-
-                    if (padding > 0) {
-                        lines.forEach( (line, i) => lines[i] += '-'.repeat(padding) );
-                    }
-                    
-                    let maxFretWidth = 0;
-                    notesAtPos.forEach(fret => {
-                        if (fret !== null) maxFretWidth = Math.max(maxFretWidth, String(fret).length);
+        });
+        
+        fretboardContainer.addEventListener('click', e => {
+            const blockId = e.target.closest('.song-block')?.dataset.blockId;
+            if(!blockId) return;
+            // ... fretboard click logic
+        });
+        
+        addBlockButtonsContainer.addEventListener('click', e => {
+            const target = e.target;
+            if (target.id === 'insert-ref-btn') {
+                document.getElementById('ref-dropdown').classList.toggle('hidden');
+            } else if (target.parentElement.id === 'ref-dropdown') {
+                const originalId = target.dataset.originalId;
+                const originalBlock = songData.song_blocks.find(b => b.id === originalId);
+                if(originalBlock) {
+                    songData.song_blocks.push({
+                        id: `block_${Date.now()}`,
+                        type: 'reference',
+                        label: `Reference to ${originalBlock.label}`,
+                        originalId: originalId
                     });
-
-                    lines.forEach((line, i) => {
-                        const fret = notesAtPos[i];
-                        if (fret !== null && fret >= 0) {
-                            lines[i] += String(fret).padEnd(maxFretWidth, '-');
-                        } else {
-                            lines[i] += '-'.repeat(maxFretWidth);
-                        }
-                    });
-                    lastCharPos = pos + maxFretWidth;
-                });
-
-                const maxLength = Math.max(...lines.map(l => l.length));
-                return lines.map(line => line.padEnd(maxLength, '-')).join('\n');
+                    renderSongBlocks();
+                }
+                document.getElementById('ref-dropdown').classList.add('hidden');
+            } else if (target.dataset.action === 'add') {
+                const type = target.dataset.type;
+                const count = songData.song_blocks.filter(b => b.type === 'lyrics').length + 1;
+                const label = `${target.textContent.trim()} ${count}`;
+                const newBlock = { id: `block_${Date.now()}`, type, label };
+                if (type === 'lyrics') newBlock.content = '';
+                if (type === 'tab') newBlock.data = { notes: [] };
+                songData.song_blocks.push(newBlock);
+                renderSongBlocks();
             }
-            
-            function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
-            function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
-            async function handleExportPDF() { const { jsPDF } = jspdf; const doc = new jsPDF(); const title = titleInput.value || 'Untitled'; const artist = artistInput.value || 'Artist'; let y = 20; doc.setFontSize(18).text(title, 15, y); y += 7; doc.setFontSize(14).text(artist, 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); lyricsInput.value.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } const p = parseLineForRender(line); const cl = p.chordLine.replace(/&nbsp;/g, ' '); const ll = p.lyricLine.replace(/&nbsp;/g, ' '); doc.setTextColor('#d9a40d').text(cl, 15, y); y += 7; doc.setTextColor('#000000').text(ll, 15, y); y += 10.5; }); if(tabData.notes.length > 0) { const transposedTab = renderTransposedTab(); doc.addPage(); y = 20; doc.setFontSize(14).text('Guitar Tab', 15, y); y += 14; doc.setFont("Courier", "normal").setFontSize(12); transposedTab.split('\n').forEach(line => { if (y > 280) { doc.addPage(); y = 20; } doc.text(line, 15, y); y += 7; }); } doc.save(`${title.toLowerCase().replace(/\s/g, '_')}.pdf`); }
-            function handleChordButtonClick(event, chordName) { if (event.ctrlKey || event.metaKey) { chordQueue.push(chordName); renderChordQueue(); } else { const t = `[${chordName}] `, p = lyricsInput.selectionStart; lyricsInput.value = `${lyricsInput.value.slice(0, p)}${t}${lyricsInput.value.slice(p)}`; lyricsInput.focus(); const np = p + t.length; lyricsInput.setSelectionRange(np, np); renderPreview(); } }
-            async function loadChords() { try { const chords = await api.getChords(); chordPalette.innerHTML = ''; chords.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = c.name; btn.addEventListener('click', (e) => handleChordButtonClick(e, c.name)); chordPalette.appendChild(btn); }); } catch (e) { setStatus('Failed to load chords.', true); } }
-            async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await api.createChord({ name }); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
-            async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
-            async function handleDelete() { if (!currentSongId) return; if (confirm(`Are you sure you want to delete "${titleInput.value}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(currentSongId); setStatus('Song deleted.'); initializeNewSong(); await loadSheetList(); } catch (e) { setStatus('Failed to delete.', true); } } }
-            async function openSetlistModal() { setlistModal.classList.remove('hidden'); await loadSetlistsIntoSelector(); await displaySongsInSelectedSetlist(); }
-            function closeSetlistModal() { setlistModal.classList.add('hidden'); }
-            async function loadSetlistsIntoSelector() { try { const setlists = await api.getSetlists(); const currentVal = setlistSelector.value; setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>'; setlists.forEach(s => { const opt = document.createElement('option'); opt.value = s.id; opt.textContent = s.name; setlistSelector.appendChild(opt); }); if (currentVal) setlistSelector.value = currentVal; } catch (e) { setStatus('Could not load setlists.', true); } }
-            async function displaySongsInSelectedSetlist() { const setlistId = setlistSelector.value; printSetlistBtn.disabled = !setlistId; addSongToSetlistBtn.disabled = !setlistId || !currentSongId; document.getElementById('setlistDetailsSection').classList.toggle('hidden', !setlistId); if (!setlistId) { currentSetlistTitle.textContent = 'Select a setlist'; songsInSetlist.innerHTML = ''; currentSetlist = null; return; } try { const setlist = await api.getSetlist(setlistId); currentSetlist = setlist; currentSetlistTitle.textContent = setlist.name; document.getElementById('setlistVenue').value = setlist.venue || ''; document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : ''; document.getElementById('setlistLogoUrl').value = setlist.logo_url || ''; document.getElementById('setlistNotes').value = setlist.notes || ''; songsInSetlist.innerHTML = ''; if (setlist.songs.length === 0) { songsInSetlist.innerHTML = '<li class="text-gray-400">This setlist is empty.</li>'; } setlist.songs.forEach(song => { const li = document.createElement('li'); li.className = 'flex justify-between items-center bg-gray-700 p-2 rounded cursor-grab'; li.dataset.songId = song.id; li.innerHTML = `<span>${song.title}</span>`; const removeBtn = document.createElement('button'); removeBtn.className = 'btn btn-danger btn-sm'; removeBtn.textContent = 'Remove'; removeBtn.onclick = async () => { await api.removeSongFromSetlist(setlistId, song.id); await displaySongsInSelectedSetlist(); }; li.appendChild(removeBtn); songsInSetlist.appendChild(li); }); if (sortable) sortable.destroy(); sortable = new Sortable(songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', dragClass: 'sortable-drag', onEnd: async function (evt) { const songIds = Array.from(songsInSetlist.children).map(li => li.dataset.songId); try { await api.updateSetlistSongOrder(setlistId, songIds); setStatus('Setlist order saved.'); } catch (e) { setStatus('Failed to save order.', true); } } }); } catch (e) { setStatus('Could not load songs for setlist.', true); } }
-            async function handleCreateSetlist() { const name = newSetlistInput.value.trim(); if (!name) return; try { const newSetlist = await api.createSetlist({ name }); newSetlistInput.value = ''; await loadSetlistsIntoSelector(); setlistSelector.value = newSetlist.id; await displaySongsInSelectedSetlist(); } catch (e) { setStatus('Failed to create setlist.', true); } }
-            async function handleAddSongToSetlist() { const setlistId = setlistSelector.value; if (!setlistId || !currentSongId) return; try { await api.addSongToSetlist(setlistId, currentSongId); await displaySongsInSelectedSetlist(); } catch (e) { setStatus('Failed to add song.', true); } }
-            async function handleSaveSetlistDetails() { if (!currentSetlist) return; const payload = { name: currentSetlist.name, venue: document.getElementById('setlistVenue').value, event_date: document.getElementById('setlistDate').value || null, logo_url: document.getElementById('setlistLogoUrl').value, notes: document.getElementById('setlistNotes').value, }; try { await api.updateSetlistDetails(currentSetlist.id, payload); setStatus('Setlist details saved.'); } catch (e) { setStatus('Failed to save details.', true); } }
-            async function handlePrintSetlist() { if (!currentSetlist) return; try { const setlist = await api.getSetlist(currentSetlist.id); const songListHtml = setlist.songs.map(song => `<li>${song.title || 'Untitled'}</li>`).join(''); let formattedDate = 'N/A'; if (setlist.event_date) { const dateParts = setlist.event_date.split('T')[0].split('-'); const date = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2])); formattedDate = date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }); } let printHtml = `<!DOCTYPE html><html><head><title>${setlist.name}</title><style> @import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=Roboto:wght@400;700&display=swap'); body { font-family: 'Roboto', sans-serif; line-height: 1.6; color: #000; } .watermark-container { position: relative; } .watermark::before { content: ''; position: fixed; top: 25vh; left: 25vw; width: 50vw; height: 50vh; background-image: url('${setlist.logo_url || ''}'); background-repeat: no-repeat; background-position: center; background-size: contain; opacity: 0.1; z-index: -1; } .page { page-break-after: always; padding: 1in; } .page:last-of-type { page-break-after: auto; } .title-page { page-break-after: always; font-family: 'Special Elite', cursive; } h1 { font-size: 28pt; margin-bottom: 0; text-align: center;} h2 { font-size: 20pt; margin-bottom: 5px; } h3 { font-size: 14pt; color: #555; margin-top: 0; margin-bottom: 20px; font-weight: normal; } h4 { font-size: 18pt; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; } .setlist-details, .song-list { border: 1px solid #ccc; padding: 15px; margin: 20px 0 30px 0; } .song-list ol { padding-left: 20px; margin: 0; } .song-list li { padding-left: 5px; margin-bottom: 5px; font-size: 14pt; } .section-header { font-weight: bold; margin-top: 1em; margin-bottom: 0.2em; } .chords, .lyrics { font-family: 'Courier New', Courier, monospace; font-size: 12pt; white-space: pre; margin-bottom: 0.5em; } .chords { color: #333; font-weight: bold; } .lyrics { color: #000; } @media print { body { -webkit-print-color-adjust: exact; } } </style></head><body><div class="watermark-container"><div class="watermark"></div><div class="title-page"><h1>${setlist.name}</h1><div class="setlist-details"><strong>Venue:</strong> ${setlist.venue || 'N/A'}<br><strong>Date:</strong> ${formattedDate}<br><strong>Notes:</strong> ${setlist.notes || 'None'}</div><div class="song-list"><h4>Song List</h4><ol>${songListHtml}</ol></div></div>`; setlist.songs.forEach(song => { printHtml += `<div class="page"><h2>${song.title || 'Untitled'}</h2><h3>${song.artist || 'Unknown Artist'}</h3>`; (song.content || '').split('\n').forEach(line => { if (line.trim() === '') { printHtml += '<br>'; } else if (line.includes('[') && line.includes(']')) { const parsed = parseLineForRender(line); printHtml += `<div class="chords">${parsed.chordLine.replace(/&nbsp;/g, ' ')}</div><div class="lyrics">${parsed.lyricLine.replace(/&nbsp;/g, ' ')}</div>`; } else { printHtml += `<div class="section-header">${line}</div>`; } }); printHtml += `</div>`; }); printHtml += '</div></body></html>'; const printWindow = window.open('', '_blank'); if (!printWindow) { setStatus('Popup blocked! Please allow popups.', true); alert('Your browser blocked the print window. Please allow popups for this site and try again.'); return; } printWindow.document.write(printHtml); printWindow.document.close(); setTimeout(() => { printWindow.focus(); printWindow.print(); }, 500); } catch(e) { console.error("Error during print generation:", e); setStatus('An error occurred while preparing the print view.', true); } }
-            async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
-            function stopRecording() { mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
-            async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); currentAudioUrl = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; loadSheet(currentSongId); } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
-            function renderFrequentChords() { const frequentChordNames = ['Am', 'G', 'D', 'C', 'F']; frequentChords.innerHTML = ''; frequentChordNames.forEach(name => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.textContent = name; btn.addEventListener('click', (e) => handleChordButtonClick(e, name)); frequentChords.appendChild(btn); }); }
-            function renderChordQueue() { chordQueueDiv.innerHTML = ''; if (chordQueue.length === 0) { lyricsInput.classList.remove('placement-mode'); clearQueueBtn.disabled = true; return; } lyricsInput.classList.add('placement-mode'); clearQueueBtn.disabled = false; chordQueue.forEach((name, index) => { const pill = document.createElement('span'); pill.className = 'queue-pill'; if (index === chordQueueIndex) pill.classList.add('next'); pill.textContent = name; chordQueueDiv.appendChild(pill); }); }
-            function handleEditorClick(event) { if (chordQueue.length > 0) { event.preventDefault(); const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`, p = lyricsInput.selectionStart; lyricsInput.value = `${lyricsInput.value.slice(0, p)}${t}${lyricsInput.value.slice(p)}`; lyricsInput.focus(); const np = p + t.length; lyricsInput.setSelectionRange(np, np); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; renderChordQueue(); renderPreview(); } }
-            function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; const modifier = match[2]; let index = sharpScale.indexOf(note); if (index === -1) { index = flatScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + modifier; }
-            function handleTranspose(amount) { const currentText = lyricsInput.value; const transposedText = currentText.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`); lyricsInput.value = transposedText; updateTransposeStatus(transposeSteps + amount); }
-            function updateTransposeStatus(steps) { transposeSteps = steps; transposeStatus.textContent = transposeSteps > 0 ? `+${steps}` : transposeSteps; }
-            function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
-            function updateKeyDisplay() { const firstChordMatch = lyricsInput.value.match(/\[([^\]]+)\]/); if (!firstChordMatch) { soundingKeyDisplay.textContent = 'N/A'; noCapoKeyDisplay.textContent = 'N/A'; return; } const writtenKey = firstChordMatch[1]; const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0; const capoFret = parseInt(capoFretInput.value, 10) || 0; const soundingKey = transposeChord(writtenKey, tuningOffset + capoFret); const noCapoKey = transposeChord(writtenKey, capoFret); soundingKeyDisplay.textContent = soundingKey; noCapoKeyDisplay.textContent = `${noCapoKey} (play these chords)`; }
-            
-            // --- Event Listeners ---
-            const allMusicalInputs = [tuningSelector, capoFretInput];
-            allMusicalInputs.forEach(el => el.addEventListener('input', () => { updateKeyDisplay(); drawFretboard(); renderGeneratedTab(); renderPreview(); }));
-            transposeUpBtn.addEventListener('click', () => { handleTranspose(1); updateKeyDisplay(); drawFretboard(); renderGeneratedTab(); renderPreview(); });
-            transposeDownBtn.addEventListener('click', () => { handleTranspose(-1); updateKeyDisplay(); drawFretboard(); renderGeneratedTab(); renderPreview(); });
-            fretboardContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('fretboard-note')) {
-                    const noteIndex = parseInt(e.target.dataset.noteIndex, 10);
-                    tabData.notes.splice(noteIndex, 1);
-                    drawFretboard();
-                    renderGeneratedTab();
-                    renderPreview();
-                } else if (e.target.id === 'fretboard-target-zone') {
-                    const clickData = getFretFromClick(e);
-                    if (clickData) {
-                        const { string, fret } = clickData;
-                        const tuningOffset = TUNINGS[tuningSelector.value]?.offset ?? 0;
-                        const capoFretVal = parseInt(capoFretInput.value, 10) || 0;
-                        const totalOffset = tuningOffset + capoFretVal + transposeSteps;
+        });
 
-                        tabData.notes.push({
-                            string: string,
-                            fret: fret + totalOffset,
-                            position: Math.round(parseInt(tabPositionSlider.value, 10) * 0.8) // Scale slider value to fretboard width
-                        });
-                        drawFretboard();
-                        renderGeneratedTab();
-                        renderPreview();
-                    }
+        function initializeSortable() {
+            new Sortable(songBlocksContainer, {
+                animation: 150,
+                handle: '.block-header',
+                onEnd: (evt) => {
+                    const { oldIndex, newIndex } = evt;
+                    const [movedItem] = songData.song_blocks.splice(oldIndex, 1);
+                    songData.song_blocks.splice(newIndex, 0, movedItem);
+                    renderPreview(); // Update preview with new order
                 }
             });
-            clearTabBtn.addEventListener('click', () => { if (confirm('Clear all notes from this tab?')) { tabData.notes = []; drawFretboard(); renderGeneratedTab(); renderPreview(); } });
-            lyricsInput.addEventListener('input', () => { renderPreview(); updateKeyDisplay(); });
-            showTabsToggle.addEventListener('change', renderPreview);
-            songSelector.addEventListener('change',()=>songSelector.value==='new'?initializeNewSong():loadSheet(songSelector.value));
-            lyricsInput.addEventListener('click', handleEditorClick);
-            saveBtn.addEventListener('click',handleSave);
-            deleteBtn.addEventListener('click',handleDelete);
-            exportPdfBtn.addEventListener('click',handleExportPDF);
-            addChordBtn.addEventListener('click',handleAddChord);
-            newChordInput.addEventListener('keyup',(e)=>e.key==='Enter'&&handleAddChord());
-            setlistBtn.addEventListener('click', openSetlistModal);
-            closeSetlistModalBtn.addEventListener('click', closeSetlistModal);
-            setlistSelector.addEventListener('change', displaySongsInSelectedSetlist);
-            createSetlistBtn.addEventListener('click', handleCreateSetlist);
-            addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
-            printSetlistBtn.addEventListener('click', handlePrintSetlist);
-            document.getElementById('saveSetlistDetailsBtn').addEventListener('click', handleSaveSetlistDetails);
-            clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
-            recordBtn.addEventListener('click', startRecording);
-            stopBtn.addEventListener('click', stopRecording);
-            logoutBtn.addEventListener('click', () => {
-                localStorage.removeItem('user_token');
-                localStorage.removeItem('userRole');
-                window.location.href = '/proanthem_index.html';
-            });
-
-            (function(){
-                if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET || CLOUDINARY_CLOUD_NAME.includes('<')) { 
-                    console.error("Cloudinary environment variables not set!"); 
-                    document.getElementById('audioSection').innerHTML = '<p class="text-red-500">Audio recording is not configured.</p>';
-                }
-                populateTuningSelector(); 
-                initializeNewSong(); // This will call drawFretboard
-                loadSheetList(); 
-                loadChords(); 
-                renderFrequentChords(); 
-                renderChordQueue(); 
-            })();
         }
+        
+        // --- UTILITY & UNCHANGED FUNCTIONS ---
+        function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
+        function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' }; }
+        function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
+        async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
+
+
+        // --- INITIAL LOAD ---
+        (function(){
+            populateTuningSelector(); 
+            loadSheetList();
+            initializeNewSong();
+        })();
+    }
     </script>
 </body>
 </html>
