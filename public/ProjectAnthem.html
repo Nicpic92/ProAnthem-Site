@@ -26,16 +26,19 @@
         .song-block { background-color: #2d3748; border: 1px solid #4a5568; border-radius: 8px; margin-bottom: 1rem; }
         .block-header { background-color: #4a5568; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: grab; border-top-left-radius: 7px; border-top-right-radius: 7px; }
         .block-header:active { cursor: grabbing; }
-        .block-content { padding: 1rem; }
+        .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
         .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
         .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
-        .fretboard-note { fill: #facc15; cursor: pointer; transition: fill 0.2s; }
+        .fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
+        .fretboard-note:active { cursor: grabbing; }
         .fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
         .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
         .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
         .queue-pill.next { background-color: #535bf2; font-weight: bold; }
         .form-textarea.placement-mode { cursor: crosshair; }
         .drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
+        .resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
+        .resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
         .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
         .btn-record.recording { animation: pulse 1.5s infinite; }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
@@ -205,10 +208,10 @@
         let chordQueue = [];
         let chordQueueIndex = 0;
         let lastFocusedLyricsBlock = null;
-        let mediaRecorder; 
-        let audioChunks = [];
+        let mediaRecorder, audioChunks = [];
         let fretSelectionContext = { blockId: null, string: null, position: null };
         let selectedNote = { blockId: null, noteIndex: null };
+        let activeResize = { element: null, startY: 0, startHeight: 0 };
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -593,13 +596,13 @@
             const drumPlaceholder = `HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`;
 
             if (block.type === 'lyrics') {
-                contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea>`;
+                contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
             } else if (block.type === 'tab') {
                 const numStrings = block.strings || 6;
                 contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
                 headerControls = `<div class="flex items-center gap-2"><label for="strings-${block.id}" class="text-xs text-gray-300">Strings:</label><select id="strings-${block.id}" data-action="change-strings" class="form-select text-xs p-1" style="width: 70px;"><option value="6" ${numStrings === 6 ? 'selected' : ''}>6</option><option value="7" ${numStrings === 7 ? 'selected' : ''}>7</option><option value="8" ${numStrings === 8 ? 'selected' : ''}>8</option></select></div>`;
             } else if (block.type === 'drum_tab') {
-                contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" placeholder="${drumPlaceholder}">${block.content || ''}</textarea>`;
+                contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`;
             } else if (block.type === 'reference') {
                 const originalBlock = songData.song_blocks.find(b => b.id === block.originalId);
                 contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
@@ -698,7 +701,7 @@
             notesGroup.innerHTML = '';
             const numStrings = block.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
-            const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
+            const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
             (block.data?.notes || []).forEach((note, index) => {
                 if (note.string >= numStrings) return;
                 const transposedFret = note.fret - totalOffset;
@@ -750,11 +753,12 @@
             return lines.join('\n');
         }
 
-        function updateBlockData(blockId, field, value) {
+        function updateBlockData(blockId, field, value, height) {
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (block) {
-                block[field] = value;
-                renderPreview();
+                if (field) block[field] = value;
+                if (height) block.height = height;
+                if(field === 'content') renderPreview();
             }
         }
         
@@ -775,7 +779,7 @@
         }
 
         function initializeNewSong() {
-            songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '' }] };
+            songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
             titleInput.value = '';
             artistInput.value = '';
             songSelector.value = 'new';
@@ -865,43 +869,38 @@
         newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
         clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
         songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
-        songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, e.target.dataset.field, e.target.value); } });
+        songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
         songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
         
-        // --- FIX: The definitive click handler for fretboards ---
-        songBlocksContainer.addEventListener('click', e => {
+        // --- FIX: The final, fully functional click handler logic ---
+        songBlocksContainer.addEventListener('click', (e) => {
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
 
-            // Handle note clicks FIRST to stop propagation.
+            // This must be checked first to stop propagation.
             if (e.target.closest('.note-group')) {
-                e.stopPropagation(); // Prevent fretboard-zone click from firing
+                e.stopPropagation(); 
                 const clickedNoteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10);
-                
-                // If the clicked note is already selected, delete it.
                 if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
+                     // Clicking the same selected note again deletes it
                     block.data.notes.splice(clickedNoteIndex, 1);
-                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
-                } else { // Otherwise, select the new note.
+                    selectedNote = { blockId: null, noteIndex: null };
+                } else {
                     selectedNote = { blockId, noteIndex: clickedNoteIndex };
                 }
                 drawNotesOnFretboard(blockId);
                 renderPreview();
-                return; // End here
+                return;
             }
-            
-            // If the click was not on a note, but on the fretboard area
-            if (e.target.classList.contains('fretboard-target-zone')) {
-                // Always deselect any previously selected note
-                if (selectedNote.blockId) {
-                    const oldBlockId = selectedNote.blockId;
-                    selectedNote = { blockId: null, noteIndex: null };
-                    drawNotesOnFretboard(oldBlockId);
-                }
 
-                // Now, open the modal to add a new note
+            if (e.target.classList.contains('fretboard-target-zone')) {
+                if(selectedNote.blockId) { // Deselect if clicking empty space
+                   const oldBlockId = selectedNote.blockId;
+                   selectedNote = { blockId: null, noteIndex: null };
+                   drawNotesOnFretboard(oldBlockId);
+                }
                 const clickData = getFretFromClick(e, blockId);
                 if (clickData) {
                     fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
@@ -915,12 +914,25 @@
                     fretSelectionModal.style.top = `${e.clientY + 5}px`;
                     fretSelectionModal.classList.remove('hidden');
                 }
-            } else if (e.target.dataset.action === 'delete') {
-                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }
-            } else if (e.target.dataset.action === 'edit-label') {
+             } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { // --- FIX: Restore Chord Queue logic ---
+                 e.preventDefault(); 
+                 const textarea = e.target; 
+                 const chordToPlace = chordQueue[chordQueueIndex]; 
+                 const t = `[${chordToPlace}]`; const p = textarea.selectionStart; 
+                 textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); 
+                 textarea.focus(); 
+                 const newPos = p + t.length; 
+                 textarea.setSelectionRange(newPos, newPos); 
+                 chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; 
+                 updateBlockData(blockId, 'content', textarea.value); 
+                 renderChordQueue(); 
+             } else if (e.target.dataset.action === 'delete') { 
+                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
+             } else if (e.target.dataset.action === 'edit-label') { 
                 const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
-            }
+             }
         });
+
 
         document.addEventListener('keydown', (e) => {
             if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
@@ -930,7 +942,7 @@
                 if (block && block.data && block.data.notes) {
                     block.data.notes.splice(selectedNote.noteIndex, 1);
                     const oldBlockId = selectedNote.blockId;
-                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
+                    selectedNote = { blockId: null, noteIndex: null };
                     drawNotesOnFretboard(oldBlockId);
                     renderPreview();
                 }
@@ -961,13 +973,44 @@
                 const baseLabel = target.textContent.trim().replace('+', '').trim();
                 const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
                 const label = `${baseLabel} ${count}`;
-                const newBlock = { id: `block_${Date.now()}`, type, label };
+                const newBlock = { id: `block_${Date.now()}`, type, label, height: 100 };
                 if (type === 'lyrics' || type === 'drum_tab') newBlock.content = '';
                 if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; }
                 songData.song_blocks.push(newBlock);
                 renderSongBlocks();
             }
         });
+
+        // --- NEW: Resize functionality ---
+        songBlocksContainer.addEventListener('mousedown', (e) => {
+            if (e.target.classList.contains('resize-handle')) {
+                const textarea = e.target.previousElementSibling;
+                activeResize = {
+                    element: textarea,
+                    blockId: textarea.closest('.song-block').dataset.blockId,
+                    startY: e.clientY,
+                    startHeight: textarea.offsetHeight
+                };
+                document.body.style.cursor = 'ns-resize'; // Change cursor for whole page
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (activeResize.element) {
+                const height = activeResize.startHeight + e.clientY - activeResize.startY;
+                activeResize.element.style.height = `${Math.max(50, height)}px`; // Minimum height of 50px
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (activeResize.element) {
+                const newHeight = activeResize.element.offsetHeight;
+                updateBlockData(activeResize.blockId, null, null, newHeight);
+                activeResize = { element: null, startY: 0, startHeight: 0 };
+                document.body.style.cursor = ''; // Reset cursor
+            }
+        });
+
         recordBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
         songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
