@@ -208,7 +208,7 @@
         let mediaRecorder; 
         let audioChunks = [];
         let fretSelectionContext = { blockId: null, string: null, position: null };
-        let selectedNote = { blockId: null, noteIndex: null }; // --- NEW: State for selected note ---
+        let selectedNote = { blockId: null, noteIndex: null };
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -664,7 +664,6 @@
             return null;
         }
 
-
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
             if (!container) return;
@@ -703,7 +702,7 @@
                 if (note.string >= numStrings) return;
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
-
+                
                 const y = stringConfig.stringSpacing / 2 + note.string * stringConfig.stringSpacing;
                 const x = note.position;
                 
@@ -876,10 +875,8 @@
             if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
             else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
             else if (e.target.classList.contains('fretboard-target-zone')) { 
-                const oldSelectedBlockId = selectedNote.blockId;
                 selectedNote = { blockId: null, noteIndex: null };
-                if(oldSelectedBlockId) drawNotesOnFretboard(oldSelectedBlockId);
-                
+                drawNotesOnFretboard(blockId);
                 const clickData = getFretFromClick(e, blockId);
                 if (clickData) {
                     fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
@@ -900,16 +897,17 @@
                  const oldSelectedBlockId = selectedNote.blockId;
                  const oldSelectedIndex = selectedNote.noteIndex;
 
-                 // Deselect if clicking the same note twice
-                if (oldSelectedBlockId === blockId && oldSelectedIndex === clickedNoteIndex) {
-                    selectedNote = { blockId: null, noteIndex: null };
-                } else { // Otherwise, select the new note
+                 // --- FIX: Check if clicking the currently selected note again, if so, delete it ---
+                 if (oldSelectedBlockId === blockId && oldSelectedIndex === clickedNoteIndex) {
+                    block.data.notes.splice(clickedNoteIndex, 1);
+                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
+                 } else { // Otherwise, select the new note
                     selectedNote = { blockId, noteIndex: clickedNoteIndex };
-                }
-                 // Redraw previous block if it's different
-                if(oldSelectedBlockId && oldSelectedBlockId !== blockId) drawNotesOnFretboard(oldSelectedBlockId);
-                // Always redraw current block
-                drawNotesOnFretboard(blockId);
+                 }
+
+                 if(oldSelectedBlockId && oldSelectedBlockId !== blockId) drawNotesOnFretboard(oldSelectedBlockId);
+                 drawNotesOnFretboard(blockId);
+                 renderPreview();
             }
             else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); }
         });
