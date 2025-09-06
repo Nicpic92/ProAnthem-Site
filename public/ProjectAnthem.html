@@ -28,6 +28,7 @@
         .block-header:active { cursor: grabbing; }
         .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
         .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
+        .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
         .fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
         .fretboard-note:active { cursor: grabbing; }
         .fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
@@ -172,8 +173,10 @@
                 <p class="text-sm text-gray-400 mb-2">Drag and drop songs to reorder.</p>
                 <ul id="songsInSetlist" class="space-y-2"></ul>
             </div>
-            <div class="flex justify-end gap-2">
-                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Setlist</button>
+            <div class="flex justify-end gap-2 flex-wrap">
+                <button id="deleteSetlistBtn" class="btn btn-danger" disabled>Delete Setlist</button>
+                <button id="printDrummerSetlistBtn" class="btn btn-secondary" disabled>Print for Drummer</button>
+                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Full Band</button>
                 <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song to Setlist</button>
             </div>
         </div>
@@ -212,7 +215,7 @@
         let fretSelectionContext = { blockId: null, string: null, position: null };
         let selectedNote = { blockId: null, noteIndex: null };
         let activeResize = { element: null, startY: 0, startHeight: 0 };
-        let isDraggingNote = false;
+        let isDraggingNote = false; 
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -253,6 +256,8 @@
         const currentSetlistTitle = document.getElementById('currentSetlistTitle');
         const setlistDetailsSection = document.getElementById('setlistDetailsSection');
         const saveSetlistDetailsBtn = document.getElementById('saveSetlistDetailsBtn');
+        const deleteSetlistBtn = document.getElementById('deleteSetlistBtn');
+        const printDrummerSetlistBtn = document.getElementById('printDrummerSetlistBtn');
 
         const fretSelectionModal = document.getElementById('fret-selection-modal');
         const fretNumberSelector = document.getElementById('fret-number-selector');
@@ -302,6 +307,7 @@
             getSetlists: () => api.request('/setlists', { method: 'GET' }),
             getSetlist: (id) => api.request(`/setlists/${id}`, { method: 'GET' }),
             createSetlist: (data) => api.request('/setlists', { method: 'POST', body: JSON.stringify(data) }),
+            deleteSetlist: (id) => api.request(`/setlists/${id}`, { method: 'DELETE' }),
             addSongToSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs`, { method: 'POST', body: JSON.stringify({ song_id: songId }) }),
             removeSongFromSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs/${songId}`, { method: 'DELETE' }),
             updateSetlistDetails: (id, data) => api.request(`/setlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -340,6 +346,8 @@
                 songsInSetlist.innerHTML = '';
                 addSongToSetlistBtn.disabled = true;
                 printSetlistBtn.disabled = true;
+                printDrummerSetlistBtn.disabled = true;
+                deleteSetlistBtn.disabled = true;
                 return;
             }
             try {
@@ -360,6 +368,8 @@
                 });
                 addSongToSetlistBtn.disabled = !songData.id;
                 printSetlistBtn.disabled = false;
+                printDrummerSetlistBtn.disabled = false;
+                deleteSetlistBtn.disabled = false;
             } catch (error) {
                 setStatus(`Failed to load setlist details: ${error.message}`, true);
             }
@@ -395,6 +405,21 @@
                 setStatus(`Error creating setlist: ${error.message}`, true);
             }
         }
+
+        async function handleDeleteSetlist() {
+            const setlistId = setlistSelector.value;
+            const setlistName = setlistSelector.options[setlistSelector.selectedIndex].text;
+            if (!setlistId) return;
+            if (confirm(`ARE YOU SURE you want to permanently delete the setlist "${setlistName}"? This cannot be undone.`)) {
+                 try {
+                    await api.deleteSetlist(setlistId);
+                    setStatus(`Setlist "${setlistName}" deleted.`, false);
+                    await loadSetlists(); // Refresh the list
+                } catch(error) {
+                    setStatus(`Failed to delete setlist: ${error.message}`, true);
+                }
+            }
+        }
         
         async function handleAddSongToSetlist() {
             const setlistId = setlistSelector.value;
@@ -423,7 +448,7 @@
             }
         }
         
-        async function handlePrintSetlist() {
+        async function handlePrintSetlist(drummerMode = false) {
             const setlistId = setlistSelector.value;
             if (!setlistId) return;
 
@@ -453,10 +478,7 @@
                             ctx.drawImage(img, 0, 0);
                             resolve(canvas.toDataURL('image/png'));
                         };
-                        img.onerror = () => {
-                            console.error('Failed to load watermark image.');
-                            resolve(null);
-                        };
+                        img.onerror = () => { console.error('Failed to load watermark image.'); resolve(null); };
                         img.src = url;
                     });
                 };
@@ -473,10 +495,7 @@
 
                 const checkPageBreak = (neededHeight) => {
                     if (y + neededHeight > pageHeight - marginBottom) {
-                        addWatermarkToPage();
-                        doc.addPage();
-                        y = 20;
-                        addWatermarkToPage();
+                        addWatermarkToPage(); doc.addPage(); y = 20; addWatermarkToPage();
                     }
                 };
 
@@ -485,22 +504,14 @@
                 doc.setFontSize(26);
                 doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
                 y += 15;
-                
                 doc.setFontSize(16);
-                if (setlist.venue) {
-                    doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
-                    y += 8;
-                }
-                if (setlist.event_date) {
-                    doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
-                }
+                if (setlist.venue) { doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth }); y += 8; }
+                if (setlist.event_date) { doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' }); }
                 y += 15;
-
                 doc.setFontSize(12);
                 doc.setFont(undefined, 'bold');
                 doc.text('Song List:', leftMargin, y);
                 y += 8;
-                
                 doc.setFont(undefined, 'normal');
                 (setlist.songs || []).forEach((song, index) => {
                     checkPageBreak(8);
@@ -512,54 +523,42 @@
 
                 // Individual Song Pages
                 for (const song of (setlist.songs || [])) {
-                    addWatermarkToPage();
-                    doc.addPage();
-                    y = 20;
-                    addWatermarkToPage();
-
-                    doc.setFontSize(18);
-                    doc.setFont(undefined, 'bold');
+                    addWatermarkToPage(); doc.addPage(); y = 20; addWatermarkToPage();
+                    doc.setFontSize(18); doc.setFont(undefined, 'bold');
                     doc.text(song.title, leftMargin, y, { maxWidth });
                     y += 8;
-                    
-                    doc.setFontSize(14);
-                    doc.setFont(undefined, 'italic');
+                    doc.setFontSize(14); doc.setFont(undefined, 'italic');
                     doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
                     y += 12;
                     
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
-
                     for (const block of songBlocks) {
-                        let blockToRender = block;
-                        if (block.type === 'reference' && block.originalId) {
-                            const originalBlock = songBlocks.find(b => b.id === block.originalId);
-                            if (originalBlock) blockToRender = originalBlock;
-                        }
+                        let blockToRender = block.type === 'reference' ? (songBlocks.find(b => b.id === block.originalId) || block) : block;
+                        if (!blockToRender || !blockToRender.content) continue;
 
-                        if (!blockToRender.content) continue;
                         checkPageBreak(12);
-
-                        doc.setFont(undefined, 'bold');
-                        doc.setFontSize(12);
+                        doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                         doc.text(block.label, leftMargin, y, { maxWidth });
                         y += 7;
-                        
-                        doc.setFont('Courier', 'normal');
-                        doc.setFontSize(11);
+                        doc.setFont('Courier', 'normal'); doc.setFontSize(11);
                         const lineHeight = 5;
 
-                        for (const line of blockToRender.content.split('\n')) {
+                        const lines = blockToRender.type === 'tab' ? renderTransposedTab(blockToRender).split('\n') : blockToRender.content.split('\n');
+
+                        for (const line of lines) {
                              if (blockToRender.type === 'lyrics') {
-                                checkPageBreak(lineHeight * 2.5);
                                 const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
-                                doc.setTextColor(60, 60, 60);
-                                doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
-                                y += lineHeight;
+                                if (!drummerMode) {
+                                    checkPageBreak(lineHeight * 2.5);
+                                    doc.setTextColor(60, 60, 60);
+                                    doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
+                                    y += lineHeight;
+                                } else { checkPageBreak(lineHeight * 1.5); }
                                 doc.setTextColor(0, 0, 0);
                                 const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
                                 doc.text(splitLyrics, leftMargin, y);
                                 y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
-                            } else if (blockToRender.type === 'tab' || blockToRender.type === 'drum_tab') {
+                            } else if ( (drummerMode && blockToRender.type === 'drum_tab') || (!drummerMode && blockToRender.type !== 'drum_tab') ) {
                                 const splitText = doc.splitTextToSize(line, maxWidth);
                                 checkPageBreak(splitText.length * lineHeight);
                                 doc.setTextColor(0,0,0);
@@ -570,10 +569,8 @@
                         y += lineHeight;
                     }
                 }
-                
                 addWatermarkToPage();
-
-                doc.save(`${setlist.name.replace(/\s/g, '_')}.pdf`);
+                doc.save(`${setlist.name.replace(/\s/g, '_')}${drummerMode ? '_Drummer' : ''}.pdf`);
                 setStatus('PDF generated.', false);
             } catch (error) {
                  setStatus(`Failed to generate PDF: ${error.message}`, true);
@@ -647,24 +644,19 @@
         function getFretFromClick(evt, svgEl) {
             const wrapper = svgEl.closest('.fretboard-wrapper');
             if (!wrapper) return null;
-            
             const svgRect = svgEl.getBoundingClientRect();
             const x = evt.clientX - svgRect.left + wrapper.scrollLeft;
             const y = evt.clientY - svgRect.top;
-            
             const blockId = svgEl.id.split('-').pop();
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (!block) return null;
-
             const numStrings = block.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
-            
             const stringIndex = Math.floor(y / stringConfig.stringSpacing);
             const rawFret = (x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
             const fret = Math.max(0, Math.round(rawFret));
-            
             if (stringIndex >= 0 && stringIndex < numStrings && fret <= FRETBOARD_CONFIG.frets) {
-                return { blockId, string: stringIndex, fret, position: x };
+                return { string: stringIndex, fret, position: x };
             }
             return null;
         }
@@ -694,7 +686,6 @@
             svgHTML += `</svg>`;
             container.innerHTML = svgHTML;
             drawNotesOnFretboard(blockId);
-            // --- FIX: Attach event listeners directly to the new SVG ---
             const svgEl = document.getElementById(`fretboard-svg-${blockId}`);
             if (svgEl) attachFretboardListeners(svgEl);
         }
@@ -717,7 +708,7 @@
                 
                 const isSelected = selectedNote.blockId === blockId && selectedNote.noteIndex === index;
 
-                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note ${isSelected ? 'selected' : ''}" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
+                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note ${isSelected ? 'selected' : ''}" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
             });
         }
         
@@ -876,16 +867,61 @@
         clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
         songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
         songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
-        songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
         
-        songBlocksContainer.addEventListener('mousedown', e => {
-            if (e.target.classList.contains('resize-handle')) {
-                e.preventDefault();
-                const textarea = e.target.previousElementSibling;
-                activeResize = { element: textarea, blockId: textarea.closest('.song-block').dataset.blockId, startY: e.clientY, startHeight: textarea.offsetHeight };
-                document.body.style.cursor = 'ns-resize';
-            }
-        });
+        function attachFretboardListeners(svgEl) {
+             const blockId = svgEl.id.split('-').pop();
+             const block = songData.song_blocks.find(b => b.id === blockId);
+             if (!block) return;
+             
+             svgEl.addEventListener('mousedown', (e) => {
+                 isDraggingNote = false; 
+                 if (block.editMode) {
+                     const noteGroup = e.target.closest('.note-group');
+                     if(noteGroup) {
+                         const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                         selectedNote = { blockId, noteIndex };
+                         isDraggingNote = true;
+                         drawNotesOnFretboard(blockId);
+                     }
+                 }
+             });
+             
+             svgEl.addEventListener('click', (e) => {
+                if (isDraggingNote) { isDraggingNote = false; return; }
+                
+                if (block.editMode) {
+                    const isNoteClick = e.target.closest('.note-group');
+                    if (isNoteClick) {
+                        const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                        if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
+                             block.data.notes.splice(clickedNoteIndex, 1);
+                             selectedNote = { blockId: null, noteIndex: null };
+                        } else {
+                             selectedNote = { blockId, noteIndex: clickedNoteIndex };
+                        }
+                    } else { 
+                         selectedNote = { blockId: null, noteIndex: null };
+                    }
+                    drawNotesOnFretboard(blockId);
+                } else {
+                    const clickData = getFretFromClick(e, svgEl);
+                    if (clickData) {
+                        fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+                        fretNumberSelector.innerHTML = '';
+                        for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
+                            const option = new Option(i, i);
+                            if (i === clickData.fret) option.selected = true;
+                            fretNumberSelector.appendChild(option);
+                        }
+                        fretSelectionModal.style.left = `${e.clientX + 5}px`;
+                        fretSelectionModal.style.top = `${e.clientY + 5}px`;
+                        fretSelectionModal.classList.remove('hidden');
+                    }
+                }
+             });
+        }
+        
+        songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
         
         document.addEventListener('mousemove', e => {
              if (activeResize.element) {
@@ -903,7 +939,6 @@
                        const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
                        note.fret = clickData.fret + totalOffset;
                        drawNotesOnFretboard(selectedNote.blockId);
-                       renderPreview();
                     }
                 }
             }
@@ -918,32 +953,17 @@
             }
             if(isDraggingNote) {
                 isDraggingNote = false;
-                renderPreview(); // Update text preview after drag
+                renderPreview(); 
             }
         });
 
-        // Event listener for general block actions like rename/delete/edit-mode
         songBlocksContainer.addEventListener('click', (e) => {
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
 
-            if (e.target.dataset.action === 'delete') { 
-                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
-            } else if (e.target.dataset.action === 'rename') { 
-                const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
-            } else if (e.target.dataset.action === 'edit-tab') {
-                const button = e.target;
-                block.editMode = !block.editMode; // Toggle state in the data
-                button.textContent = block.editMode ? 'Done Editing' : 'Edit';
-                button.classList.toggle('btn-secondary');
-                button.classList.toggle('btn-edit-mode');
-                if (!block.editMode && selectedNote.blockId === blockId) { // Deselect on exit
-                    selectedNote = {blockId: null, noteIndex: null};
-                    drawNotesOnFretboard(blockId);
-                }
-            } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
+             if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
                  e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; 
                  const t = `[${chordToPlace}]`; const p = textarea.selectionStart; 
                  textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); 
@@ -951,66 +971,23 @@
                  textarea.setSelectionRange(newPos, newPos); 
                  chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; 
                  updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); 
+             } else if (e.target.dataset.action === 'delete') { 
+                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
+             } else if (e.target.dataset.action === 'rename') { 
+                const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
+             } else if (e.target.dataset.action === 'edit-tab') {
+                const button = e.target;
+                block.editMode = !block.editMode;
+                button.textContent = block.editMode ? 'Done Editing' : 'Edit';
+                button.classList.toggle('btn-secondary');
+                button.classList.toggle('btn-edit-mode');
+                if (!block.editMode && selectedNote.blockId === blockId) {
+                    selectedNote = {blockId: null, noteIndex: null};
+                    drawNotesOnFretboard(blockId);
+                }
              }
         });
-        
-        // This function attaches listeners to a specific fretboard SVG. It is called from drawFretboard.
-        function attachFretboardListeners(svgEl) {
-             const blockId = svgEl.id.split('-').pop();
-             const block = songData.song_blocks.find(b => b.id === blockId);
-             
-             svgEl.addEventListener('mousedown', (e) => {
-                 isDraggingNote = false; // Reset drag flag
-                 if (block.editMode) {
-                     const noteGroup = e.target.closest('.note-group');
-                     if(noteGroup) {
-                         const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
-                         selectedNote = { blockId, noteIndex };
-                         isDraggingNote = true; // Prepare to drag
-                         drawNotesOnFretboard(blockId);
-                     }
-                 }
-             });
-             
-             svgEl.addEventListener('click', (e) => {
-                if(isDraggingNote) { // Prevent click from firing after a drag
-                    isDraggingNote = false;
-                    return;
-                }
-                const isNoteClick = e.target.closest('.note-group');
-                
-                if (block.editMode) {
-                    if (isNoteClick) {
-                        const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
-                        if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
-                             block.data.notes.splice(clickedNoteIndex, 1);
-                             selectedNote = { blockId: null, noteIndex: null };
-                        } else {
-                             selectedNote = { blockId, noteIndex: clickedNoteIndex };
-                        }
-                    } else { // Click on empty space
-                         selectedNote = { blockId: null, noteIndex: null };
-                    }
-                    drawNotesOnFretboard(blockId);
-                } else { // In "Add Mode"
-                    if (!isNoteClick) { // Only add if clicking empty space
-                        const clickData = getFretFromClick(e, svgEl);
-                        if (clickData) {
-                            fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
-                            fretNumberSelector.innerHTML = '';
-                            for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
-                                const option = new Option(i, i);
-                                if (i === clickData.fret) option.selected = true;
-                                fretNumberSelector.appendChild(option);
-                            }
-                            fretSelectionModal.style.left = `${e.clientX + 5}px`;
-                            fretSelectionModal.style.top = `${e.clientY + 5}px`;
-                            fretSelectionModal.classList.remove('hidden');
-                        }
-                    }
-                }
-             });
-        }
+
 
         document.addEventListener('keydown', (e) => {
             if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
@@ -1068,7 +1045,9 @@
         saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
         createSetlistBtn.addEventListener('click', handleCreateSetlist);
         addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
-        printSetlistBtn.addEventListener('click', handlePrintSetlist);
+        printSetlistBtn.addEventListener('click', () => handlePrintSetlist(false));
+        printDrummerSetlistBtn.addEventListener('click', () => handlePrintSetlist(true));
+        deleteSetlistBtn.addEventListener('click', handleDeleteSetlist);
         addFretBtn.addEventListener('click', confirmFretSelection);
         cancelFretBtn.addEventListener('click', () => fretSelectionModal.classList.add('hidden'));
         songsInSetlist.addEventListener('click', (e) => {
