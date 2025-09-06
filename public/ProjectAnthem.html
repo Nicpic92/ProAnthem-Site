@@ -432,7 +432,7 @@
                             resolve(canvas.toDataURL('image/png'));
                         };
                         img.onerror = () => {
-                            console.error('Failed to load watermark image.');
+                            console.error('Failed to load watermark image. Check URL and CORS policy on the image host.');
                             resolve(null);
                         };
                         img.src = url;
@@ -506,7 +506,7 @@
                     y += 12;
                     
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
-
+                    
                     for (const block of songBlocks) {
                         let blockToRender = block;
                         if (block.type === 'reference' && block.originalId) {
@@ -624,26 +624,29 @@
         function getFretFromClick(evt, blockId) {
             const svg = document.getElementById(`fretboard-svg-${blockId}`);
             if (!svg) return null;
-            const wrapper = evt.currentTarget.closest('.fretboard-wrapper');
+            const wrapper = svg.closest('.fretboard-wrapper');
+            if (!wrapper) return null;
+            
             const svgRect = svg.getBoundingClientRect();
-            // --- FIX: Correctly calculate both X and Y relative to the SVG, accounting for scroll ---
-            const x_pos = evt.clientX - svgRect.left + wrapper.scrollLeft;
-            const y_pos = evt.clientY - svgRect.top;
+            // --- FIX: This is the fully corrected, robust calculation ---
+            const x = evt.clientX - svgRect.left + wrapper.scrollLeft;
+            const y = evt.clientY - svgRect.top;
 
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (!block) return null;
             const numStrings = block.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
             
-            const stringIndex = Math.floor(y_pos / stringConfig.stringSpacing);
-            const rawFret = (x_pos - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
+            const stringIndex = Math.floor(y / stringConfig.stringSpacing);
+            const rawFret = (x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
             const fret = Math.max(0, Math.round(rawFret));
             
             if (stringIndex >= 0 && stringIndex < numStrings && fret <= FRETBOARD_CONFIG.frets) {
-                return { string: stringIndex, fret, position: x_pos };
+                return { string: stringIndex, fret, position: x };
             }
             return null;
         }
+
 
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
@@ -684,20 +687,20 @@
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
                 const y = stringConfig.stringSpacing / 2 + note.string * stringConfig.stringSpacing;
-                const x = note.position; // Use the exact click position for precision
+                const x = note.position; // --- FIX: Always use the stored position for perfect accuracy ---
                 notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
             });
         }
         
         function renderTransposedTab(tabBlock) {
             if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data.';
+            
             const numStrings = tabBlock.strings || 6;
             const tuningInfo = TUNINGS[musicalContext.tuning];
-            const stringNames = tuningInfo?.strings?.slice(0, numStrings) || STRING_CONFIG[6].names; // Fallback to standard
+            const stringNames = tuningInfo?.strings?.slice(0, numStrings) || STRING_CONFIG[6].names;
             const totalOffset = (tuningInfo?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
             const positionMap = new Map();
             
-            // Sort notes by their x-position first
             const sortedNotes = [...tabBlock.data.notes].sort((a,b) => a.position - b.position);
 
             sortedNotes.forEach(note => {
@@ -713,6 +716,7 @@
             const sortedPositions = [...positionMap.keys()].sort((a,b) => a - b);
             const lines = stringNames.map(name => `${name.padEnd(2, ' ')}|`);
             let lastCharPos = 0;
+            
             sortedPositions.forEach(charPos => {
                 const notesAtPos = positionMap.get(charPos);
                 const padding = charPos - lastCharPos;
