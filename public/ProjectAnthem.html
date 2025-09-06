@@ -29,7 +29,8 @@
         .block-content { padding: 1rem; }
         .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
         .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
-        .fretboard-note { fill: #facc15; cursor: pointer; }
+        .fretboard-note { fill: #facc15; cursor: pointer; transition: fill 0.2s; }
+        .fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
         .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
         .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
         .queue-pill.next { background-color: #535bf2; font-weight: bold; }
@@ -175,7 +176,6 @@
         </div>
     </div>
     
-    <!-- NEW: Fret Selection Modal -->
     <div id="fret-selection-modal" class="hidden fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4 space-y-2">
         <label for="fret-number-selector" class="text-sm text-gray-300">Select Fret:</label>
         <select id="fret-number-selector" class="form-select text-sm w-full"></select>
@@ -208,6 +208,7 @@
         let mediaRecorder; 
         let audioChunks = [];
         let fretSelectionContext = { blockId: null, string: null, position: null };
+        let selectedNote = { blockId: null, noteIndex: null }; // --- NEW: State for selected note ---
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -253,7 +254,6 @@
         const fretNumberSelector = document.getElementById('fret-number-selector');
         const addFretBtn = document.getElementById('add-fret-btn');
         const cancelFretBtn = document.getElementById('cancel-fret-btn');
-
         
         const TUNINGS = { 
             E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
@@ -644,8 +644,7 @@
             if (!svg) return null;
             const wrapper = svg.closest('.fretboard-wrapper');
             if (!wrapper) return null;
-
-            // --- FIX: This is the definitive, robust calculation for click position ---
+            
             const svgRect = svg.getBoundingClientRect();
             const x = evt.clientX - svgRect.left + wrapper.scrollLeft;
             const y = evt.clientY - svgRect.top;
@@ -664,6 +663,7 @@
             }
             return null;
         }
+
 
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
@@ -703,9 +703,13 @@
                 if (note.string >= numStrings) return;
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
+
                 const y = stringConfig.stringSpacing / 2 + note.string * stringConfig.stringSpacing;
                 const x = note.position;
-                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
+                
+                const isSelected = selectedNote.blockId === blockId && selectedNote.noteIndex === index;
+
+                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note ${isSelected ? 'selected' : ''}" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
             });
         }
         
@@ -868,27 +872,61 @@
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
+            
             if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
             else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
             else if (e.target.classList.contains('fretboard-target-zone')) { 
+                const oldSelectedBlockId = selectedNote.blockId;
+                selectedNote = { blockId: null, noteIndex: null };
+                if(oldSelectedBlockId) drawNotesOnFretboard(oldSelectedBlockId);
+                
                 const clickData = getFretFromClick(e, blockId);
                 if (clickData) {
                     fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
                     fretNumberSelector.innerHTML = '';
                     for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
                         const option = document.createElement('option');
-                        option.value = i;
-                        option.textContent = i === 0 ? '0 (Open)' : i;
+                        option.value = i; option.textContent = i;
                         if (i === clickData.fret) option.selected = true;
                         fretNumberSelector.appendChild(option);
                     }
-                    fretSelectionModal.style.left = `${e.clientX}px`;
-                    fretSelectionModal.style.top = `${e.clientY}px`;
+                    fretSelectionModal.style.left = `${e.clientX + 5}px`;
+                    fretSelectionModal.style.top = `${e.clientY + 5}px`;
                     fretSelectionModal.classList.remove('hidden');
                 }
              }
-            else if (e.target.closest('.note-group')) { const noteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10); if (block?.data?.notes) { block.data.notes.splice(noteIndex, 1); drawNotesOnFretboard(blockId); renderPreview(); }}
+            else if (e.target.closest('.note-group')) { 
+                 const clickedNoteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10);
+                 const oldSelectedBlockId = selectedNote.blockId;
+                 const oldSelectedIndex = selectedNote.noteIndex;
+
+                 // Deselect if clicking the same note twice
+                if (oldSelectedBlockId === blockId && oldSelectedIndex === clickedNoteIndex) {
+                    selectedNote = { blockId: null, noteIndex: null };
+                } else { // Otherwise, select the new note
+                    selectedNote = { blockId, noteIndex: clickedNoteIndex };
+                }
+                 // Redraw previous block if it's different
+                if(oldSelectedBlockId && oldSelectedBlockId !== blockId) drawNotesOnFretboard(oldSelectedBlockId);
+                // Always redraw current block
+                drawNotesOnFretboard(blockId);
+            }
             else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                e.preventDefault();
+                const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
+                if (block && block.data && block.data.notes) {
+                    block.data.notes.splice(selectedNote.noteIndex, 1);
+                    const oldBlockId = selectedNote.blockId;
+                    selectedNote = { blockId: null, noteIndex: null };
+                    drawNotesOnFretboard(oldBlockId);
+                    renderPreview();
+                }
+            }
         });
 
         function confirmFretSelection() {
