@@ -174,6 +174,17 @@
             </div>
         </div>
     </div>
+    
+    <!-- NEW: Fret Selection Modal -->
+    <div id="fret-selection-modal" class="hidden fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4 space-y-2">
+        <label for="fret-number-selector" class="text-sm text-gray-300">Select Fret:</label>
+        <select id="fret-number-selector" class="form-select text-sm w-full"></select>
+        <div class="flex justify-end gap-2">
+            <button id="cancel-fret-btn" class="btn btn-secondary btn-sm">Cancel</button>
+            <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
+        </div>
+    </div>
+
 
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -196,6 +207,7 @@
         let lastFocusedLyricsBlock = null;
         let mediaRecorder; 
         let audioChunks = [];
+        let fretSelectionContext = { blockId: null, string: null, position: null };
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -236,6 +248,12 @@
         const currentSetlistTitle = document.getElementById('currentSetlistTitle');
         const setlistDetailsSection = document.getElementById('setlistDetailsSection');
         const saveSetlistDetailsBtn = document.getElementById('saveSetlistDetailsBtn');
+
+        const fretSelectionModal = document.getElementById('fret-selection-modal');
+        const fretNumberSelector = document.getElementById('fret-number-selector');
+        const addFretBtn = document.getElementById('add-fret-btn');
+        const cancelFretBtn = document.getElementById('cancel-fret-btn');
+
         
         const TUNINGS = { 
             E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
@@ -432,7 +450,7 @@
                             resolve(canvas.toDataURL('image/png'));
                         };
                         img.onerror = () => {
-                            console.error('Failed to load watermark image. Check URL and CORS policy on the image host.');
+                            console.error('Failed to load watermark image.');
                             resolve(null);
                         };
                         img.src = url;
@@ -506,7 +524,7 @@
                     y += 12;
                     
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
-                    
+
                     for (const block of songBlocks) {
                         let blockToRender = block;
                         if (block.type === 'reference' && block.originalId) {
@@ -626,9 +644,9 @@
             if (!svg) return null;
             const wrapper = svg.closest('.fretboard-wrapper');
             if (!wrapper) return null;
-            
+
+            // --- FIX: This is the definitive, robust calculation for click position ---
             const svgRect = svg.getBoundingClientRect();
-            // --- FIX: This is the fully corrected, robust calculation ---
             const x = evt.clientX - svgRect.left + wrapper.scrollLeft;
             const y = evt.clientY - svgRect.top;
 
@@ -646,7 +664,6 @@
             }
             return null;
         }
-
 
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
@@ -687,20 +704,18 @@
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
                 const y = stringConfig.stringSpacing / 2 + note.string * stringConfig.stringSpacing;
-                const x = note.position; // --- FIX: Always use the stored position for perfect accuracy ---
+                const x = note.position;
                 notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" data-block-id="${blockId}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
             });
         }
         
         function renderTransposedTab(tabBlock) {
             if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data.';
-            
             const numStrings = tabBlock.strings || 6;
             const tuningInfo = TUNINGS[musicalContext.tuning];
             const stringNames = tuningInfo?.strings?.slice(0, numStrings) || STRING_CONFIG[6].names;
             const totalOffset = (tuningInfo?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
             const positionMap = new Map();
-            
             const sortedNotes = [...tabBlock.data.notes].sort((a,b) => a.position - b.position);
 
             sortedNotes.forEach(note => {
@@ -855,10 +870,42 @@
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
             else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
-            else if (e.target.classList.contains('fretboard-target-zone')) { const clickData = getFretFromClick(e, blockId); if (clickData) { const { string, fret, position } = clickData; const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose; if (!block.data) block.data = { notes: [] }; block.data.notes.push({ string, fret: fret + totalOffset, position }); drawNotesOnFretboard(blockId); renderPreview(); }}
+            else if (e.target.classList.contains('fretboard-target-zone')) { 
+                const clickData = getFretFromClick(e, blockId);
+                if (clickData) {
+                    fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+                    fretNumberSelector.innerHTML = '';
+                    for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = i === 0 ? '0 (Open)' : i;
+                        if (i === clickData.fret) option.selected = true;
+                        fretNumberSelector.appendChild(option);
+                    }
+                    fretSelectionModal.style.left = `${e.clientX}px`;
+                    fretSelectionModal.style.top = `${e.clientY}px`;
+                    fretSelectionModal.classList.remove('hidden');
+                }
+             }
             else if (e.target.closest('.note-group')) { const noteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10); if (block?.data?.notes) { block.data.notes.splice(noteIndex, 1); drawNotesOnFretboard(blockId); renderPreview(); }}
             else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); }
         });
+
+        function confirmFretSelection() {
+            const { blockId, string, position } = fretSelectionContext;
+            const fret = parseInt(fretNumberSelector.value, 10);
+            const block = songData.song_blocks.find(b => b.id === blockId);
+
+            if(block && string !== null && position !== null && fret >= 0) {
+                 const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
+                 if (!block.data) block.data = { notes: [] };
+                 block.data.notes.push({ string, fret: fret + totalOffset, position });
+                 drawNotesOnFretboard(blockId);
+                 renderPreview();
+            }
+            fretSelectionModal.classList.add('hidden');
+        }
+
         addBlockButtonsContainer.addEventListener('click', e => {
             const target = e.target;
             if (target.id === 'insert-ref-btn') { document.getElementById('ref-dropdown').classList.toggle('hidden'); }
@@ -886,6 +933,8 @@
         createSetlistBtn.addEventListener('click', handleCreateSetlist);
         addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
         printSetlistBtn.addEventListener('click', handlePrintSetlist);
+        addFretBtn.addEventListener('click', confirmFretSelection);
+        cancelFretBtn.addEventListener('click', () => fretSelectionModal.classList.add('hidden'));
         songsInSetlist.addEventListener('click', (e) => {
             if (e.target.dataset.action === 'remove-song') {
                 const songId = e.target.closest('li').dataset.songId;
