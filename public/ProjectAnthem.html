@@ -236,6 +236,15 @@
         const currentSetlistTitle = document.getElementById('currentSetlistTitle');
         const setlistDetailsSection = document.getElementById('setlistDetailsSection');
         const saveSetlistDetailsBtn = document.getElementById('saveSetlistDetailsBtn');
+
+        // --- NEW: Drum Key constant ---
+        const DRUM_KEY_TEXT = [
+            "CC|Crash Cymbal    HH|Hi-Hat (x-closed, X-loose, o-open)",
+            "RC|Ride Cymbal     SD|Snare Drum (o-normal, g-ghost, f-flam)",
+            "HT|High Tom        BD|Bass Drum (o-hit)",
+            "MT|Mid Tom         HF|Hi-Hat Foot (x-pedal)",
+            "FT|Floor Tom"
+        ].join("\n");
         
         const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0 }, EB_STANDARD: { name: "Eb Standard", offset: -1 }, D_STANDARD: { name: "D Standard", offset: -2 }, DROP_D: { name: "Drop D", offset: 0 }, DROP_C: { name: "Drop C", offset: -2 } };
         const STRING_CONFIG = {
@@ -425,7 +434,7 @@
                             resolve(canvas.toDataURL('image/png'));
                         };
                         img.onerror = () => {
-                            console.error('Failed to load watermark image. Check URL and CORS policy.');
+                            console.error('Failed to load watermark image.');
                             resolve(null);
                         };
                         img.src = url;
@@ -436,10 +445,8 @@
                 
                 const addWatermarkToPage = () => {
                     if (logoDataUrl) {
-                        const imgWidth = 20;
-                        const imgHeight = 20;
                         doc.setGState(new doc.GState({opacity: 0.1}));
-                        doc.addImage(logoDataUrl, 'PNG', rightMargin - imgWidth, 10, imgWidth, imgHeight);
+                        doc.addImage(logoDataUrl, 'PNG', rightMargin - 20, 10, 20, 20);
                         doc.setGState(new doc.GState({opacity: 1.0}));
                     }
                 };
@@ -460,13 +467,8 @@
                 y += 15;
                 
                 doc.setFontSize(16);
-                if (setlist.venue) {
-                    doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
-                    y += 8;
-                }
-                if (setlist.event_date) {
-                    doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
-                }
+                if (setlist.venue) doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y += 8, { align: 'center', maxWidth });
+                if (setlist.event_date) doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y+=8, { align: 'center' });
                 y += 15;
 
                 doc.setFontSize(12);
@@ -500,36 +502,45 @@
                     doc.text(song.artist || 'Unknown Artist', leftMargin, y, { maxWidth });
                     y += 12;
                     
-                    const lineHeight = 5;
-
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
+
+                    // --- NEW: Check if this song contains a drum tab to decide if we need the key
+                    const hasDrumTab = songBlocks.some(b => b.type === 'drum_tab' || (b.type === 'reference' && songBlocks.find(orig => orig.id === b.originalId)?.type === 'drum_tab'));
                     
+                    if (hasDrumTab) {
+                        checkPageBreak(40); // Check if we have room for the key
+                        doc.setFontSize(10);
+                        doc.setFont(undefined, 'bold');
+                        doc.text("Drum Key", leftMargin, y);
+                        y += 6;
+                        doc.setFont('Courier', 'normal');
+                        doc.text(DRUM_KEY_TEXT, leftMargin, y);
+                        y += 20;
+                    }
+
+
                     for (const block of songBlocks) {
-                        // --- FIX: Handle referenced blocks correctly ---
                         let blockToRender = block;
                         if (block.type === 'reference' && block.originalId) {
                             const originalBlock = songBlocks.find(b => b.id === block.originalId);
-                            if (originalBlock) {
-                                blockToRender = originalBlock;
-                            }
+                            if (originalBlock) blockToRender = originalBlock;
                         }
 
-                        // Now use blockToRender for content, but the original block for the label
                         if (!blockToRender.content) continue;
-
                         checkPageBreak(12);
+
                         doc.setFont(undefined, 'bold');
                         doc.setFontSize(12);
-                        doc.text(block.label, leftMargin, y, { maxWidth }); // Use original block label
+                        doc.text(block.label, leftMargin, y, { maxWidth });
                         y += 7;
                         
                         doc.setFont('Courier', 'normal');
                         doc.setFontSize(11);
+                        const lineHeight = 5;
 
                         for (const line of blockToRender.content.split('\n')) {
-                            checkPageBreak(lineHeight * 2.5);
-
-                            if (blockToRender.type === 'lyrics') {
+                             if (blockToRender.type === 'lyrics') {
+                                checkPageBreak(lineHeight * 2.5);
                                 const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
                                 doc.setTextColor(60, 60, 60);
                                 doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
@@ -539,10 +550,42 @@
                                 doc.text(splitLyrics, leftMargin, y);
                                 y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
                             } else if (blockToRender.type === 'drum_tab') {
-                                doc.setTextColor(0, 0, 0);
-                                const splitText = doc.splitTextToSize(line, maxWidth);
-                                doc.text(splitText, leftMargin, y);
-                                y += (splitText.length * lineHeight) + (lineHeight * 0.5);
+                                // --- NEW: Draw the drum tab graphically ---
+                                const charWidth = 2.5;
+                                const staffLineHeight = 3;
+                                const staffMargin = 8;
+                                let x = leftMargin + staffMargin;
+
+                                // Define y-positions for each drum part
+                                const positions = { CC: y, HH: y, RC: y, SD: y + staffLineHeight, HT: y + staffLineHeight, MT: y + (staffLineHeight * 2), FT: y + (staffLineHeight * 3), BD: y + (staffLineHeight * 4), HF: y + (staffLineHeight*5) };
+                                const staffYStart = y;
+                                checkPageBreak(25);
+
+                                // Draw staff lines
+                                doc.setDrawColor(200, 200, 200);
+                                for(let i = 0; i < 6; i++) {
+                                   doc.line(leftMargin, y + (i * staffLineHeight), rightMargin, y + (i * staffLineHeight));
+                                }
+
+                                const drumLines = line.split('|');
+                                for(let i = 0; i < drumLines.length; i++) {
+                                    const instrument = drumLines[i].substring(0, 2);
+                                    const notes = drumLines[i].substring(2);
+
+                                    if(positions[instrument]) {
+                                       doc.text(instrument, leftMargin - 1, positions[instrument] + 2);
+                                       for(let j = 0; j < notes.length; j++) {
+                                           if(notes[j] !== '-') doc.text(notes[j], x + (j * charWidth), positions[instrument] + 2);
+                                       }
+                                    }
+                                    // Draw measure bars
+                                    if(i < drumLines.length -1) {
+                                       x += notes.length * charWidth;
+                                       doc.line(x, staffYStart, x, staffYStart + (staffLineHeight * 5));
+                                       x += 2; // small space after bar
+                                    }
+                                }
+                                y = staffYStart + 25; // Move cursor down past the drum staff
                             }
                         }
                         y += lineHeight;
@@ -572,6 +615,8 @@
             div.className = 'song-block';
             div.dataset.blockId = block.id;
             let contentHtml = '', headerControls = '';
+            const drumPlaceholder = `CC|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`;
+
             if (block.type === 'lyrics') {
                 contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea>`;
             } else if (block.type === 'tab') {
@@ -579,12 +624,12 @@
                 contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
                 headerControls = `<div class="flex items-center gap-2"><label for="strings-${block.id}" class="text-xs text-gray-300">Strings:</label><select id="strings-${block.id}" data-action="change-strings" class="form-select text-xs p-1" style="width: 70px;"><option value="6" ${numStrings === 6 ? 'selected' : ''}>6</option><option value="7" ${numStrings === 7 ? 'selected' : ''}>7</option><option value="8" ${numStrings === 8 ? 'selected' : ''}>8</option></select></div>`;
             } else if (block.type === 'drum_tab') {
-                contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" placeholder="Enter drum tab notation...">${block.content || ''}</textarea>`;
+                contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" placeholder="${drumPlaceholder}">${block.content || ''}</textarea>`;
             } else if (block.type === 'reference') {
                 const originalBlock = songData.song_blocks.find(b => b.id === block.originalId);
                 contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
             }
-            div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type})</span></div>${headerControls}</div><div><button class="btn-sm text-xs hover:underline" data-action="edit-label">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`;
+            div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type.replace('_', ' ')})</span></div>${headerControls}</div><div><button class="btn-sm text-xs hover:underline" data-action="edit-label">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`;
             if (block.type === 'tab') setTimeout(() => drawFretboard(block.id), 0);
             return div;
         }
@@ -608,10 +653,8 @@
                         const parsed = parseLineForRender(line);
                         previewHtml += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`;
                     });
-                } else if (blockToRender.type === 'tab') {
-                    previewHtml += `<div class="tab-preview">${renderTransposedTab(blockToRender)}</div>`;
-                } else if (blockToRender.type === 'drum_tab') {
-                     previewHtml += `<div class="tab-preview">${blockToRender.content || 'No drum tab.'}</div>`;
+                } else if (blockToRender.type === 'tab' || blockToRender.type === 'drum_tab') {
+                    previewHtml += `<div class="tab-preview">${blockToRender.content || ''}</div>`;
                 }
             });
             livePreview.innerHTML = previewHtml;
