@@ -28,7 +28,6 @@
         .block-header:active { cursor: grabbing; }
         .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
         .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
-        .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
         .fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
         .fretboard-note:active { cursor: grabbing; }
         .fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
@@ -213,8 +212,7 @@
         let fretSelectionContext = { blockId: null, string: null, position: null };
         let selectedNote = { blockId: null, noteIndex: null };
         let activeResize = { element: null, startY: 0, startHeight: 0 };
-        
-        let isDraggingNote = false; 
+        let isDraggingNote = false;
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -601,7 +599,6 @@
             if (block.type === 'lyrics') {
                 contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
             } else if (block.type === 'tab') {
-                const numStrings = block.strings || 6;
                 contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
                 const isEditMode = block.editMode || false;
                 const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary';
@@ -647,18 +644,18 @@
             livePreview.innerHTML = previewHtml;
         }
 
-        function getFretFromClick(evt, blockId) {
-            const svg = document.getElementById(`fretboard-svg-${blockId}`);
-            if (!svg) return null;
-            const wrapper = svg.closest('.fretboard-wrapper');
+        function getFretFromClick(evt, svgEl) {
+            const wrapper = svgEl.closest('.fretboard-wrapper');
             if (!wrapper) return null;
             
-            const svgRect = svg.getBoundingClientRect();
+            const svgRect = svgEl.getBoundingClientRect();
             const x = evt.clientX - svgRect.left + wrapper.scrollLeft;
             const y = evt.clientY - svgRect.top;
-
+            
+            const blockId = svgEl.id.split('-').pop();
             const block = songData.song_blocks.find(b => b.id === blockId);
             if (!block) return null;
+
             const numStrings = block.strings || 6;
             const stringConfig = STRING_CONFIG[numStrings];
             
@@ -667,7 +664,7 @@
             const fret = Math.max(0, Math.round(rawFret));
             
             if (stringIndex >= 0 && stringIndex < numStrings && fret <= FRETBOARD_CONFIG.frets) {
-                return { string: stringIndex, fret, position: x };
+                return { blockId, string: stringIndex, fret, position: x };
             }
             return null;
         }
@@ -682,21 +679,24 @@
             const stringConfig = STRING_CONFIG[numStrings];
             const { frets, width, nutWidth, fretSpacing, dotFrets, dotRadius } = FRETBOARD_CONFIG;
             const { height, stringSpacing } = stringConfig;
-            let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" /><g id="fretboard-notes-group-${blockId}"></g>`;
+            let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" fill="transparent"/><g id="fretboard-notes-group-${blockId}"></g>`;
             for (let i = 0; i < numStrings; i++) svgHTML += `<line class="fretboard-string" x1="0" y1="${stringSpacing / 2 + i * stringSpacing}" x2="${width}" y2="${stringSpacing / 2 + i * stringSpacing}" />`;
-            svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" />`;
+            svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" fill="#2d3748" />`;
             for (let i = 1; i <= frets; i++) svgHTML += `<line class="fretboard-fret" x1="${nutWidth + i * fretSpacing}" y1="0" x2="${nutWidth + i * fretSpacing}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
             dotFrets.forEach(fret => {
                 const x = nutWidth + (fret - 0.5) * fretSpacing;
                 if (fret % 12 === 0) {
-                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * (numStrings / 4)}" r="${dotRadius}" /><circle class="fretboard-dot" cx="${x}" cy="${height - (stringSpacing * (numStrings / 4))}" r="${dotRadius}" />`;
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${stringSpacing * (numStrings / 4)}" r="${dotRadius}" fill="#555" /><circle class="fretboard-dot" cx="${x}" cy="${height - (stringSpacing * (numStrings / 4))}" r="${dotRadius}" fill="#555" />`;
                 } else {
-                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" />`;
+                    svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" fill="#555"/>`;
                 }
             });
-            svgHTML += `<rect id="fretboard-target-zone-${blockId}" x="0" y="0" width="${width}" height="${height}" fill="transparent" class="fretboard-target-zone" /></svg>`;
+            svgHTML += `</svg>`;
             container.innerHTML = svgHTML;
             drawNotesOnFretboard(blockId);
+            // --- FIX: Attach event listeners directly to the new SVG ---
+            const svgEl = document.getElementById(`fretboard-svg-${blockId}`);
+            if (svgEl) attachFretboardListeners(svgEl);
         }
 
         function drawNotesOnFretboard(blockId) {
@@ -884,14 +884,6 @@
                 const textarea = e.target.previousElementSibling;
                 activeResize = { element: textarea, blockId: textarea.closest('.song-block').dataset.blockId, startY: e.clientY, startHeight: textarea.offsetHeight };
                 document.body.style.cursor = 'ns-resize';
-            } else if(e.target.closest('.note-group')) {
-                const noteGroup = e.target.closest('.note-group');
-                const blockId = noteGroup.querySelector('.fretboard-note').dataset.blockId;
-                const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
-
-                isDraggingNote = true; // Assume drag might start
-                selectedNote = { blockId, noteIndex };
-                drawNotesOnFretboard(blockId);
             }
         });
         
@@ -904,10 +896,10 @@
                 const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
                 const note = block?.data?.notes[selectedNote.noteIndex];
                 if (note) {
-                    const clickData = getFretFromClick(e, selectedNote.blockId);
+                    const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`);
+                    const clickData = getFretFromClick(e, svg);
                     if (clickData) {
                        note.position = clickData.position;
-                       note.string = clickData.string;
                        const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
                        note.fret = clickData.fret + totalOffset;
                        drawNotesOnFretboard(selectedNote.blockId);
@@ -926,53 +918,32 @@
             }
             if(isDraggingNote) {
                 isDraggingNote = false;
+                renderPreview(); // Update text preview after drag
             }
         });
 
+        // Event listener for general block actions like rename/delete/edit-mode
         songBlocksContainer.addEventListener('click', (e) => {
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
 
-            const isNoteClick = e.target.closest('.note-group');
-
-            if(isNoteClick) {
-                 e.stopPropagation();
-                 const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
-                if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
-                    block.data.notes.splice(clickedNoteIndex, 1);
-                    selectedNote = { blockId: null, noteIndex: null };
-                } else {
-                    selectedNote = { blockId, noteIndex: clickedNoteIndex };
+            if (e.target.dataset.action === 'delete') { 
+                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
+            } else if (e.target.dataset.action === 'rename') { 
+                const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
+            } else if (e.target.dataset.action === 'edit-tab') {
+                const button = e.target;
+                block.editMode = !block.editMode; // Toggle state in the data
+                button.textContent = block.editMode ? 'Done Editing' : 'Edit';
+                button.classList.toggle('btn-secondary');
+                button.classList.toggle('btn-edit-mode');
+                if (!block.editMode && selectedNote.blockId === blockId) { // Deselect on exit
+                    selectedNote = {blockId: null, noteIndex: null};
+                    drawNotesOnFretboard(blockId);
                 }
-                drawNotesOnFretboard(blockId);
-                renderPreview();
-                return;
-            }
-
-            const isEditMode = blockEl.querySelector('[data-action="edit-tab"]')?.classList.contains('btn-edit-mode');
-
-            if (e.target.classList.contains('fretboard-target-zone') && !isEditMode) {
-                if(selectedNote.blockId) {
-                   const oldBlockId = selectedNote.blockId;
-                   selectedNote = { blockId: null, noteIndex: null };
-                   drawNotesOnFretboard(oldBlockId);
-                }
-                const clickData = getFretFromClick(e, blockId);
-                if (clickData) {
-                    fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
-                    fretNumberSelector.innerHTML = '';
-                    for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
-                        const option = new Option(i, i);
-                        if (i === clickData.fret) option.selected = true;
-                        fretNumberSelector.appendChild(option);
-                    }
-                    fretSelectionModal.style.left = `${e.clientX + 5}px`;
-                    fretSelectionModal.style.top = `${e.clientY + 5}px`;
-                    fretSelectionModal.classList.remove('hidden');
-                }
-             } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
+            } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
                  e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; 
                  const t = `[${chordToPlace}]`; const p = textarea.selectionStart; 
                  textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); 
@@ -980,23 +951,66 @@
                  textarea.setSelectionRange(newPos, newPos); 
                  chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; 
                  updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); 
-             } else if (e.target.dataset.action === 'delete') { 
-                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
-             } else if (e.target.dataset.action === 'rename') { 
-                const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
-             } else if (e.target.dataset.action === 'edit-tab') {
-                const button = e.target;
-                const wasEditMode = block.editMode;
-                block.editMode = !wasEditMode;
-                button.classList.toggle('btn-edit-mode', block.editMode);
-                button.textContent = block.editMode ? 'Done Editing' : 'Edit';
-                if (!block.editMode && selectedNote.blockId === blockId) { // Deselect notes when leaving edit mode
-                    selectedNote = {blockId: null, noteIndex: null};
-                    drawNotesOnFretboard(blockId);
-                }
              }
         });
-
+        
+        // This function attaches listeners to a specific fretboard SVG. It is called from drawFretboard.
+        function attachFretboardListeners(svgEl) {
+             const blockId = svgEl.id.split('-').pop();
+             const block = songData.song_blocks.find(b => b.id === blockId);
+             
+             svgEl.addEventListener('mousedown', (e) => {
+                 isDraggingNote = false; // Reset drag flag
+                 if (block.editMode) {
+                     const noteGroup = e.target.closest('.note-group');
+                     if(noteGroup) {
+                         const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                         selectedNote = { blockId, noteIndex };
+                         isDraggingNote = true; // Prepare to drag
+                         drawNotesOnFretboard(blockId);
+                     }
+                 }
+             });
+             
+             svgEl.addEventListener('click', (e) => {
+                if(isDraggingNote) { // Prevent click from firing after a drag
+                    isDraggingNote = false;
+                    return;
+                }
+                const isNoteClick = e.target.closest('.note-group');
+                
+                if (block.editMode) {
+                    if (isNoteClick) {
+                        const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                        if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
+                             block.data.notes.splice(clickedNoteIndex, 1);
+                             selectedNote = { blockId: null, noteIndex: null };
+                        } else {
+                             selectedNote = { blockId, noteIndex: clickedNoteIndex };
+                        }
+                    } else { // Click on empty space
+                         selectedNote = { blockId: null, noteIndex: null };
+                    }
+                    drawNotesOnFretboard(blockId);
+                } else { // In "Add Mode"
+                    if (!isNoteClick) { // Only add if clicking empty space
+                        const clickData = getFretFromClick(e, svgEl);
+                        if (clickData) {
+                            fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+                            fretNumberSelector.innerHTML = '';
+                            for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
+                                const option = new Option(i, i);
+                                if (i === clickData.fret) option.selected = true;
+                                fretNumberSelector.appendChild(option);
+                            }
+                            fretSelectionModal.style.left = `${e.clientX + 5}px`;
+                            fretSelectionModal.style.top = `${e.clientY + 5}px`;
+                            fretSelectionModal.classList.remove('hidden');
+                        }
+                    }
+                }
+             });
+        }
 
         document.addEventListener('keydown', (e) => {
             if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
