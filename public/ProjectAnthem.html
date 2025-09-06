@@ -664,6 +664,7 @@
             return null;
         }
 
+
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
             if (!container) return;
@@ -866,24 +867,47 @@
         songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
         songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, e.target.dataset.field, e.target.value); } });
         songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
+        
+        // --- FIX: The definitive click handler for fretboards ---
         songBlocksContainer.addEventListener('click', e => {
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
-            
-            if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }} 
-            else if (e.target.dataset.action === 'edit-label') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }}
-            else if (e.target.classList.contains('fretboard-target-zone')) { 
-                selectedNote = { blockId: null, noteIndex: null };
+
+            // Handle note clicks FIRST to stop propagation.
+            if (e.target.closest('.note-group')) {
+                e.stopPropagation(); // Prevent fretboard-zone click from firing
+                const clickedNoteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10);
+                
+                // If the clicked note is already selected, delete it.
+                if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
+                    block.data.notes.splice(clickedNoteIndex, 1);
+                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
+                } else { // Otherwise, select the new note.
+                    selectedNote = { blockId, noteIndex: clickedNoteIndex };
+                }
                 drawNotesOnFretboard(blockId);
+                renderPreview();
+                return; // End here
+            }
+            
+            // If the click was not on a note, but on the fretboard area
+            if (e.target.classList.contains('fretboard-target-zone')) {
+                // Always deselect any previously selected note
+                if (selectedNote.blockId) {
+                    const oldBlockId = selectedNote.blockId;
+                    selectedNote = { blockId: null, noteIndex: null };
+                    drawNotesOnFretboard(oldBlockId);
+                }
+
+                // Now, open the modal to add a new note
                 const clickData = getFretFromClick(e, blockId);
                 if (clickData) {
                     fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
                     fretNumberSelector.innerHTML = '';
                     for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
-                        const option = document.createElement('option');
-                        option.value = i; option.textContent = i;
+                        const option = new Option(i, i);
                         if (i === clickData.fret) option.selected = true;
                         fretNumberSelector.appendChild(option);
                     }
@@ -891,25 +915,11 @@
                     fretSelectionModal.style.top = `${e.clientY + 5}px`;
                     fretSelectionModal.classList.remove('hidden');
                 }
-             }
-            else if (e.target.closest('.note-group')) { 
-                 const clickedNoteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10);
-                 const oldSelectedBlockId = selectedNote.blockId;
-                 const oldSelectedIndex = selectedNote.noteIndex;
-
-                 // --- FIX: Check if clicking the currently selected note again, if so, delete it ---
-                 if (oldSelectedBlockId === blockId && oldSelectedIndex === clickedNoteIndex) {
-                    block.data.notes.splice(clickedNoteIndex, 1);
-                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
-                 } else { // Otherwise, select the new note
-                    selectedNote = { blockId, noteIndex: clickedNoteIndex };
-                 }
-
-                 if(oldSelectedBlockId && oldSelectedBlockId !== blockId) drawNotesOnFretboard(oldSelectedBlockId);
-                 drawNotesOnFretboard(blockId);
-                 renderPreview();
+            } else if (e.target.dataset.action === 'delete') {
+                if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId); songData.song_blocks = songData.song_blocks.filter(b => !(b.type === 'reference' && b.originalId === blockId)); renderSongBlocks(); }
+            } else if (e.target.dataset.action === 'edit-label') {
+                const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
             }
-            else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); }
         });
 
         document.addEventListener('keydown', (e) => {
@@ -920,7 +930,7 @@
                 if (block && block.data && block.data.notes) {
                     block.data.notes.splice(selectedNote.noteIndex, 1);
                     const oldBlockId = selectedNote.blockId;
-                    selectedNote = { blockId: null, noteIndex: null };
+                    selectedNote = { blockId: null, noteIndex: null }; // Deselect
                     drawNotesOnFretboard(oldBlockId);
                     renderPreview();
                 }
@@ -933,7 +943,7 @@
             const block = songData.song_blocks.find(b => b.id === blockId);
 
             if(block && string !== null && position !== null && fret >= 0) {
-                 const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
+                 const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
                  if (!block.data) block.data = { notes: [] };
                  block.data.notes.push({ string, fret: fret + totalOffset, position });
                  drawNotesOnFretboard(blockId);
