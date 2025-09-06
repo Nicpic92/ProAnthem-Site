@@ -212,6 +212,8 @@
         let fretSelectionContext = { blockId: null, string: null, position: null };
         let selectedNote = { blockId: null, noteIndex: null };
         let activeResize = { element: null, startY: 0, startHeight: 0 };
+        let pressTimer = null; // For long press detection
+        let isDragging = false; // To prevent click from firing after a drag
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -872,34 +874,49 @@
         songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
         songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
         
-        // --- FIX: The final, fully functional click handler logic ---
+        songBlocksContainer.addEventListener('mousedown', e => {
+             // Block resize logic
+            if (e.target.classList.contains('resize-handle')) {
+                const textarea = e.target.previousElementSibling;
+                activeResize = {
+                    element: textarea,
+                    blockId: textarea.closest('.song-block').dataset.blockId,
+                    startY: e.clientY,
+                    startHeight: textarea.offsetHeight
+                };
+                document.body.style.cursor = 'ns-resize';
+            }
+        });
+        document.addEventListener('mousemove', e => {
+             if (activeResize.element) {
+                const height = activeResize.startHeight + e.clientY - activeResize.startY;
+                activeResize.element.style.height = `${Math.max(50, height)}px`;
+            }
+        });
+         document.addEventListener('mouseup', () => {
+            if (activeResize.element) {
+                const newHeight = activeResize.element.offsetHeight;
+                updateBlockData(activeResize.blockId, null, null, newHeight);
+                activeResize = { element: null, startY: 0, startHeight: 0 };
+                document.body.style.cursor = '';
+            }
+        });
+        
+        // Final, definitive click handler logic
         songBlocksContainer.addEventListener('click', (e) => {
             const blockEl = e.target.closest('.song-block');
             if (!blockEl) return;
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
 
-            // This must be checked first to stop propagation.
             if (e.target.closest('.note-group')) {
+                // Clicking an existing note always stops propagation
                 e.stopPropagation(); 
-                const clickedNoteIndex = parseInt(e.target.closest('.note-group').querySelector('.fretboard-note').dataset.noteIndex, 10);
-                if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
-                     // Clicking the same selected note again deletes it
-                    block.data.notes.splice(clickedNoteIndex, 1);
+            } else if (e.target.classList.contains('fretboard-target-zone')) { 
+                if (selectedNote.blockId) {
+                    const oldBlockId = selectedNote.blockId;
                     selectedNote = { blockId: null, noteIndex: null };
-                } else {
-                    selectedNote = { blockId, noteIndex: clickedNoteIndex };
-                }
-                drawNotesOnFretboard(blockId);
-                renderPreview();
-                return;
-            }
-
-            if (e.target.classList.contains('fretboard-target-zone')) {
-                if(selectedNote.blockId) { // Deselect if clicking empty space
-                   const oldBlockId = selectedNote.blockId;
-                   selectedNote = { blockId: null, noteIndex: null };
-                   drawNotesOnFretboard(oldBlockId);
+                    drawNotesOnFretboard(oldBlockId);
                 }
                 const clickData = getFretFromClick(e, blockId);
                 if (clickData) {
@@ -914,7 +931,7 @@
                     fretSelectionModal.style.top = `${e.clientY + 5}px`;
                     fretSelectionModal.classList.remove('hidden');
                 }
-             } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { // --- FIX: Restore Chord Queue logic ---
+            } else if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
                  e.preventDefault(); 
                  const textarea = e.target; 
                  const chordToPlace = chordQueue[chordQueueIndex]; 
@@ -926,11 +943,11 @@
                  chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; 
                  updateBlockData(blockId, 'content', textarea.value); 
                  renderChordQueue(); 
-             } else if (e.target.dataset.action === 'delete') { 
+            } else if (e.target.dataset.action === 'delete') { 
                 if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); }
-             } else if (e.target.dataset.action === 'edit-label') { 
+            } else if (e.target.dataset.action === 'edit-label') { 
                 const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); }
-             }
+            }
         });
 
 
@@ -980,37 +997,6 @@
                 renderSongBlocks();
             }
         });
-
-        // --- NEW: Resize functionality ---
-        songBlocksContainer.addEventListener('mousedown', (e) => {
-            if (e.target.classList.contains('resize-handle')) {
-                const textarea = e.target.previousElementSibling;
-                activeResize = {
-                    element: textarea,
-                    blockId: textarea.closest('.song-block').dataset.blockId,
-                    startY: e.clientY,
-                    startHeight: textarea.offsetHeight
-                };
-                document.body.style.cursor = 'ns-resize'; // Change cursor for whole page
-            }
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (activeResize.element) {
-                const height = activeResize.startHeight + e.clientY - activeResize.startY;
-                activeResize.element.style.height = `${Math.max(50, height)}px`; // Minimum height of 50px
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (activeResize.element) {
-                const newHeight = activeResize.element.offsetHeight;
-                updateBlockData(activeResize.blockId, null, null, newHeight);
-                activeResize = { element: null, startY: 0, startHeight: 0 };
-                document.body.style.cursor = ''; // Reset cursor
-            }
-        });
-
         recordBtn.addEventListener('click', startRecording);
         stopBtn.addEventListener('click', stopRecording);
         songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
