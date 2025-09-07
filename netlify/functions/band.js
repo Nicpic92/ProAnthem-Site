@@ -1,12 +1,15 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
+
 exports.handler = async (event) => {
-    // ... (authentication logic)
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
@@ -20,13 +23,9 @@ exports.handler = async (event) => {
     }
     const { email: userEmail, band_id: bandId, role: userRole } = decodedToken.user;
 
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
+    const client = await pool.connect();
 
     try {
-        await client.connect();
         const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const pathParts = path.split('/').filter(Boolean);
         const resource = pathParts[1];
@@ -87,14 +86,14 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
-            const { userIdToRemove } = JSON.parse(event.body);
-            if (!userIdToRemove) { return { statusCode: 400, body: JSON.stringify({ message: 'User ID is required.' })}; }
+            const { emailToRemove } = JSON.parse(event.body);
+            if (!emailToRemove) { return { statusCode: 400, body: JSON.stringify({ message: 'User email is required.' })}; }
 
-            const { rows: [userToRemove] } = await client.query('SELECT role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            const { rows: [userToRemove] } = await client.query('SELECT id, role FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             if(!userToRemove) { return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })}; }
             if(userToRemove.role === 'band_admin' || userToRemove.role === 'admin') { return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin.' })}; }
 
-            await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userToRemove.id, bandId]);
             return { statusCode: 204, body: '' };
         }
 
@@ -103,6 +102,6 @@ exports.handler = async (event) => {
         console.error('API Error in /api/band:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
-        if(client) await client.end();
+        if(client) client.release();
     }
 };
