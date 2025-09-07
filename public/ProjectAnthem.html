@@ -215,7 +215,7 @@
         let fretSelectionContext = { blockId: null, string: null, position: null };
         let selectedNote = { blockId: null, noteIndex: null };
         let activeResize = { element: null, startY: 0, startHeight: 0 };
-        let isDraggingNote = false; 
+        let isDraggingNote = false;
 
         const titleInput = document.getElementById('titleInput');
         const artistInput = document.getElementById('artistInput');
@@ -414,7 +414,8 @@
                  try {
                     await api.deleteSetlist(setlistId);
                     setStatus(`Setlist "${setlistName}" deleted.`, false);
-                    await loadSetlists(); // Refresh the list
+                    await loadSetlists();
+                    handleSetlistSelection(null);
                 } catch(error) {
                     setStatus(`Failed to delete setlist: ${error.message}`, true);
                 }
@@ -534,31 +535,37 @@
                     const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
                     for (const block of songBlocks) {
                         let blockToRender = block.type === 'reference' ? (songBlocks.find(b => b.id === block.originalId) || block) : block;
-                        if (!blockToRender || !blockToRender.content) continue;
-
+                        if (!blockToRender || (!blockToRender.content && !blockToRender.data)) continue;
+                        
+                        // --- FIX: Filter out blocks not needed for the current mode ---
+                        if(drummerMode && !(blockToRender.type === 'lyrics' || blockToRender.type === 'drum_tab')) continue;
+                        if(!drummerMode && blockToRender.type === 'drum_tab') continue;
+                        
                         checkPageBreak(12);
                         doc.setFont(undefined, 'bold'); doc.setFontSize(12);
                         doc.text(block.label, leftMargin, y, { maxWidth });
                         y += 7;
+                        
                         doc.setFont('Courier', 'normal'); doc.setFontSize(11);
                         const lineHeight = 5;
 
-                        const lines = blockToRender.type === 'tab' ? renderTransposedTab(blockToRender).split('\n') : blockToRender.content.split('\n');
+                        // Use tab rendering function if it's a guitar tab
+                        const lines = blockToRender.type === 'tab' ? renderTransposedTab(blockToRender).split('\n') : (blockToRender.content || '').split('\n');
 
                         for (const line of lines) {
                              if (blockToRender.type === 'lyrics') {
+                                checkPageBreak(lineHeight * 2.5);
                                 const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
                                 if (!drummerMode) {
-                                    checkPageBreak(lineHeight * 2.5);
                                     doc.setTextColor(60, 60, 60);
                                     doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
                                     y += lineHeight;
-                                } else { checkPageBreak(lineHeight * 1.5); }
+                                }
                                 doc.setTextColor(0, 0, 0);
                                 const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
                                 doc.text(splitLyrics, leftMargin, y);
                                 y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5);
-                            } else if ( (drummerMode && blockToRender.type === 'drum_tab') || (!drummerMode && blockToRender.type !== 'drum_tab') ) {
+                            } else if (blockToRender.type === 'tab' || blockToRender.type === 'drum_tab') {
                                 const splitText = doc.splitTextToSize(line, maxWidth);
                                 checkPageBreak(splitText.length * lineHeight);
                                 doc.setTextColor(0,0,0);
@@ -661,7 +668,6 @@
             return null;
         }
 
-
         function drawFretboard(blockId) {
             const container = document.getElementById(`fretboard-${blockId}`);
             if (!container) return;
@@ -671,9 +677,10 @@
             const stringConfig = STRING_CONFIG[numStrings];
             const { frets, width, nutWidth, fretSpacing, dotFrets, dotRadius } = FRETBOARD_CONFIG;
             const { height, stringSpacing } = stringConfig;
-            let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" fill="transparent"/><g id="fretboard-notes-group-${blockId}"></g>`;
+            // --- FIX: Restored fretboard background and nut drawing ---
+            let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" fill="#2d3748" />`;
             for (let i = 0; i < numStrings; i++) svgHTML += `<line class="fretboard-string" x1="0" y1="${stringSpacing / 2 + i * stringSpacing}" x2="${width}" y2="${stringSpacing / 2 + i * stringSpacing}" />`;
-            svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" fill="#2d3748" />`;
+            svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" fill="#1e1e1e" />`;
             for (let i = 1; i <= frets; i++) svgHTML += `<line class="fretboard-fret" x1="${nutWidth + i * fretSpacing}" y1="0" x2="${nutWidth + i * fretSpacing}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
             dotFrets.forEach(fret => {
                 const x = nutWidth + (fret - 0.5) * fretSpacing;
@@ -683,7 +690,7 @@
                     svgHTML += `<circle class="fretboard-dot" cx="${x}" cy="${height / 2}" r="${dotRadius}" fill="#555"/>`;
                 }
             });
-            svgHTML += `</svg>`;
+            svgHTML += `<g id="fretboard-notes-group-${blockId}"></g></svg>`; // Note group added, target-zone removed from static html
             container.innerHTML = svgHTML;
             drawNotesOnFretboard(blockId);
             const svgEl = document.getElementById(`fretboard-svg-${blockId}`);
@@ -702,13 +709,10 @@
                 if (note.string >= numStrings) return;
                 const transposedFret = note.fret - totalOffset;
                 if (transposedFret < 0) return;
-                
                 const y = stringConfig.stringSpacing / 2 + note.string * stringConfig.stringSpacing;
                 const x = note.position;
-                
                 const isSelected = selectedNote.blockId === blockId && selectedNote.noteIndex === index;
-
-                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note ${isSelected ? 'selected' : ''}" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}" /><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
+                notesGroup.innerHTML += `<g class="note-group"><circle class="fretboard-note ${isSelected ? 'selected' : ''}" cx="${x}" cy="${y}" r="${FRETBOARD_CONFIG.noteRadius}" data-note-index="${index}"/><text class="fretboard-note-text" x="${x}" y="${y}">${transposedFret}</text></g>`;
             });
         }
         
@@ -875,22 +879,20 @@
              
              svgEl.addEventListener('mousedown', (e) => {
                  isDraggingNote = false; 
-                 if (block.editMode) {
+                 if (block.editMode && e.target.closest('.note-group')) {
                      const noteGroup = e.target.closest('.note-group');
-                     if(noteGroup) {
-                         const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
-                         selectedNote = { blockId, noteIndex };
-                         isDraggingNote = true;
-                         drawNotesOnFretboard(blockId);
-                     }
+                     const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                     selectedNote = { blockId, noteIndex };
+                     isDraggingNote = true;
+                     drawNotesOnFretboard(blockId);
                  }
              });
              
              svgEl.addEventListener('click', (e) => {
                 if (isDraggingNote) { isDraggingNote = false; return; }
+                const isNoteClick = e.target.closest('.note-group');
                 
                 if (block.editMode) {
-                    const isNoteClick = e.target.closest('.note-group');
                     if (isNoteClick) {
                         const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
                         if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
@@ -904,24 +906,24 @@
                     }
                     drawNotesOnFretboard(blockId);
                 } else {
-                    const clickData = getFretFromClick(e, svgEl);
-                    if (clickData) {
-                        fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
-                        fretNumberSelector.innerHTML = '';
-                        for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
-                            const option = new Option(i, i);
-                            if (i === clickData.fret) option.selected = true;
-                            fretNumberSelector.appendChild(option);
+                    if (!isNoteClick) {
+                        const clickData = getFretFromClick(e, svgEl);
+                        if (clickData) {
+                            fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+                            fretNumberSelector.innerHTML = '';
+                            for (let i = 0; i <= FRETBOARD_CONFIG.frets; i++) {
+                                const option = new Option(i, i);
+                                if (i === clickData.fret) option.selected = true;
+                                fretNumberSelector.appendChild(option);
+                            }
+                            fretSelectionModal.style.left = `${e.clientX + 5}px`;
+                            fretSelectionModal.style.top = `${e.clientY + 5}px`;
+                            fretSelectionModal.classList.remove('hidden');
                         }
-                        fretSelectionModal.style.left = `${e.clientX + 5}px`;
-                        fretSelectionModal.style.top = `${e.clientY + 5}px`;
-                        fretSelectionModal.classList.remove('hidden');
                     }
                 }
              });
         }
-        
-        songBlocksContainer.addEventListener('change', e => { if(e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if(block) { block.strings = parseInt(e.target.value, 10); renderSongBlocks(); } }});
         
         document.addEventListener('mousemove', e => {
              if (activeResize.element) {
@@ -936,8 +938,8 @@
                     const clickData = getFretFromClick(e, svg);
                     if (clickData) {
                        note.position = clickData.position;
-                       const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
-                       note.fret = clickData.fret + totalOffset;
+                       note.string = clickData.string;
+                       // --- FIX: Do not change the fret number when dragging ---
                        drawNotesOnFretboard(selectedNote.blockId);
                     }
                 }
@@ -963,7 +965,7 @@
             const blockId = blockEl.dataset.blockId;
             const block = songData.song_blocks.find(b => b.id === blockId);
 
-             if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
+            if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
                  e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; 
                  const t = `[${chordToPlace}]`; const p = textarea.selectionStart; 
                  textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); 
