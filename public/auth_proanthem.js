@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNav();
 
     // --- MODAL & FORM LOGIC ---
-    // This logic is now part of the main auth script to ensure it runs correctly.
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -100,6 +99,7 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 // --- Subscription & Access Control ---
 function checkAccess() {
     const user = getUserPayload();
+    // This is the single source of truth for who gets access
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
@@ -107,6 +107,13 @@ function checkAccess() {
     const toolContent = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     if (!toolContent || !accessDenied) return true; 
+
+    if (user && user.force_reset) {
+        // If password reset is required, deny access to the tool regardless of role/status
+        if (toolContent) toolContent.style.display = 'none';
+        if (accessDenied) accessDenied.style.display = 'none'; // Also hide the generic access denied message
+        return false;
+    }
 
     if (hasAccess) {
         accessDenied.style.display = 'none';
@@ -172,23 +179,37 @@ async function performLogin(credentials, redirectTo = null) {
     const result = await apiRequest('login', credentials, 'POST');
     if (result.token) {
         localStorage.setItem('user_token', result.token);
+        
+        // If a specific redirect is requested (like after signup), honor it.
         if (redirectTo) {
             window.location.href = redirectTo;
             return;
         }
 
         const user = getUserPayload();
+        
+        // **THIS IS THE FIX:** Check for special roles in addition to subscription status.
+        // This logic now mirrors the `checkAccess` function for consistency.
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
         const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
         
-        window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+        if (user.force_reset) {
+            // Always redirect to the tool page if a password reset is required.
+            window.location.href = '/ProjectAnthem.html';
+        } else if (hasAccess) {
+            // Redirect users with access to the tool.
+            window.location.href = '/ProjectAnthem.html';
+        } else {
+            // All other users (inactive subscription, etc.) go to the pricing page.
+            window.location.href = '/pricing.html';
+        }
+
     } else {
         throw new Error("Login failed: No token returned.");
     }
 }
 
-// This function is called by the nav button.
 function openModal(view) {
     const authModal = document.getElementById('auth-modal');
     if(authModal) {
