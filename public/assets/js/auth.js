@@ -1,5 +1,4 @@
-// This file is referenced by admin.html and provides shared authentication
-// and API communication functionality for the Spreadsheet Simplicity side of the site.
+// This is the unified authentication script for the entire ProAnthem site.
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
@@ -22,16 +21,10 @@ function getUserPayload() {
     }
 }
 
-function getUserRole() {
-    const user = getUserPayload();
-    return user ? user.role : null;
-}
-
 function logout() {
     localStorage.removeItem('user_token');
-    localStorage.removeItem('userRole');
-    if (window.location.pathname.startsWith('/admin')) {
-        window.location.href = '/';
+    if (!window.location.pathname.endsWith('/') && !window.location.pathname.endsWith('/proanthem_index.html')) {
+        window.location.href = '/proanthem_index.html';
     } else {
         window.location.reload();
     }
@@ -40,34 +33,28 @@ function logout() {
 function updateNav() {
     const user = getUserPayload();
     const navAuthSection = document.getElementById('nav-auth-section');
-    const mobileNavAuthSection = document.getElementById('mobile-nav-auth-section');
     if (!navAuthSection) return;
 
-    let navHtml = '';
     if (user) {
-        navHtml = `
-            <span class="text-gray-600 font-medium hidden lg:inline">Welcome, ${user.name || user.email}</span>
-            ${user.role === 'admin' ? '<a href="/admin.html" class="text-indigo-600 hover:text-indigo-800 font-bold ml-4">Admin</a>' : ''}
-            <a href="/dashboard.html" class="text-gray-600 hover:text-indigo-600 font-medium ml-4">Dashboard</a>
-            <button onclick="logout()" class="ml-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
-                Log Out
-            </button>
-        `;
+        let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-primary">Tool</a>`;
+        if (user.role === 'admin' || user.role === 'band_admin') {
+             buttonHtml = `<a href="/Band.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
+        }
+        if (user.role === 'admin') {
+             buttonHtml = `<a href="/admin.html" class="btn btn-danger mr-4">Admin Panel</a>` + buttonHtml;
+        }
+         buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white font-semibold">Log Out</button>`;
+        navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
-        navHtml = `
-            <a href="/login.html" class="text-gray-600 hover:text-indigo-600 font-medium">Log In</a>
-            <a href="/signup.html" class="ml-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
-                Sign Up
-            </a>
-        `;
+        navAuthSection.innerHTML = `<a href="/pricing.html" class="btn btn-primary">Sign Up</a><button id="login-modal-button" class="ml-4 text-gray-300 hover:text-white font-semibold">Log In</button>`;
+        const loginBtn = document.getElementById('login-modal-button');
+        if(loginBtn && typeof openModal === 'function') {
+            loginBtn.addEventListener('click', () => openModal('login'));
+        }
     }
-
-    navAuthSection.innerHTML = navHtml;
-    if (mobileNavAuthSection) mobileNavAuthSection.innerHTML = navHtml.replace(/ml-4/g, 'block py-2 px-4 text-sm');
 }
 
 async function apiRequest(endpoint, data = null, method = 'GET') {
-    // Assuming Netlify functions are mapped to /api/ via netlify.toml or similar
     const url = `/api/${endpoint}`;
     const token = getToken();
 
@@ -80,7 +67,7 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
         options.headers['Authorization'] = `Bearer ${token}`;
     }
 
-    if (data && (method === 'POST' || method === 'PUT')) {
+    if (data && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
         options.body = JSON.stringify(data);
     }
     
@@ -100,5 +87,58 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
     } catch (error) {
         console.error(`API Request Error to ${endpoint}:`, error);
         throw error;
+    }
+}
+
+function checkAccess() {
+    const user = getUserPayload();
+    const specialRoles = ['admin', 'band_admin', 'band_member'];
+    const validStatuses = ['active', 'trialing', 'admin_granted'];
+    const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
+    
+    const toolContent = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
+    const accessDenied = document.getElementById('access-denied');
+    
+    if (!toolContent || !accessDenied) return true;
+
+    if (hasAccess) {
+        accessDenied.style.display = 'none';
+        toolContent.style.display = 'block';
+        return true;
+    } else {
+        toolContent.style.display = 'none';
+        accessDenied.style.display = 'block';
+        const accessDeniedLink = accessDenied.querySelector('a');
+        if (accessDeniedLink) {
+            accessDeniedLink.textContent = user ? 'Manage Subscription' : 'Log In or Sign Up';
+            accessDeniedLink.href = user ? '/pricing.html' : '/proanthem_index.html';
+        }
+        return false;
+    }
+}
+
+async function performLogin(credentials, redirectTo = null) {
+    const result = await apiRequest('login', credentials, 'POST');
+    if (result.token) {
+        localStorage.setItem('user_token', result.token);
+        const user = JSON.parse(atob(result.token.split('.')[1])).user;
+
+        if (redirectTo) {
+            window.location.href = redirectTo;
+            return;
+        }
+        
+        if(user.force_reset){
+             window.location.href = '/ProjectAnthem.html';
+             return;
+        }
+        
+        const specialRoles = ['admin', 'band_admin', 'band_member'];
+        const validStatuses = ['active', 'trialing', 'admin_granted'];
+        const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
+        
+        window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+    } else {
+        throw new Error("Login failed: No token returned.");
     }
 }
