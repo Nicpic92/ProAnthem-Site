@@ -37,11 +37,17 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
-        let subStatus = user.subscription_status; // Start with the status from the DB
-        let userRole = user.role; 
+        let subStatus = user.subscription_status;
+        let userRole = user.role;
 
-        // --- FIX: Only check Stripe IF the user is not an admin and does not have a granted plan ---
-        if (user.role !== 'admin' && subStatus !== 'admin_granted') {
+        // --- DEFINITIVE FIX ---
+        // 1. First, check if the user has a special, permanent status.
+        // If they do, we TRUST our database and SKIP the Stripe API call entirely.
+        if (user.role === 'admin' || subStatus === 'admin_granted') {
+            // Do nothing. The status from the database is correct and will be used.
+            console.log(`Bypassing Stripe check for admin or admin_granted user: ${user.email}`);
+        } else {
+            // 2. If they are a normal user, THEN we check Stripe as the source of truth.
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -51,7 +57,7 @@ exports.handler = async (event) => {
 
                 let newStatus = 'inactive';
                 let newPlan = null;
-                let newRole = 'solo'; // Default to solo unless they have a band plan
+                let newRole = 'solo'; 
 
                 if (subscriptions.data.length > 0) {
                     const sub = subscriptions.data[0];
@@ -67,17 +73,16 @@ exports.handler = async (event) => {
                     }
                 }
                 
-                // Only update if the status or role has actually changed
-                if (newStatus !== user.subscription_status || newRole !== user.role) {
-                    await client.query(
-                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                        [newStatus, newPlan, newRole, user.email]
-                    );
-                    subStatus = newStatus;
-                    userRole = newRole;
-                }
+                // Update their record in our database to reflect the latest from Stripe
+                await client.query(
+                    'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                    [newStatus, newPlan, newRole, user.email]
+                );
+                // Update our local variables to use in the token
+                subStatus = newStatus;
+                userRole = newRole;
             } else {
-                // If they have no stripe ID and are not admin_granted, they are inactive.
+                // They have no Stripe ID and are not a special user, so they are inactive.
                 subStatus = 'inactive';
             }
         }
