@@ -1,15 +1,40 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // This is a protected admin page. The getUserPayload function is in auth_proanthem.js
     const user = getUserPayload();
     if (!user || user.role !== 'admin') {
         document.getElementById('access-denied').style.display = 'block';
         return;
     }
     
-    // If the user is an admin, show the content and fetch the data.
     document.getElementById('admin-content').style.display = 'block';
+    
+    const createUserForm = document.getElementById('create-user-form');
+    if (createUserForm) {
+        createUserForm.addEventListener('submit', handleCreateUser);
+    }
+    
     loadUsers();
 });
+
+async function handleCreateUser(event) {
+    event.preventDefault();
+    const statusEl = document.getElementById('create-user-status');
+    statusEl.textContent = 'Creating user...';
+    statusEl.classList.remove('text-green-400', 'text-red-500');
+
+    const email = document.getElementById('new-email').value;
+    const bandName = document.getElementById('new-bandname').value;
+    
+    try {
+        const result = await apiRequest('admin-tasks/create-user', { email, bandName }, 'POST');
+        statusEl.textContent = result.message;
+        statusEl.classList.add('text-green-400');
+        document.getElementById('create-user-form').reset();
+        loadUsers(); // Refresh the user list
+    } catch (error) {
+        statusEl.textContent = `Error: ${error.message}`;
+        statusEl.classList.add('text-red-500');
+    }
+}
 
 async function loadUsers() {
     const tableBody = document.getElementById('users-table-body');
@@ -29,8 +54,8 @@ async function loadUsers() {
             const userRow = document.createElement('tr');
             userRow.className = 'border-b border-gray-700 hover:bg-gray-700/50';
 
-            const roleOptions = ['free', 'pro', 'admin']
-                .map(role => `<option value="${role}" ${user.role === role ? 'selected' : ''}>${role.charAt(0).toUpperCase() + role.slice(1)}</option>`)
+            const roleOptions = ['solo', 'band_admin', 'admin']
+                .map(role => `<option value="${role}" ${user.role === role ? 'selected' : ''}>${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>`)
                 .join('');
             
             userRow.innerHTML = `
@@ -73,7 +98,7 @@ async function changeUserRole(email, newRole) {
 }
 
 async function deleteUser(email) {
-    if (!confirm(`ARE YOU SURE you want to permanently delete the user ${email}? This will delete their account but their songs and setlists will remain. This action CANNOT be undone.`)) {
+    if (!confirm(`ARE YOU SURE you want to permanently delete the user ${email}? This action CANNOT be undone.`)) {
         return;
     }
     try {
