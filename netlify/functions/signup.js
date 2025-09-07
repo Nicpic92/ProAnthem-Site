@@ -9,14 +9,10 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    const { email, password, firstName, lastName, artistBandName, source } = JSON.parse(event.body);
+    const { email, password, firstName, lastName, artistBandName } = JSON.parse(event.body);
 
-    if (!email || !password || !firstName || !lastName) {
-        return { statusCode: 400, body: JSON.stringify({ message: 'Missing required user fields.' }) };
-    }
-
-    if (source === 'proanthem' && !artistBandName) {
-        return { statusCode: 400, body: JSON.stringify({ message: 'Artist/Band Name is required.' }) };
+    if (!email || !password || !firstName || !lastName || !artistBandName) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required.' }) };
     }
 
     const client = new Client({
@@ -26,18 +22,19 @@ exports.handler = async (event) => {
     
     try {
         await client.connect();
-        await client.query('BEGIN'); // Start transaction
+        await client.query('BEGIN');
 
         // 1. Create a Stripe Customer first
         const customer = await stripe.customers.create({
             email,
             name: `${firstName} ${lastName}`,
+            metadata: {
+                bandName: artistBandName
+            }
         });
 
+        // 2. Hash password and create band
         const password_hash = await bcrypt.hash(password, 10);
-        let bandId = null;
-
-        // ProAnthem always creates a band
         let bandNumber;
         let isUnique = false;
         while (!isUnique) {
@@ -48,14 +45,13 @@ exports.handler = async (event) => {
         
         const bandInsertQuery = 'INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id';
         const bandResult = await client.query(bandInsertQuery, [bandNumber, artistBandName]);
-        bandId = bandResult.rows[0].id;
+        const bandId = bandResult.rows[0].id;
         
-        // The default role is now 'solo'. The Band Leader can invite others.
-        // We now store the stripe_customer_id in our database.
+        // 3. Insert the user into your database with their new Stripe ID
         const userInsertQuery = `
             INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
             VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo')
-            RETURNING email, first_name, last_name, artist_band_name;
+            RETURNING email, first_name, role;
         `;
         const queryParams = [email, password_hash, firstName, lastName, artistBandName, bandId, customer.id];
 
@@ -67,10 +63,10 @@ exports.handler = async (event) => {
 
     } catch (error) {
         await client.query('ROLLBACK');
-        if (error.code === '23505' && error.constraint && error.constraint.includes('users')) {
-             return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists.' }) };
+        if (error.code === '23505') { // Handles unique constraint violations
+             return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email or band name already exists.' }) };
         }
-        console.error('Unified Signup Error:', error);
+        console.error('Signup Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
         await client.end();
