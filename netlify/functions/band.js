@@ -21,7 +21,6 @@ exports.handler = async (event) => {
     
     const { email: userEmail, band_id: bandId, role: userRole } = decodedToken.user;
     
-    // Security Check: Only band_admins or admins can manage a band
     if (userRole !== 'band_admin' && userRole !== 'admin') {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to manage this band.' })};
     }
@@ -37,8 +36,14 @@ exports.handler = async (event) => {
         const pathParts = path.split('/').filter(Boolean);
         const resource = pathParts[1];
 
+        // --- NEW: Route to get band details ---
+        if (event.httpMethod === 'GET' && !resource) {
+            const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
+            const { rows: [bandDetails] } = await client.query(query, [bandId]);
+            return { statusCode: 200, body: JSON.stringify(bandDetails) };
+        }
+
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- FIX: The SQL query now selects the correct columns ---
             const query = `SELECT id, email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
@@ -51,7 +56,6 @@ exports.handler = async (event) => {
             }
 
             const inviteToken = crypto.randomBytes(32).toString('hex');
-            
             const { rows: [existingUser] } = await client.query('SELECT band_id FROM users WHERE email = $1', [emailToInvite.toLowerCase()]);
             if (existingUser) {
                 return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists in the system.' }) };
@@ -64,12 +68,8 @@ exports.handler = async (event) => {
                 RETURNING token;
             `;
             const result = await client.query(query, [bandId, emailToInvite.toLowerCase(), inviteToken]);
-            const newInviteToken = result.rows[0].token;
             
-            const signupLink = `${process.env.SITE_URL}/pricing.html?invite_token=${newInviteToken}`;
-            console.log(`SIGNUP LINK (for dev): ${signupLink}`);
-            
-            return { statusCode: 201, body: JSON.stringify({ message: 'Invite sent successfully.', token: newInviteToken }) };
+            return { statusCode: 201, body: JSON.stringify({ message: 'Invite sent successfully.', token: result.rows[0].token }) };
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
