@@ -1,48 +1,158 @@
-// At the top of the auth_proanthem.js, add this function
-function checkAccess() {
+// This is the unified authentication script for the entire ProAnthem site.
+
+document.addEventListener('DOMContentLoaded', () => {
+    // This part runs on every page load to set up the correct navigation
+    updateNav();
+
+    // These listeners are only attached if the respective forms exist on the current page
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+});
+
+// --- Core Auth & API Functions ---
+
+function getToken() {
+    return localStorage.getItem('user_token');
+}
+
+function getUserPayload() {
+    const token = getToken();
+    if (!token) return null;
+    try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.user || null;
+    } catch (e) {
+        console.error('Failed to parse token:', e);
+        logout(); // Log out if token is malformed
+        return null;
+    }
+}
+
+function logout() {
+    localStorage.removeItem('user_token');
+    window.location.href = '/proanthem_index.html';
+}
+
+function updateNav() {
     const user = getUserPayload();
-    
-    // Valid statuses are 'active' or 'trialing'. Admins get a free pass.
-    const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
+    // This robust selector finds the authentication div on both the main page and the admin page
+    const navAuthSection = document.querySelector("#nav-auth-section");
+    if (!navAuthSection) return;
 
-    if (!hasAccess) {
-        // Hide tool, show access denied message
-        const toolContent = document.getElementById('tool-content');
-        const accessDenied = document.getElementById('access-denied');
-        if (toolContent) toolContent.style.display = 'none';
-        if (accessDenied) accessDenied.style.display = 'block';
-
-        // Update the access denied message with a link to manage their subscription.
-        const accessDeniedLink = accessDenied.querySelector('a');
-        if (accessDeniedLink) {
-             accessDeniedLink.textContent = 'Manage Subscription';
-             accessDeniedLink.href = '/pricing.html';
+    if (user) {
+        // Logged-in user view
+        let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
+        if (user.role === 'admin') {
+            buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
         }
+        buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
+        navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
-        // User has access, initialize the application.
-        const toolContent = document.getElementById('tool-content');
-        if(toolContent && typeof initializeApp === 'function') {
-            toolContent.classList.remove('hidden');
-            initializeApp();
+        // Logged-out user view
+        navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
+        // --- FIX: Attach the listener *after* creating the button ---
+        const loginBtn = document.getElementById('login-modal-button');
+        if (loginBtn) {
+            loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
 }
-// Also modify the login logic to handle subscription status correctly.
+
+async function apiRequest(endpoint, data = null, method = 'GET') {
+    const token = getToken();
+    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    if (token) {
+        options.headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (data) {
+        options.body = JSON.stringify(data);
+    }
+    try {
+        const response = await fetch(`/api/${endpoint}`, options);
+        if (response.status === 204) return null; // Handle successful empty responses
+        const responseData = await response.json();
+        if (!response.ok) {
+            throw new Error(responseData.message || `API Error: ${response.status}`);
+        }
+        return responseData;
+    } catch (error) {
+        console.error(`API Request Error to ${endpoint}:`, error);
+        throw error;
+    }
+}
+
+// --- Subscription & Access Control (for ProjectAnthem.html) ---
+
+function checkAccess() {
+    const user = getUserPayload();
+    const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
+    
+    const toolContent = document.getElementById('tool-content');
+    const accessDenied = document.getElementById('access-denied');
+
+    if (!toolContent || !accessDenied) return true; // Not on the tool page, so don't block.
+
+    if (hasAccess) {
+        accessDenied.style.display = 'none';
+        toolContent.classList.remove('hidden');
+        return true;
+    } else {
+        toolContent.style.display = 'none';
+        accessDenied.style.display = 'block';
+        const accessDeniedLink = accessDenied.querySelector('a');
+        if (accessDeniedLink) {
+            accessDeniedLink.textContent = user ? 'Manage Subscription' : 'Log In or Sign Up';
+            accessDeniedLink.href = user ? '/pricing.html' : '/proanthem_index.html';
+        }
+        return false;
+    }
+}
+
+// --- Form Handlers ---
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const loginError = document.getElementById('login-error');
+    loginError.textContent = '';
+    const form = event.target;
+    const payload = {
+        email: form.querySelector('#login-email').value,
+        password: form.querySelector('#login-password').value
+    };
+    try {
+        await performLogin(payload);
+    } catch(error) {
+        loginError.textContent = error.message;
+    }
+}
+
 async function performLogin(credentials) {
     const result = await apiRequest('login', credentials, 'POST');
     if (result.token) {
         localStorage.setItem('user_token', result.token);
-        const user = getUserPayload(); // Re-decode the new token
-        
+        // After login, we must re-evaluate access based on the new token
+        const user = getUserPayload(); 
         const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
-
+        
         if (hasAccess) {
             window.location.href = '/ProjectAnthem.html';
         } else {
-            // User logged in but has no active sub, send them to pricing.
+            // If they can log in but have no active sub, send them to pricing to start a trial or manage their sub
             window.location.href = '/pricing.html';
         }
     } else {
         throw new Error("Login failed: No token returned.");
+    }
+}
+
+function openModal(view) {
+    const authModal = document.getElementById('auth-modal');
+    if(authModal) {
+        const loginView = document.getElementById('login-view');
+        if(view === 'login' && loginView) {
+            authModal.classList.remove('hidden'); 
+            authModal.classList.add('flex'); 
+            loginView.classList.remove('hidden');
+        }
     }
 }
