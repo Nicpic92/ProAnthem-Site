@@ -34,26 +34,31 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
 
-        // --- NEW: Check Stripe Subscription Status ---
-        let subStatus = 'inactive';
-        if(user.stripe_customer_id) {
+        // 1. Check Stripe Subscription Status
+        let subStatus = 'inactive'; // Default status
+        if (user.stripe_customer_id) {
              const subscriptions = await stripe.subscriptions.list({
                 customer: user.stripe_customer_id,
+                status: 'all',
                 limit: 1,
             });
-            if(subscriptions.data.length > 0) {
-                subStatus = subscriptions.data[0].status; // e.g., 'active', 'trialing', 'past_due'
+            if (subscriptions.data.length > 0) {
+                // The status could be 'active', 'trialing', 'past_due', 'canceled', etc.
+                subStatus = subscriptions.data[0].status; 
             }
         }
 
-        // The JWT payload now contains everything the app needs to know
+        // 2. Update status in our database
+        await client.query('UPDATE users SET subscription_status = $1 WHERE email = $2', [subStatus, user.email]);
+
+        // 3. Create a new JWT that includes the up-to-date subscription status
         const tokenPayload = {
             user: {
                 email: user.email,
                 role: user.role,
                 name: user.first_name,
                 band_id: user.band_id,
-                subscription_status: subStatus // <-- ADD STATUS
+                subscription_status: subStatus 
             }
         };
         const token = jwt.sign(tokenPayload, process.env.JWT_SECRET, { expiresIn: '1d' });
