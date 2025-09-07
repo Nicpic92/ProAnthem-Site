@@ -43,8 +43,18 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- DEFINITIVE FIX: The SQL query now explicitly references "u.id" ---
-            const query = `SELECT u.id, u.email, u.first_name, u.last_name, u.role FROM users u WHERE u.band_id = $1 ORDER BY u.email`;
+            // --- DEFINITIVE FINAL FIX: Explicitly reference the table name for each column ---
+            const query = `
+                SELECT 
+                    users.id, 
+                    users.email, 
+                    users.first_name, 
+                    users.last_name, 
+                    users.role 
+                FROM users 
+                WHERE users.band_id = $1 
+                ORDER BY users.email;
+            `;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
