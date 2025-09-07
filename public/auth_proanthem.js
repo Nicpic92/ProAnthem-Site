@@ -3,7 +3,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
 
-    // --- MODAL & FORM LOGIC ---
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -45,6 +44,7 @@ function getUserPayload() {
 
 function logout() {
     localStorage.removeItem('user_token');
+    // FIX: Always redirect to the main homepage.
     window.location.href = '/proanthem_index.html';
 }
 
@@ -96,10 +96,8 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
     }
 }
 
-// --- Subscription & Access Control ---
 function checkAccess() {
     const user = getUserPayload();
-    // This is the single source of truth for who gets access
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
@@ -109,10 +107,9 @@ function checkAccess() {
     if (!toolContent || !accessDenied) return true; 
 
     if (user && user.force_reset) {
-        // If password reset is required, deny access to the tool regardless of role/status
         if (toolContent) toolContent.style.display = 'none';
-        if (accessDenied) accessDenied.style.display = 'none'; // Also hide the generic access denied message
-        return false;
+        if (accessDenied) accessDenied.style.display = 'none';
+        return false; // Explicitly deny access if reset is forced
     }
 
     if (hasAccess) {
@@ -131,7 +128,6 @@ function checkAccess() {
     }
 }
 
-// --- Form Handlers ---
 async function handleSignupForPricing(event) {
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
@@ -180,7 +176,6 @@ async function performLogin(credentials, redirectTo = null) {
     if (result.token) {
         localStorage.setItem('user_token', result.token);
         
-        // If a specific redirect is requested (like after signup), honor it.
         if (redirectTo) {
             window.location.href = redirectTo;
             return;
@@ -188,20 +183,15 @@ async function performLogin(credentials, redirectTo = null) {
 
         const user = getUserPayload();
         
-        // **THIS IS THE FIX:** Check for special roles in addition to subscription status.
-        // This logic now mirrors the `checkAccess` function for consistency.
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
         const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
         
         if (user.force_reset) {
-            // Always redirect to the tool page if a password reset is required.
             window.location.href = '/ProjectAnthem.html';
         } else if (hasAccess) {
-            // Redirect users with access to the tool.
             window.location.href = '/ProjectAnthem.html';
         } else {
-            // All other users (inactive subscription, etc.) go to the pricing page.
             window.location.href = '/pricing.html';
         }
 
