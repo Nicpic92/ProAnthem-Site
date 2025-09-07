@@ -1,7 +1,5 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -43,11 +41,9 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- DEFINITIVE FINAL FIX: Correctly reference the user ID column, assuming it might be `user_id` or similar if `id` is not present ---
-            // If this fails, the name of your primary key in the 'users' table is different.
+            // --- DEFINITIVE FIX: Select users by band_id and use EMAIL as the unique identifier ---
             const query = `
                 SELECT 
-                    id,  -- Trying with 'id' as per the schema of other tables. If it fails again, we will know it's a different name.
                     email, 
                     first_name, 
                     last_name, 
@@ -84,12 +80,13 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
-            const { userIdToRemove } = JSON.parse(event.body);
-            if (!userIdToRemove) {
-                 return { statusCode: 400, body: JSON.stringify({ message: 'User ID to remove is required.' })};
+            const { emailToRemove } = JSON.parse(event.body);
+            if (!emailToRemove) {
+                 return { statusCode: 400, body: JSON.stringify({ message: 'User email to remove is required.' })};
             }
-            // Use the correct column name here as well for the lookup
-            const { rows: [userToRemove] } = await client.query('SELECT email, role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+
+            // --- DEFINITIVE FIX: Perform all checks and deletions using the EMAIL ---
+            const { rows: [userToRemove] } = await client.query('SELECT role FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             if(!userToRemove) {
                  return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })};
             }
@@ -97,8 +94,7 @@ exports.handler = async (event) => {
                  return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin from the band.' })};
             }
 
-            // And here for the final deletion
-            await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            await client.query('DELETE FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             return { statusCode: 204, body: '' };
         }
 
