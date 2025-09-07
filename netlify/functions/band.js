@@ -43,7 +43,7 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- DEFINITIVE FINAL FIX: Explicitly reference the table name for each column ---
+            // --- THIS IS THE CORRECTED QUERY ---
             const query = `
                 SELECT 
                     users.id, 
