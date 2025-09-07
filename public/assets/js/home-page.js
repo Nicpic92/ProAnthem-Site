@@ -4,8 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeModalButton = document.getElementById('close-modal-button');
     const loginForm = document.getElementById('login-form');
 
-    const closeModal = () => authModal.classList.add('hidden');
-
+    const closeModal = () => {
+        if (authModal) {
+            authModal.classList.add('hidden');
+        }
+    };
+    
+    // Make openModal globally available for the nav button in auth.js
     window.openModal = function(view) {
         if (view === 'login' && authModal) {
             authModal.classList.remove('hidden');
@@ -17,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const loginError = document.getElementById('login-error');
         loginError.textContent = '';
         const button = loginForm.querySelector('button[type="submit"]');
+        const originalButtonText = button.textContent;
         button.disabled = true;
         button.textContent = 'Logging In...';
         
@@ -30,13 +36,17 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch(error) {
             loginError.textContent = error.message;
             button.disabled = false;
-            button.textContent = 'Log In';
+            button.textContent = originalButtonText;
         }
     }
     
     if (authModal) {
         closeModalButton.addEventListener('click', closeModal);
-        authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
+        authModal.addEventListener('click', (e) => { 
+            if (e.target === authModal) {
+                closeModal(); 
+            }
+        });
         loginForm.addEventListener('submit', handleLogin);
     }
 });
