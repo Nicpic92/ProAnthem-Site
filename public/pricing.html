@@ -12,6 +12,7 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
         .feature-check { min-width: 1.25rem; }
+        .form-input { background-color: #1f2937; border: 1px solid #4b5563; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -102,21 +103,20 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <script src="/auth_proanthem.js"></script>
+    <!-- CORRECTED SCRIPT PATH -->
+    <script src="/auth.js"></script>
     <script>
-        const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');// You will replace this in the final step
+        const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');
         const statusMessage = document.getElementById('status-message');
 
         document.addEventListener('DOMContentLoaded', () => {
             const user = getUserPayload();
-            // If user is not logged in, show the signup form.
             if (!user) {
                 document.getElementById('signup-view').style.display = 'block';
                 document.getElementById('pricing-view').style.display = 'none';
                 const signupForm = document.getElementById('signup-form');
                 if (signupForm) signupForm.addEventListener('submit', handleSignupForPricing);
             } else {
-                 // If user is logged in, show the pricing plans.
                  document.getElementById('signup-view').style.display = 'none';
                  document.getElementById('pricing-view').style.display = 'block';
             }
@@ -140,9 +140,7 @@
                 password: form.querySelector('#signup-password').value
             };
             try {
-                // First, create the user account
                 await apiRequest('signup', payload, 'POST');
-                // Then, log them in to get a token. performLogin will then refresh the page.
                 await performLogin({ email: payload.email, password: payload.password });
             } catch(error) {
                 signupError.textContent = error.message;
