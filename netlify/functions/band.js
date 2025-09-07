@@ -1,5 +1,6 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -37,56 +38,54 @@ exports.handler = async (event) => {
         if (event.httpMethod === 'GET' && !resource) {
             const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
             const { rows: [bandDetails] } = await client.query(query, [bandId]);
+            if (!bandDetails) return { statusCode: 404, body: JSON.stringify({ message: "Band not found."}) };
             return { statusCode: 200, body: JSON.stringify(bandDetails) };
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- DEFINITIVE FIX: Select users by band_id and use EMAIL as the unique identifier ---
-            const query = `
-                SELECT 
-                    email, 
-                    first_name, 
-                    last_name, 
-                    role 
-                FROM users 
-                WHERE band_id = $1 
-                ORDER BY email;
-            `;
+            const query = `SELECT id, email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
 
-        if (event.httpMethod === 'POST' && resource === 'invites') {
-            const { emailToInvite } = JSON.parse(event.body);
-            if (!emailToInvite) {
-                return { statusCode: 400, body: JSON.stringify({ message: 'Email to invite is required.' })};
+        if (event.httpMethod === 'POST' && resource === 'members') {
+            const { firstName, lastName, email } = JSON.parse(event.body);
+            if (!firstName || !lastName || !email) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'First name, last name, and email are required.' })};
             }
 
-            const inviteToken = crypto.randomBytes(32).toString('hex');
-            const { rows: [existingUser] } = await client.query('SELECT band_id FROM users WHERE email = $1', [emailToInvite.toLowerCase()]);
+            const { rows: [existingUser] } = await client.query('SELECT 1 FROM users WHERE email = $1', [email.toLowerCase()]);
             if (existingUser) {
-                return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists in the system.' }) };
+                return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists.' }) };
             }
 
-            const query = `
-                INSERT INTO band_invites (band_id, email, token)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (band_id, email) DO UPDATE SET token = EXCLUDED.token
-                RETURNING token;
-            `;
-            const result = await client.query(query, [bandId, emailToInvite.toLowerCase(), inviteToken]);
+            // Fetch band details to create the password
+            const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
+            if (!bandDetails) {
+                 return { statusCode: 404, body: JSON.stringify({ message: 'Admin band not found.' }) };
+            }
+
+            const defaultPassword = `${bandDetails.band_name}${bandDetails.band_number}`;
+            const password_hash = await bcrypt.hash(defaultPassword, 10);
             
-            return { statusCode: 201, body: JSON.stringify({ message: 'Invite sent successfully.', token: result.rows[0].token }) };
+            const insertQuery = `
+                INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
+                VALUES ($1, $2, $3, $4, $5, 'band_member')
+                RETURNING id, email;
+            `;
+            await client.query(insertQuery, [email.toLowerCase(), password_hash, firstName, lastName, bandId]);
+            
+            return { statusCode: 201, body: JSON.stringify({ 
+                message: `Band member added successfully! Their password is: ${defaultPassword}` 
+            }) };
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
-            const { emailToRemove } = JSON.parse(event.body);
-            if (!emailToRemove) {
-                 return { statusCode: 400, body: JSON.stringify({ message: 'User email to remove is required.' })};
+            const { userIdToRemove } = JSON.parse(event.body);
+            if (!userIdToRemove) {
+                 return { statusCode: 400, body: JSON.stringify({ message: 'User ID to remove is required.' })};
             }
-
-            // --- DEFINITIVE FIX: Perform all checks and deletions using the EMAIL ---
-            const { rows: [userToRemove] } = await client.query('SELECT role FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
+            const { rows: [userToRemove] } = await client.query('SELECT email, role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
             if(!userToRemove) {
                  return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })};
             }
@@ -94,7 +93,7 @@ exports.handler = async (event) => {
                  return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin from the band.' })};
             }
 
-            await client.query('DELETE FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
+            await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
             return { statusCode: 204, body: '' };
         }
 
