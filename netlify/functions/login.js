@@ -39,10 +39,15 @@ exports.handler = async (event) => {
         
         let subStatus = user.subscription_status;
         let userRole = user.role;
-        // Check for the password reset flag
         const forceReset = user.password_reset_required || false;
 
-        if (user.role !== 'admin' && subStatus !== 'admin_granted') {
+        // --- FIX: Add 'band_member' to the list of roles that bypass the Stripe check ---
+        const specialRoles = ['admin', 'band_member'];
+        const specialStatuses = ['admin_granted'];
+
+        if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
+            console.log(`Bypassing Stripe check for special role/status user: ${user.email}`);
+        } else {
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -68,14 +73,12 @@ exports.handler = async (event) => {
                     }
                 }
                 
-                if (newStatus !== user.subscription_status || newRole !== user.role) {
-                    await client.query(
-                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                        [newStatus, newPlan, newRole, user.email]
-                    );
-                    subStatus = newStatus;
-                    userRole = newRole;
-                }
+                await client.query(
+                    'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                    [newStatus, newPlan, newRole, user.email]
+                );
+                subStatus = newStatus;
+                userRole = newRole;
             } else {
                 subStatus = 'inactive';
             }
@@ -93,7 +96,6 @@ exports.handler = async (event) => {
         };
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
 
-        // If a reset was required, clear the flag AFTER generating the token
         if(forceReset) {
             await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
         }
