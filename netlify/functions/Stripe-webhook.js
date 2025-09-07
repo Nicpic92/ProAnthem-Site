@@ -24,21 +24,19 @@ exports.handler = async ({ body, headers }) => {
 
         const subscription = event.data.object;
         const stripeCustomerId = subscription.customer;
+        const newStatus = subscription.status; // 'active', 'trialing', 'canceled', etc.
+        const subscriptionId = subscription.id;
+        
+        // Log all incoming events for debugging
+        console.log(`Received Stripe event: ${event.type} for customer ${stripeCustomerId} with status ${newStatus}`);
 
-        // Handle the event
-        switch (event.type) {
-            case 'customer.subscription.deleted':
-            case 'customer.subscription.updated':
-                // Subscription was canceled, or trial ended without payment.
-                // Downgrade the user to a 'free' (inactive) role.
-                if (subscription.status !== 'active' && subscription.status !== 'trialing') {
-                    await client.query(`UPDATE users SET role = 'free' WHERE stripe_customer_id = $1`, [stripeCustomerId]);
-                    console.log(`Deactivated subscription for customer: ${stripeCustomerId}`);
-                }
-                break;
-            default:
-                console.log(`Unhandled event type ${event.type}`);
-        }
+        // Update the user's status and subscription ID in your database
+        // This covers trial starting, payment succeeding, payment failing, cancellation, etc.
+        await client.query(
+            `UPDATE users SET subscription_status = $1, subscription_id = $2 WHERE stripe_customer_id = $3`, 
+            [newStatus, subscriptionId, stripeCustomerId]
+        );
+
     } catch (error) {
         console.error('Error handling webhook:', error);
         return { statusCode: 500, body: `Webhook Handler Error: ${error.message}` };
