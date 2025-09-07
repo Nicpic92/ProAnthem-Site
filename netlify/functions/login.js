@@ -39,15 +39,10 @@ exports.handler = async (event) => {
         
         let subStatus = user.subscription_status;
         let userRole = user.role;
+        // Check for the password reset flag
+        const forceReset = user.password_reset_required || false;
 
-        // --- DEFINITIVE FIX ---
-        // 1. First, check if the user has a special, permanent status.
-        // If they do, we TRUST our database and SKIP the Stripe API call entirely.
-        if (user.role === 'admin' || subStatus === 'admin_granted') {
-            // Do nothing. The status from the database is correct and will be used.
-            console.log(`Bypassing Stripe check for admin or admin_granted user: ${user.email}`);
-        } else {
-            // 2. If they are a normal user, THEN we check Stripe as the source of truth.
+        if (user.role !== 'admin' && subStatus !== 'admin_granted') {
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -73,16 +68,15 @@ exports.handler = async (event) => {
                     }
                 }
                 
-                // Update their record in our database to reflect the latest from Stripe
-                await client.query(
-                    'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                    [newStatus, newPlan, newRole, user.email]
-                );
-                // Update our local variables to use in the token
-                subStatus = newStatus;
-                userRole = newRole;
+                if (newStatus !== user.subscription_status || newRole !== user.role) {
+                    await client.query(
+                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                        [newStatus, newPlan, newRole, user.email]
+                    );
+                    subStatus = newStatus;
+                    userRole = newRole;
+                }
             } else {
-                // They have no Stripe ID and are not a special user, so they are inactive.
                 subStatus = 'inactive';
             }
         }
@@ -93,10 +87,16 @@ exports.handler = async (event) => {
                 role: userRole,
                 name: user.first_name,
                 band_id: user.band_id,
-                subscription_status: subStatus
+                subscription_status: subStatus,
+                force_reset: forceReset 
             }
         };
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
+
+        // If a reset was required, clear the flag AFTER generating the token
+        if(forceReset) {
+            await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
+        }
         
         return {
             statusCode: 200,
