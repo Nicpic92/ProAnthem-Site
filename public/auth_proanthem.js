@@ -81,29 +81,26 @@ function checkAccess() {
 
     const hasAccess = hasSpecialRole || hasValidSubscription;
     
-    // --- THIS IS THE CRITICAL DEBUGGING LINE ---
-    console.log('--- Access Check ---', { 
-        userObject: user, 
-        role: user ? user.role : 'N/A',
-        status: user ? user.subscription_status : 'N/A',
-        hasSpecialRole: hasSpecialRole,
-        hasValidSubscription: hasValidSubscription,
-        finalDecision_hasAccess: hasAccess 
-    });
-    // --- END DEBUGGING LINE ---
-    
     const toolContent = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
     if (!toolContent || !accessDenied) return true; 
 
     if (hasAccess) {
+        accessDenied.classList.add('hidden');
         accessDenied.style.display = 'none';
+        
+        toolContent.classList.remove('hidden');
         toolContent.style.display = 'block';
+        
         return true;
     } else {
-        toolContent.style.display = 'none';
+        accessDenied.classList.remove('hidden');
         accessDenied.style.display = 'block';
+        
+        toolContent.classList.add('hidden');
+        toolContent.style.display = 'none';
+        
         const accessDeniedLink = accessDenied.querySelector('a');
         if (accessDeniedLink) {
             accessDeniedLink.textContent = user ? 'Manage Subscription' : 'Log In or Sign Up';
@@ -112,6 +109,7 @@ function checkAccess() {
         return false;
     }
 }
+
 
 // --- Form Handlers ---
 async function handleSignupForPricing(event) {
@@ -170,7 +168,7 @@ async function performLogin(credentials, redirectTo = null) {
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
         
-        const hasSpecialRole = user && specialRoles.includes(_user.role);
+        const hasSpecialRole = user && specialRoles.includes(user.role);
         const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
         const hasAccess = hasSpecialRole || hasValidSubscription;
         
