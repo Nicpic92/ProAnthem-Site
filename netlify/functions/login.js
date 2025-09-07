@@ -37,38 +37,50 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
-        let subStatus = 'inactive';
-        let subPlan = null;
-        let userRole = user.role; // Keep the existing role unless changed by subscription
+        let subStatus = user.subscription_status; // Start with the status from the DB
+        let userRole = user.role; 
 
-        if (user.stripe_customer_id) {
-             const subscriptions = await stripe.subscriptions.list({
-                customer: user.stripe_customer_id,
-                status: 'all', // Fetch active, trialing, past_due, etc.
-                limit: 1,
-            });
-            if (subscriptions.data.length > 0) {
-                const sub = subscriptions.data[0];
-                subStatus = sub.status;
-                const priceId = sub.items.data[0].price.id;
+        // --- FIX: Only check Stripe IF the user is not an admin and does not have a granted plan ---
+        if (user.role !== 'admin' && subStatus !== 'admin_granted') {
+            if (user.stripe_customer_id) {
+                const subscriptions = await stripe.subscriptions.list({
+                    customer: user.stripe_customer_id,
+                    status: 'all',
+                    limit: 1,
+                });
 
-                if (priceId === SOLO_PLAN_PRICE_ID) {
-                    subPlan = 'solo';
-                    // Don't downgrade an admin, but set others to 'solo'
-                    if (user.role !== 'admin') userRole = 'solo';
-                } else if (priceId === BAND_PLAN_PRICE_ID) {
-                    subPlan = 'band';
-                    // If a user pays for a band plan, they become a band_admin
-                    if (user.role !== 'admin') userRole = 'band_admin';
+                let newStatus = 'inactive';
+                let newPlan = null;
+                let newRole = 'solo'; // Default to solo unless they have a band plan
+
+                if (subscriptions.data.length > 0) {
+                    const sub = subscriptions.data[0];
+                    newStatus = sub.status;
+                    const priceId = sub.items.data[0].price.id;
+
+                    if (priceId === BAND_PLAN_PRICE_ID) {
+                        newPlan = 'band';
+                        newRole = 'band_admin';
+                    } else if (priceId === SOLO_PLAN_PRICE_ID) {
+                        newPlan = 'solo';
+                        newRole = 'solo';
+                    }
                 }
+                
+                // Only update if the status or role has actually changed
+                if (newStatus !== user.subscription_status || newRole !== user.role) {
+                    await client.query(
+                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                        [newStatus, newPlan, newRole, user.email]
+                    );
+                    subStatus = newStatus;
+                    userRole = newRole;
+                }
+            } else {
+                // If they have no stripe ID and are not admin_granted, they are inactive.
+                subStatus = 'inactive';
             }
         }
-        
-        // Update user record in the database with fresh Stripe info
-        await client.query(
-            'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-            [subStatus, subPlan, userRole, user.email]
-        );
         
         const tokenPayload = {
             user: {
