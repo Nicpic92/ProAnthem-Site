@@ -12,7 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
     <style>
         body { font-family: Inter, system-ui, sans-serif; background-color: #242424; color: rgba(255, 255, 255, 0.87); }
-        .form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; }
+        .form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; resize: none; }
         .live-preview { font-family: 'Courier New', Courier, monospace; line-height: 1.6; white-space: pre; background-color: #1e1e1e; padding: 1rem; border-radius: 6px; border: 1px solid #4a4a4a; }
         .live-preview-chords { color: #f2c94c; }
         .tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; color: #a5b4fc; }
@@ -191,10 +191,13 @@
         </div>
     </div>
 
-
     <script src="/auth_proanthem.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', checkAccess);
+        document.addEventListener('DOMContentLoaded', () => {
+            if (checkAccess()) {
+                initializeApp();
+            }
+        }); 
         
         function initializeApp() {
             let songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [] };
@@ -538,19 +541,18 @@
                             
                             doc.setFont('Courier', 'normal'); doc.setFontSize(11);
                             const lineHeight = 5;
-                            
-                            // --- FIX: Use dedicated text variable for tabs for clarity ---
+
                             const contentToRender = blockToRender.type === 'tab' ? renderTransposedTab(blockToRender) : (blockToRender.content || '');
-                            
+
                             for (const line of contentToRender.split('\n')) {
                                 if (blockToRender.type === 'lyrics') {
-                                    checkPageBreak(lineHeight * 2.5);
                                     const parsed = parseLineForRender(line.replace(/&nbsp;/g, ' '));
                                     if (!drummerMode) {
+                                        checkPageBreak(lineHeight * 2.5);
                                         doc.setTextColor(60, 60, 60);
                                         doc.text(parsed.chordLine, leftMargin, y, { maxWidth });
                                         y += lineHeight;
-                                    }
+                                    } else { checkPageBreak(lineHeight * 1.5); }
                                     doc.setTextColor(0, 0, 0);
                                     const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth);
                                     doc.text(splitLyrics, leftMargin, y);
@@ -668,10 +670,15 @@
                 const stringConfig = STRING_CONFIG[numStrings];
                 const { frets, width, nutWidth, fretSpacing, dotFrets, dotRadius } = FRETBOARD_CONFIG;
                 const { height, stringSpacing } = stringConfig;
+                
                 let svgHTML = `<svg id="fretboard-svg-${blockId}" width="${width}" height="${height}" style="min-width: 100%;"><rect class="fretboard-bg" width="${width}" height="${height}" fill="#2d3748" />`;
-                for (let i = 0; i < numStrings; i++) svgHTML += `<line class="fretboard-string" x1="0" y1="${stringSpacing / 2 + i * stringSpacing}" x2="${width}" y2="${stringSpacing / 2 + i * stringSpacing}" />`;
+                for (let i = 0; i < numStrings; i++) {
+                    svgHTML += `<line class="fretboard-string" x1="0" y1="${stringSpacing / 2 + i * stringSpacing}" x2="${width}" y2="${stringSpacing / 2 + i * stringSpacing}" />`;
+                }
                 svgHTML += `<rect class="fretboard-nut" x="0" y="0" width="${nutWidth}" height="${height}" fill="#1e1e1e" />`;
-                for (let i = 1; i <= frets; i++) svgHTML += `<line class="fretboard-fret" x1="${nutWidth + i * fretSpacing}" y1="0" x2="${nutWidth + i * fretSpacing}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
+                for (let i = 1; i <= frets; i++) {
+                    svgHTML += `<line class="fretboard-fret" x1="${nutWidth + i * fretSpacing}" y1="0" x2="${nutWidth + i * fretSpacing}" y2="${height}" stroke="#4a5563" stroke-width="1" />`;
+                }
                 dotFrets.forEach(fret => {
                     const x = nutWidth + (fret - 0.5) * fretSpacing;
                     if (fret % 12 === 0) {
@@ -847,7 +854,6 @@
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
             async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
 
-            // Event listener setup
             const musicalInputs = [tuningSelector, capoFretInput];
             musicalInputs.forEach(el => el.addEventListener('input', () => {
                 musicalContext.tuning = tuningSelector.value;
@@ -858,7 +864,7 @@
             transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
             saveBtn.addEventListener('click', handleSave);
             deleteBtn.addEventListener('click', handleDelete);
-            logoutBtn.addEventListener('click', () => { localStorage.removeItem('user_token'); localStorage.removeItem('userRole'); window.location.href = '/proanthem_index.html'; });
+            logoutBtn.addEventListener('click', () => { localStorage.removeItem('user_token'); window.location.href = '/proanthem_index.html'; });
             addChordBtn.addEventListener('click', handleAddChord);
             newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
             clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
@@ -884,8 +890,9 @@
                 svgEl.addEventListener('click', (e) => {
                     if (isDraggingNote) { isDraggingNote = false; return; }
                     
+                    const isNoteClick = e.target.closest('.note-group');
+                    
                     if (block.editMode) {
-                        const isNoteClick = e.target.closest('.note-group');
                         if (isNoteClick) {
                             const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
                             if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
@@ -899,7 +906,7 @@
                         }
                         drawNotesOnFretboard(blockId);
                     } else {
-                        if (!e.target.closest('.note-group')) {
+                        if (!isNoteClick) {
                             const clickData = getFretFromClick(e, svgEl);
                             if (clickData) {
                                 fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
@@ -931,8 +938,8 @@
                         const clickData = getFretFromClick(e, svg);
                         if (clickData) {
                            note.position = clickData.position;
-                           // --- FIX: Only update string, not the fret ---
                            note.string = clickData.string;
+                           // The fret value itself does not change when dragging
                            drawNotesOnFretboard(selectedNote.blockId);
                         }
                     }
@@ -948,7 +955,7 @@
                 }
                 if(isDraggingNote) {
                     isDraggingNote = false;
-                    renderPreview(); 
+                    renderPreview();
                 }
             });
 
@@ -982,7 +989,6 @@
                     }
                 }
             });
-
 
             document.addEventListener('keydown', (e) => {
                 if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
