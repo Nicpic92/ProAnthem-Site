@@ -73,14 +73,21 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 // --- Subscription & Access Control ---
 function checkAccess() {
     const user = getUserPayload();
-    // --- FIX: Added 'band_member' to the list of roles that grant access ---
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
-    const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
+    
+    // The check is broken into two parts for clarity.
+    // 1. Does the user have a role that grants access regardless of subscription?
+    const hasSpecialRole = user && specialRoles.includes(user.role);
+    // 2. Does the user have a valid subscription status?
+    const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
+
+    const hasAccess = hasSpecialRole || hasValidSubscription;
     
     const toolContent = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
-    if (!toolContent || !accessDenied) return true; 
+    
+    if (!toolContent || !accessDenied) return true; // Failsafe for pages without these elements
 
     if (hasAccess) {
         accessDenied.style.display = 'none';
@@ -97,6 +104,7 @@ function checkAccess() {
         return false;
     }
 }
+
 
 // --- Form Handlers ---
 async function handleSignupForPricing(event) {
@@ -153,10 +161,13 @@ async function performLogin(credentials, redirectTo = null) {
         }
 
         const user = getUserPayload();
-        // --- FIX: Re-use the same access logic here for consistency ---
+        // Re-use the same access logic here for consistency
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
-        const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
+        
+        const hasSpecialRole = user && specialRoles.includes(user.role);
+        const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
+        const hasAccess = hasSpecialRole || hasValidSubscription;
         
         window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
     } else {
