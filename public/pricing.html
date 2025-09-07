@@ -9,21 +9,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
-        .feature-check { min-width: 1.25rem; }
-    </style>
+    <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body class="flex flex-col min-h-screen">
 
     <header class="container mx-auto p-6 flex justify-between items-center">
         <a href="/proanthem_index.html" class="flex items-center space-x-4">
-            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <img src="/assets/img/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
-        <div id="nav-auth-section">
-             <!-- Populated by auth script -->
-        </div>
+        <div id="nav-auth-section"></div>
     </header>
 
     <main class="container mx-auto px-6 py-12 flex-grow">
@@ -31,17 +26,17 @@
              <h2 class="text-3xl font-bold text-center mb-6">Create Your Account to Start</h2>
              <p class="text-center text-gray-400 mb-6">First, create your account. You'll choose your plan on the next step.</p>
                 <form id="signup-form" class="space-y-4">
-                    <div class="flex gap-4">
+                    <div class="flex flex-col sm:flex-row gap-4">
                         <input id="signup-firstname" name="firstName" type="text" required class="form-input" placeholder="First Name">
                         <input id="signup-lastname" name="lastName" type="text" required class="form-input" placeholder="Last Name">
                     </div>
                     <input id="signup-artist-name" name="artistBandName" type="text" required class="form-input" placeholder="Artist/Band Name">
                     <input id="signup-email" name="email" type="email" required class="form-input" placeholder="Email Address">
-                    <input id="signup-password" name="password" type="password" required class="form-input" placeholder="Password">
-                    <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Create Account</button>
+                    <input id="signup-password" name="password" type="password" required class="form-input" placeholder="Password (min. 6 characters)">
+                    <button type="submit" class="w-full btn btn-primary py-3">Create Account</button>
                 </form>
                 <p id="signup-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
-                <p class="text-center text-sm text-gray-400 mt-4">Already have an account? <a href="/proanthem_index.html" class="font-medium text-indigo-400 hover:text-indigo-300">Log in</a></p>
+                <p class="text-center text-sm text-gray-400 mt-4">Already have an account? <a href="/proanthem_index.html" class="font-medium text-indigo-400 hover:text-indigo-300" id="login-link">Log in</a></p>
         </div>
 
         <div id="pricing-view" style="display: none;">
@@ -64,12 +59,12 @@
                         <span class="text-gray-400">/ week</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs & Setlists</li>
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Lyric, Chord & Drum Tab Editors</li>
-                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Interactive Guitar Tab Editor</li>
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Professional PDF Export</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs & Setlists</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Lyric, Chord & Drum Tab Editors</li>
+                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Interactive Guitar Tab Editor</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Professional PDF Export</li>
                     </ul>
-                    <button onclick="startCheckout('solo')" class="mt-8 w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700">Start 3-Day Solo Trial</button>
+                    <button onclick="startCheckout('solo')" class="mt-8 w-full btn btn-primary py-3">Start 3-Day Solo Trial</button>
                 </div>
 
                  <div class="bg-gray-800 p-8 rounded-xl border-2 border-indigo-500 flex flex-col">
@@ -80,12 +75,12 @@
                         <span class="text-gray-400">/ week</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
-                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Up to 5 Band Members</li>
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Real-time Song Syncing</li>
-                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Shared Band Setlists</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Up to 5 Band Members</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Real-time Song Syncing</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Shared Band Setlists</li>
                     </ul>
-                    <button onclick="startCheckout('band')" class="mt-8 w-full bg-indigo-500 text-white font-bold py-3 rounded-lg hover:bg-indigo-600">Start 3-Day Band Trial</button>
+                    <button onclick="startCheckout('band')" class="mt-8 w-full btn btn-primary bg-indigo-500 hover:bg-indigo-600 py-3">Start 3-Day Band Trial</button>
                 </div>
             </div>
             
@@ -101,74 +96,8 @@
     <footer class="text-center py-6 text-gray-500">
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
-
-    <script src="/auth_proanthem.js"></script>
-    <script>
-        const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');// You will replace this in the final step
-        const statusMessage = document.getElementById('status-message');
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const user = getUserPayload();
-            // If user is not logged in, show the signup form.
-            if (!user) {
-                document.getElementById('signup-view').style.display = 'block';
-                document.getElementById('pricing-view').style.display = 'none';
-                const signupForm = document.getElementById('signup-form');
-                if (signupForm) signupForm.addEventListener('submit', handleSignupForPricing);
-            } else {
-                 // If user is logged in, show the pricing plans.
-                 document.getElementById('signup-view').style.display = 'none';
-                 document.getElementById('pricing-view').style.display = 'block';
-            }
-            
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('checkout_canceled')) {
-                statusMessage.textContent = 'Checkout canceled. Your trial has not started. Please choose a plan to continue.';
-                statusMessage.classList.add('text-yellow-400');
-            }
-        });
-        
-        async function handleSignupForPricing(event) {
-            event.preventDefault();
-            const signupError = document.getElementById('signup-error');
-            const form = event.target;
-            const payload = {
-                firstName: form.querySelector('#signup-firstname').value,
-                lastName: form.querySelector('#signup-lastname').value,
-                artistBandName: form.querySelector('#signup-artist-name').value,
-                email: form.querySelector('#signup-email').value,
-                password: form.querySelector('#signup-password').value
-            };
-            try {
-                // First, create the user account
-                await apiRequest('signup', payload, 'POST');
-                // Then, log them in to get a token. performLogin will then refresh the page.
-                await performLogin({ email: payload.email, password: payload.password });
-            } catch(error) {
-                signupError.textContent = error.message;
-            }
-        }
-        
-        async function startCheckout(plan) {
-            try {
-                const { id: sessionId } = await apiRequest('stripe/create-checkout-session', { plan }, 'POST');
-                const { error } = await stripe.redirectToCheckout({ sessionId });
-                if (error) {
-                    alert(error.message);
-                }
-            } catch (error) {
-                 alert('Error starting checkout: ' + error.message);
-            }
-        }
-        
-        async function manageBilling() {
-            try {
-                const { url } = await apiRequest('stripe/create-customer-portal', {}, 'POST');
-                window.location.href = url;
-            } catch(error) {
-                 alert('Error opening customer portal: ' + error.message);
-            }
-        }
-    </script>
+    
+    <script src="/assets/js/auth.js"></script>
+    <script src="/assets/js/pricing-page.js"></script>
 </body>
 </html>
