@@ -36,7 +36,6 @@ exports.handler = async (event) => {
         const pathParts = path.split('/').filter(Boolean);
         const resource = pathParts[1];
 
-        // --- NEW: Route to get band details ---
         if (event.httpMethod === 'GET' && !resource) {
             const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
             const { rows: [bandDetails] } = await client.query(query, [bandId]);
@@ -44,7 +43,8 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            const query = `SELECT id, email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
+            // --- DEFINITIVE FIX: The SQL query now explicitly references "u.id" ---
+            const query = `SELECT u.id, u.email, u.first_name, u.last_name, u.role FROM users u WHERE u.band_id = $1 ORDER BY u.email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
