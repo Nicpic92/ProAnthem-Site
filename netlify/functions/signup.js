@@ -10,6 +10,7 @@ exports.handler = async (event) => {
 
     const { email, password, firstName, lastName, artistBandName, inviteToken } = JSON.parse(event.body);
 
+    // Invited members still need a first and last name from the signup form.
     if (!email || !password || !firstName || !lastName) {
         return { statusCode: 400, body: JSON.stringify({ message: 'Missing required user fields.' }) };
     }
@@ -40,11 +41,12 @@ exports.handler = async (event) => {
 
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
+            // Invited members do not have a subscription status set, it will default to inactive but their 'band_member' role grants access.
              const userInsertQuery = `
                 INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6);
             `;
-            await client.query(userInsertQuery, [email, password_hash, firstName, lastName, bandId, role]);
+            await client.query(userInsertQuery, [email.toLowerCase(), password_hash, firstName, lastName, bandId, role]);
 
         } else {
             // --- NEW BAND ADMIN/SOLO USER FLOW ---
@@ -64,12 +66,14 @@ exports.handler = async (event) => {
             const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, artistBandName]);
             bandId = bandResult.rows[0].id;
             
-            // --- FIX: Added subscription_status = 'trialing' to the INSERT statement ---
+            // --- FIX: Reverted to the original query. ---
+            // This correctly omits subscription_status, allowing it to be set to the database default (e.g., 'inactive').
+            // The user must complete a Stripe checkout to activate their trial.
             const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'trialing');
+                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
             `;
-            await client.query(userInsertQuery, [email, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
+            await client.query(userInsertQuery, [email.toLowerCase(), password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
         }
         
         await client.query('COMMIT');
