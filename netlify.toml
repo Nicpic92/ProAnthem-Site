@@ -1,19 +1,15 @@
-# Netlify Configuration File for ProAnthem
-
 [build]
-  functions = "netlify/functions/"
-  publish = "public/"
+  command = "npm install"
+  functions = "netlify/functions"
+  publish = "public"
 
-# This rule ensures that API calls are correctly proxied to your serverless functions.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# This is the main rule for the entire ProAnthem site.
-# It serves the proanthem_index.html for any request to the root.
+# This rule makes proanthem_index.html the homepage
 [[redirects]]
   from = "/"
   to = "/proanthem_index.html"
   status = 200
-  force = true
