@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: Inter, system-ui, sans-serif; background-color: #242424; color: rgba(255, 255, 255, 0.87); }
         .form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; resize: none; }
@@ -73,7 +74,7 @@
                 <h1 class="text-4xl font-bold">Project Anthem</h1>
             </a>
             <div id="nav-auth-section">
-                <button id="logoutBtn" class="btn btn-secondary">Log Out</button>
+                <!-- This will be populated by auth_proanthem.js -->
             </div>
         </header>
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -84,7 +85,7 @@
                         <select id="songSelector" class="form-select"></select>
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
                         <button id="setlistBtn" class="btn btn-secondary w-full">Setlists</button>
-                        <a href="/band.html" id="manageBandBtn" class="btn btn-secondary w-full text-center" style="display: none;">Manage Band</a>
+                        <a href="/Band.html" id="manageBandBtn" class="btn btn-secondary w-full text-center" style="display: none;">Manage Band</a>
                         <a href="/pricing.html" class="btn btn-secondary w-full text-center block">Manage Subscription</a>
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
@@ -206,13 +207,13 @@
             <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
         </div>
     </div>
-
+    
+    <!-- CORRECTED SCRIPT PATH -->
     <script src="/auth_proanthem.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const hasAccess = checkAccess();
-            // initializeApp() will only run if the tool content is made visible by checkAccess
-            if (hasAccess && !document.getElementById('tool-content').classList.contains('hidden')) {
+            if (hasAccess && document.getElementById('tool-content') && !document.getElementById('tool-content').classList.contains('hidden')) {
                 initializeApp();
             }
         });
@@ -226,7 +227,7 @@
             let mediaRecorder, audioChunks = [];
             let fretSelectionContext = { blockId: null, string: null, position: null };
             let selectedNote = { blockId: null, noteIndex: null };
-            let activeResize = { element: null, startY: 0, startHeight: 0 };
+            let activeResize = { element: null, startY: 0, startHeight: 0, blockId: null };
             let isDraggingNote = false;
 
             const titleInput = document.getElementById('titleInput');
@@ -239,7 +240,6 @@
             const songSelector = document.getElementById('songSelector');
             const saveBtn = document.getElementById('saveBtn');
             const deleteBtn = document.getElementById('deleteBtn');
-            const logoutBtn = document.getElementById('logoutBtn');
             const statusMessage = document.getElementById('statusMessage');
             const chordPalette = document.querySelector('#sidebar #chordPalette');
             const newChordInput = document.querySelector('#sidebar #newChordInput');
@@ -253,7 +253,8 @@
             const recordBtn = document.getElementById('recordBtn');
             const stopBtn = document.getElementById('stopBtn');
             const recordingStatus = document.getElementById('recordingStatus');
-            
+            const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+            const audioPlayer = document.getElementById('audioPlayer');
             const setlistModal = document.getElementById('setlistModal');
             const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
             const setlistSelector = document.getElementById('setlistSelector');
@@ -267,11 +268,11 @@
             const saveSetlistDetailsBtn = document.getElementById('saveSetlistDetailsBtn');
             const deleteSetlistBtn = document.getElementById('deleteSetlistBtn');
             const printDrummerSetlistBtn = document.getElementById('printDrummerSetlistBtn');
-
             const fretSelectionModal = document.getElementById('fret-selection-modal');
             const fretNumberSelector = document.getElementById('fret-number-selector');
             const addFretBtn = document.getElementById('add-fret-btn');
             const cancelFretBtn = document.getElementById('cancel-fret-btn');
+            const manageBandBtn = document.getElementById('manageBandBtn');
             
             const TUNINGS = { 
                 E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
@@ -280,47 +281,20 @@
                 DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, 
                 DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } 
             };
-
-            const STRING_CONFIG = {
-                6: { height: 180, stringSpacing: 28 },
-                7: { height: 210, stringSpacing: 28 },
-                8: { height: 240, stringSpacing: 28 }
-            };
+            const STRING_CONFIG = { 6: { height: 180, stringSpacing: 28 }, 7: { height: 210, stringSpacing: 28 }, 8: { height: 240, stringSpacing: 28 }};
             const FRETBOARD_CONFIG = { frets: 24, width: 8000, nutWidth: 15, fretSpacing: 80, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 };
             const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
             
-            const api = { 
-                request: async (endpoint, options = {}) => {
-                    const token = localStorage.getItem('user_token');
-                    if (!token) { setStatus('You are not logged in.', true); window.location.href = '/proanthem_index.html'; throw new Error('No token found'); }
-                    const url = `/api${endpoint}`;
-                    const config = { headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`}, ...options };
-                    if(options.body) config.body = options.body;
-                    if(options.method) config.method = options.method;
-                    const response = await fetch(url, config);
-                    if (!response.ok) {
-                        if (response.status === 401) { setStatus('Session expired. Please log in.', true); localStorage.removeItem('user_token'); window.location.href = '/proanthem_index.html'; }
-                        const err = await response.json().catch(() => ({ message: response.statusText })); throw new Error(err.message);
-                    }
-                    return response.status === 204 ? null : response.json();
-                },
-                getSheets: () => api.request('/lyric-sheets', { method: 'GET' }),
-                getSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'GET' }),
-                createSheet: (data) => api.request('/lyric-sheets', { method: 'POST', body: JSON.stringify(data) }),
-                updateSheet: (id, data) => api.request(`/lyric-sheets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-                deleteSheet: (id) => api.request(`/lyric-sheets/${id}`, { method: 'DELETE' }),
-                getChords: () => api.request('/chords', { method: 'GET' }),
-                createChord: (data) => api.request('/chords', { method: 'POST', body: JSON.stringify(data) }),
-                getSetlists: () => api.request('/setlists', { method: 'GET' }),
-                getSetlist: (id) => api.request(`/setlists/${id}`, { method: 'GET' }),
-                createSetlist: (data) => api.request('/setlists', { method: 'POST', body: JSON.stringify(data) }),
-                deleteSetlist: (id) => api.request(`/setlists/${id}`, { method: 'DELETE' }),
-                addSongToSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs`, { method: 'POST', body: JSON.stringify({ song_id: songId }) }),
-                removeSongFromSetlist: (setlistId, songId) => api.request(`/setlists/${setlistId}/songs/${songId}`, { method: 'DELETE' }),
-                updateSetlistDetails: (id, data) => api.request(`/setlists/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-                updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
-            };
-            
+            function setStatus(message, isError = false) {
+                statusMessage.textContent = message;
+                statusMessage.className = `text-center text-sm h-4 ${isError ? 'text-red-400' : 'text-gray-400'}`;
+                if (message) {
+                    setTimeout(() => {
+                        statusMessage.textContent = '';
+                    }, 3000);
+                }
+            }
+
             async function openSetlistManager() {
                 setlistModal.classList.remove('hidden');
                 await loadSetlists();
@@ -329,7 +303,7 @@
 
             async function loadSetlists(selectId = null) {
                 try {
-                    const lists = await api.getSetlists();
+                    const lists = await apiRequest('setlists');
                     setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>';
                     lists.forEach(list => {
                         const option = document.createElement('option');
@@ -358,7 +332,7 @@
                     return;
                 }
                 try {
-                    const setlist = await api.getSetlist(setlistId);
+                    const setlist = await apiRequest(`setlists/${setlistId}`);
                     currentSetlistTitle.textContent = setlist.name;
                     document.getElementById('setlistVenue').value = setlist.venue || '';
                     document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
@@ -368,7 +342,7 @@
                     songsInSetlist.innerHTML = '';
                     (setlist.songs || []).forEach(song => {
                         const li = document.createElement('li');
-                        li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded';
+                        li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded cursor-move';
                         li.dataset.songId = song.id;
                         li.innerHTML = `<span>${song.title} - <em class="text-gray-400">${song.artist}</em></span><button data-action="remove-song" class="btn btn-danger btn-sm">Remove</button>`;
                         songsInSetlist.appendChild(li);
@@ -393,7 +367,7 @@
                     notes: document.getElementById('setlistNotes').value
                 };
                 try {
-                    await api.updateSetlistDetails(setlistId, payload);
+                    await apiRequest(`setlists/${setlistId}`, payload, 'PUT');
                     setStatus('Setlist details saved!', false);
                 } catch (error) {
                     setStatus(`Error saving details: ${error.message}`, true);
@@ -404,7 +378,7 @@
                 const name = newSetlistInput.value.trim();
                 if (!name) return alert('Please enter a name for the new setlist.');
                 try {
-                    const newSetlist = await api.createSetlist({ name });
+                    const newSetlist = await apiRequest('setlists', { name }, 'POST');
                     newSetlistInput.value = '';
                     setStatus('Setlist created!', false);
                     await loadSetlists(newSetlist.id);
@@ -419,7 +393,7 @@
                 if (!setlistId) return;
                 if (confirm(`ARE YOU SURE you want to permanently delete the setlist "${setlistName}"? This cannot be undone.`)) {
                     try {
-                        await api.deleteSetlist(setlistId);
+                        await apiRequest(`setlists/${setlistId}`, null, 'DELETE');
                         setStatus(`Setlist "${setlistName}" deleted.`, false);
                         await loadSetlists();
                         handleSetlistSelection(null);
@@ -434,7 +408,7 @@
                 if (!songData.id) return alert('Please save the current song before adding it to a setlist.');
                 if (!setlistId) return alert('Please select a setlist first.');
                 try {
-                    await api.addSongToSetlist(setlistId, songData.id);
+                    await apiRequest(`setlists/${setlistId}/songs`, { song_id: songData.id }, 'POST');
                     setStatus(`'${songData.title}' added to setlist.`, false);
                     await handleSetlistSelection(setlistId);
                 } catch(error) {
@@ -447,7 +421,7 @@
                 if (!setlistId || !songId) return;
                 if (confirm("Are you sure you want to remove this song from the setlist?")) {
                     try {
-                        await api.removeSongFromSetlist(setlistId, songId);
+                        await apiRequest(`setlists/${setlistId}/songs/${songId}`, null, 'DELETE');
                         setStatus(`Song removed from setlist.`, false);
                         await handleSetlistSelection(setlistId);
                     } catch(error) {
@@ -462,7 +436,7 @@
 
                 setStatus('Generating PDF...');
                 try {
-                    const setlist = await api.getSetlist(setlistId);
+                    const setlist = await apiRequest(`setlists/${setlistId}`);
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
 
@@ -507,7 +481,6 @@
                         }
                     };
 
-                    // Title Page
                     addWatermarkToPage();
                     doc.setFontSize(26);
                     doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
@@ -529,7 +502,6 @@
                         y += splitTitle.length * 7;
                     });
 
-                    // Individual Song Pages
                     for (const song of (setlist.songs || [])) {
                         addWatermarkToPage(); doc.addPage(); y = 20; addWatermarkToPage();
                         doc.setFontSize(18); doc.setFont(undefined, 'bold');
@@ -775,13 +747,22 @@
             }
             
             async function loadSong(id) {
-                if (!id) { initializeNewSong(); return; }
+                if (!id || id === 'new') { 
+                    initializeNewSong(); 
+                    return; 
+                }
                 setStatus('Loading song...');
                 try {
-                    const data = await api.getSheet(id);
+                    const data = await apiRequest(`lyric-sheets/${id}`);
                     songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [] };
                     titleInput.value = songData.title;
                     artistInput.value = songData.artist;
+                    if (songData.audio_url) {
+                        audioPlayer.src = songData.audio_url;
+                        audioPlayerContainer.classList.remove('hidden');
+                    } else {
+                        audioPlayerContainer.classList.add('hidden');
+                    }
                     renderSongBlocks();
                     setStatus('Song loaded.');
                 } catch (error) {
@@ -790,39 +771,38 @@
                 }
             }
 
-            async function initializeNewSong() {
-                const songs = await api.getSheets();
-                if (songs && songs.length > 0) {
-                    await loadSong(songs[0].id); // Load most recent song
-                    songSelector.value = songs[0].id;
-                } else {
-                    songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
-                    titleInput.value = '';
-                    artistInput.value = '';
-                    songSelector.value = 'new';
-                    renderSongBlocks();
-                }
+            function initializeNewSong() {
+                songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
+                titleInput.value = '';
+                artistInput.value = '';
+                audioPlayerContainer.classList.add('hidden');
+                songSelector.value = 'new';
+                renderSongBlocks();
             }
 
-
             async function handleSave() {
+                const originalButtonText = saveBtn.textContent;
                 saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
                 setStatus('Saving...');
                 try {
                     songData.title = titleInput.value || 'Untitled';
                     songData.artist = artistInput.value || 'Unknown Artist';
-                    const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData);
+                    const payload = songData;
+                    const savedSong = songData.id ? await apiRequest(`lyric-sheets/${songData.id}`, payload, 'PUT') : await apiRequest('lyric-sheets', payload, 'POST');
                     songData.id = savedSong.id;
                     setStatus('Saved successfully!');
                     if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
                         await loadSheetList(savedSong.id);
                     } else {
+                        songSelector.querySelector(`option[value="${savedSong.id}"]`).textContent = songData.title;
                         songSelector.value = savedSong.id;
                     }
                 } catch (error) { 
                     setStatus(`Save failed: ${error.message}`, true); 
                 } finally {
                     saveBtn.disabled = false;
+                    saveBtn.textContent = originalButtonText;
                 }
             }
             
@@ -835,13 +815,28 @@
                         renderPreview();
                     }
                 });
+                if(songsInSetlist) {
+                    new Sortable(songsInSetlist, {
+                        animation: 150, onEnd: async (evt) => {
+                            const setlistId = setlistSelector.value;
+                            if(!setlistId) return;
+                            const items = evt.from.querySelectorAll('li');
+                            const songIds = Array.from(items).map(item => item.dataset.songId);
+                            try {
+                                await apiRequest(`setlists/${setlistId}/songs`, { song_ids: songIds }, 'PUT');
+                                setStatus('Setlist order saved.', false);
+                            } catch (error) {
+                                setStatus('Failed to reorder setlist.', true);
+                            }
+                        }
+                    });
+                }
             }
             
-            function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
             function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || ' ', lyricLine: lyricLine.trimEnd() || ' ' }; }
             function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
-            async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) songSelector.value = selectId; } catch (e) { setStatus('Failed to load songs.', true); } }
-            async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); await loadSheetList(); await initializeNewSong(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
+            async function loadSheetList(selectId = null) { try { const songs = await apiRequest('lyric-sheets'); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) { songSelector.value = selectId; } } catch (e) { setStatus('Failed to load songs.', true); } }
+            async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await apiRequest(`lyric-sheets/${songData.id}`, null, 'DELETE'); setStatus('Song deleted.'); await loadSheetList(); initializeNewSong(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
             function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
             function updateTransposeStatus(steps) { musicalContext.transpose = steps; transposeStatus.textContent = steps > 0 ? `+${steps}` : steps; }
             function handleTranspose(amount) {
@@ -868,28 +863,11 @@
                     chordQueueDiv.appendChild(pill);
                 });
             }
-            async function loadChords() { try { const chords = await api.getChords(); chordPalette.innerHTML = ''; chords.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.onclick = (e) => { if (e.ctrlKey || e.metaKey) { chordQueue.push(c.name); renderChordQueue(); } else if (lastFocusedLyricsBlock) { const t = `[${c.name}]`; const p = lastFocusedLyricsBlock.selectionStart; lastFocusedLyricsBlock.value = lastFocusedLyricsBlock.value.slice(0, p) + t + lastFocusedLyricsBlock.value.slice(p); lastFocusedLyricsBlock.focus(); lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); updateBlockData(lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', lastFocusedLyricsBlock.value); }}; btn.textContent = c.name; chordPalette.appendChild(btn); }); } catch (e) { setStatus('Failed to load chords.', true); } }
-            async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await api.createChord({ name }); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
+            async function loadChords() { try { const chords = await apiRequest('chords'); chordPalette.innerHTML = ''; chords.forEach(c => { const btn = document.createElement('button'); btn.className = 'btn btn-secondary btn-sm'; btn.onclick = (e) => { if (e.ctrlKey || e.metaKey) { chordQueue.push(c.name); renderChordQueue(); } else if (lastFocusedLyricsBlock) { const t = `[${c.name}]`; const p = lastFocusedLyricsBlock.selectionStart; lastFocusedLyricsBlock.value = lastFocusedLyricsBlock.value.slice(0, p) + t + lastFocusedLyricsBlock.value.slice(p); lastFocusedLyricsBlock.focus(); lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); updateBlockData(lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', lastFocusedLyricsBlock.value); }}; btn.textContent = c.name; chordPalette.appendChild(btn); }); } catch (e) { setStatus('Failed to load chords.', true); } }
+            async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await apiRequest('chords', { name }, 'POST'); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
             async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
-            async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
-
-            const musicalInputs = [tuningSelector, capoFretInput];
-            musicalInputs.forEach(el => el.addEventListener('input', () => {
-                musicalContext.tuning = tuningSelector.value;
-                musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
-                renderSongBlocks();
-            }));
-            transposeUpBtn.addEventListener('click', () => handleTranspose(1));
-            transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
-            saveBtn.addEventListener('click', handleSave);
-            deleteBtn.addEventListener('click', handleDelete);
-            logoutBtn.addEventListener('click', () => { logout() });
-            addChordBtn.addEventListener('click', handleAddChord);
-            newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
-            clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
-            songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
-            songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
+            async function handleSaveRecording() { setStatus('Audio upload not yet implemented.', true); }
             
             function attachFretboardListeners(svgEl) {
                 const blockId = svgEl.id.split('-').pop();
@@ -909,7 +887,6 @@
                 
                 svgEl.addEventListener('click', (e) => {
                     if (isDraggingNote) { isDraggingNote = false; return; }
-                    
                     const isNoteClick = e.target.closest('.note-group');
                     if (block.editMode) {
                         if (isNoteClick) {
@@ -943,9 +920,66 @@
                     }
                 });
             }
+
+            function confirmFretSelection() {
+                const { blockId, string, position } = fretSelectionContext;
+                const fret = parseInt(fretNumberSelector.value, 10);
+                const block = songData.song_blocks.find(b => b.id === blockId);
+
+                if(block && string !== null && position !== null && fret >= 0) {
+                    const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                    if (!block.data) block.data = { notes: [] };
+                    block.data.notes.push({ string, fret: fret + totalOffset, position });
+                    drawNotesOnFretboard(blockId);
+                    renderPreview();
+                }
+                fretSelectionModal.classList.add('hidden');
+            }
             
+            const user = getUserPayload();
+            if (user && (user.role === 'admin' || user.role === 'band_admin')) {
+                manageBandBtn.style.display = 'block';
+            }
+
+            const musicalInputs = [tuningSelector, capoFretInput];
+            musicalInputs.forEach(el => el.addEventListener('input', () => {
+                musicalContext.tuning = tuningSelector.value;
+                musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
+                renderSongBlocks();
+            }));
+            transposeUpBtn.addEventListener('click', () => handleTranspose(1));
+            transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
+            saveBtn.addEventListener('click', handleSave);
+            deleteBtn.addEventListener('click', handleDelete);
+            addChordBtn.addEventListener('click', handleAddChord);
+            newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
+            clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
+            songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
+            songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
+            recordBtn.addEventListener('click', startRecording);
+            stopBtn.addEventListener('click', stopRecording);
+            songSelector.addEventListener('change', async () => { await loadSong(songSelector.value); });
+            setlistBtn.addEventListener('click', openSetlistManager);
+            closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
+            setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
+            saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
+            createSetlistBtn.addEventListener('click', handleCreateSetlist);
+            addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
+            printSetlistBtn.addEventListener('click', () => handlePrintSetlist(false));
+            printDrummerSetlistBtn.addEventListener('click', () => handlePrintSetlist(true));
+            deleteSetlistBtn.addEventListener('click', handleDeleteSetlist);
+            addFretBtn.addEventListener('click', confirmFretSelection);
+            cancelFretBtn.addEventListener('click', () => fretSelectionModal.classList.add('hidden'));
+            songsInSetlist.addEventListener('click', (e) => {
+                if (e.target.dataset.action === 'remove-song') {
+                    const songId = e.target.closest('li').dataset.songId;
+                    handleRemoveSongFromSetlist(songId);
+                }
+            });
+
             document.addEventListener('mousemove', e => {
                 if (activeResize.element) {
+                    document.body.style.cursor = 'ns-resize';
                     const height = activeResize.startHeight + e.clientY - activeResize.startY;
                     activeResize.element.style.height = `${Math.max(50, height)}px`;
                 }
@@ -964,11 +998,11 @@
                 }
             });
 
-            document.addEventListener('mouseup', () => {
+            document.addEventListener('mouseup', (event) => {
                 if (activeResize.element) {
                     const newHeight = activeResize.element.offsetHeight;
                     updateBlockData(activeResize.blockId, null, null, newHeight);
-                    activeResize = { element: null, startY: 0, startHeight: 0 };
+                    activeResize = { element: null, startY: 0, startHeight: 0, blockId: null };
                     document.body.style.cursor = '';
                 }
                 if(isDraggingNote) {
@@ -986,6 +1020,19 @@
                     }
                     isDraggingNote = false;
                     renderPreview(); 
+                }
+            });
+
+            songBlocksContainer.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('resize-handle')) {
+                    const blockEl = e.target.closest('.song-block');
+                    const textarea = blockEl.querySelector('textarea');
+                    activeResize = {
+                        element: textarea,
+                        startY: e.clientY,
+                        startHeight: textarea.offsetHeight,
+                        blockId: blockEl.dataset.blockId
+                    };
                 }
             });
 
@@ -1011,89 +1058,4 @@
                     const button = e.target;
                     block.editMode = !block.editMode;
                     button.textContent = block.editMode ? 'Done Editing' : 'Edit';
-                    button.classList.toggle('btn-secondary');
-                    button.classList.toggle('btn-edit-mode');
-                    if (!block.editMode && selectedNote.blockId === blockId) {
-                        selectedNote = {blockId: null, noteIndex: null};
-                        drawNotesOnFretboard(blockId);
-                    }
-                }
-            });
-
-            document.addEventListener('keydown', (e) => {
-                if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
-                if (e.key === 'Backspace' || e.key === 'Delete') {
-                    e.preventDefault();
-                    const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
-                    if (block && block.data && block.data.notes && block.data.notes[selectedNote.noteIndex]) {
-                        block.data.notes.splice(selectedNote.noteIndex, 1);
-                        const oldBlockId = selectedNote.blockId;
-                        selectedNote = { blockId: null, noteIndex: null };
-                        drawNotesOnFretboard(oldBlockId);
-                        renderPreview();
-                    }
-                }
-            });
-
-            function confirmFretSelection() {
-                const { blockId, string, position } = fretSelectionContext;
-                const fret = parseInt(fretNumberSelector.value, 10);
-                const block = songData.song_blocks.find(b => b.id === blockId);
-
-                if(block && string !== null && position !== null && fret >= 0) {
-                    const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
-                    if (!block.data) block.data = { notes: [] };
-                    block.data.notes.push({ string, fret: fret + totalOffset, position });
-                    drawNotesOnFretboard(blockId);
-                    renderPreview();
-                }
-                fretSelectionModal.classList.add('hidden');
-            }
-
-            addBlockButtonsContainer.addEventListener('click', e => {
-                const target = e.target;
-                if (target.id === 'insert-ref-btn') { document.getElementById('ref-dropdown').classList.toggle('hidden'); }
-                else if (target.closest('#ref-dropdown')) { const originalId = target.dataset.originalId; const originalBlock = songData.song_blocks.find(b => b.id === originalId); if(originalBlock) { songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId }); renderSongBlocks(); } document.getElementById('ref-dropdown').classList.add('hidden'); }
-                else if (target.dataset.action === 'add') {
-                    const type = target.dataset.type;
-                    const baseLabel = target.textContent.trim().replace('+', '').trim();
-                    const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
-                    const label = `${baseLabel} ${count}`;
-                    const newBlock = { id: `block_${Date.now()}`, type, label, height: 100 };
-                    if (type === 'lyrics' || type === 'drum_tab') newBlock.content = '';
-                    if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; newBlock.editMode = false; }
-                    songData.song_blocks.push(newBlock);
-                    renderSongBlocks();
-                }
-            });
-            
-            recordBtn.addEventListener('click', startRecording);
-            stopBtn.addEventListener('click', stopRecording);
-            songSelector.addEventListener('change', () => loadSong(songSelector.value));
-            setlistBtn.addEventListener('click', openSetlistManager);
-            closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
-            setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
-            saveSetlistDetailsBtn.addEventListener('click', handleSaveSetlistDetails);
-            createSetlistBtn.addEventListener('click', handleCreateSetlist);
-            addSongToSetlistBtn.addEventListener('click', handleAddSongToSetlist);
-            printSetlistBtn.addEventListener('click', () => handlePrintSetlist(false));
-            printDrummerSetlistBtn.addEventListener('click', () => handlePrintSetlist(true));
-            deleteSetlistBtn.addEventListener('click', handleDeleteSetlist);
-            addFretBtn.addEventListener('click', confirmFretSelection);
-            cancelFretBtn.addEventListener('click', () => fretSelectionModal.classList.add('hidden'));
-            songsInSetlist.addEventListener('click', (e) => {
-                if (e.target.dataset.action === 'remove-song') {
-                    const songId = e.target.closest('li').dataset.songId;
-                    handleRemoveSongFromSetlist(songId);
-                }
-            });
-
-            (function main(){
-                populateTuningSelector(); 
-                loadSheetList().then(() => initializeNewSong());
-                loadChords();
-            })();
-        }
-    </script>
-</body>
-</html>
+                    button.classList.toggle('btn-secondary
