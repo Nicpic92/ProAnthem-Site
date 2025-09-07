@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing - ProAnthem</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+        <a href="/proanthem_index.html" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
+        </a>
+        <div id="nav-auth-section">
+             <!-- Populated by auth script -->
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12 flex-grow">
+        <div id="pricing-content">
+            <div class="text-center">
+                 <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight text-white">
+                    The Ultimate Toolkit for Musicians.
+                </h1>
+                <p class="mt-4 text-lg text-gray-300 max-w-2xl mx-auto">
+                    Stop compromising. ProAnthem is the only platform that unifies professional songwriting, tabbing, setlist management, and collaboration for your entire band.
+                </p>
+                <p class="mt-2 font-bold text-indigo-400">All plans begin with a 3-day free trial. No commitment.</p>
+            </div>
+           
+
+            <!-- Pricing Tiers -->
+            <div class="mt-16 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- Solo Plan -->
+                <div class="bg-gray-800 p-8 rounded-xl border border-gray-700 flex flex-col">
+                    <h2 class="text-3xl font-bold text-white">Solo</h2>
+                    <p class="text-gray-400 mt-2">For the individual songwriter and performer.</p>
+                    <div class="my-6">
+                        <span class="text-5xl font-bold text-white">$3.50</span>
+                        <span class="text-gray-400">/ week</span>
+                    </div>
+                    <ul class="space-y-4 text-gray-300 flex-grow">
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Setlists</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Professional PDF Export</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Full Access to All Editors</li>
+                    </ul>
+                    <button onclick="startCheckout('solo')" class="mt-8 w-full bg-indigo-600 text-white font-bold py-3 rounded-lg hover:bg-indigo-700">Start 3-Day Trial</button>
+                </div>
+
+                <!-- Band Plan -->
+                 <div class="bg-gray-800 p-8 rounded-xl border-2 border-indigo-500 flex flex-col">
+                    <h2 class="text-3xl font-bold text-white">Band</h2>
+                    <p class="text-gray-400 mt-2">Unlock collaboration for your entire team.</p>
+                     <div class="my-6">
+                        <span class="text-5xl font-bold text-white">$8.00</span>
+                        <span class="text-gray-400">/ week</span>
+                    </div>
+                    <ul class="space-y-4 text-gray-300 flex-grow">
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Up to 5 Band Members</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Real-time Song Syncing</li>
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Shared Band Setlists</li>
+                    </ul>
+                    <button onclick="startCheckout('band')" class="mt-8 w-full bg-indigo-500 text-white font-bold py-3 rounded-lg hover:bg-indigo-600">Start 3-Day Trial</button>
+                </div>
+            </div>
+            
+            <div id="manage-billing-section" class="text-center mt-16" style="display: none;">
+                <h3 class="text-2xl font-bold">Manage Your Subscription</h3>
+                <p class="text-gray-400 mt-2">You can update your payment method, cancel, or change your plan at any time.</p>
+                <button onclick="manageBilling()" class="mt-4 btn btn-secondary">Open Customer Portal</button>
+            </div>
+            <div id="status-message" class="mt-8 text-center text-lg"></div>
+
+        </div>
+
+         <div id="no-auth-view" style="display: none;" class="text-center">
+            <h2 class="text-3xl font-bold text-red-500">Please Log In or Sign Up</h2>
+            <p class="mt-4 text-lg text-gray-300">You need to have an account to start a subscription.</p>
+            <a href="/proanthem_index.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Go to Homepage</a>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script src="/auth_proanthem.js"></script>
+    <script>
+        const stripe = Stripe( 'pk_test_YOUR_STRIPE_PUBLISHABLE_KEY' ); // IMPORTANT: Replace with your actual key
+        const statusMessage = document.getElementById('status-message');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = getUserPayload();
+            if (!user) {
+                document.getElementById('pricing-content').style.display = 'none';
+                document.getElementById('no-auth-view').style.display = 'block';
+            } else {
+                 document.getElementById('manage-billing-section').style.display = 'block';
+            }
+            // Check for query params
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('success')) {
+                statusMessage.textContent = 'Welcome! Your subscription is active. Redirecting you to the tool...';
+                statusMessage.classList.add('text-green-400');
+                setTimeout(() => window.location.href = '/ProjectAnthem.html', 3000);
+            }
+            if (params.get('canceled')) {
+                statusMessage.textContent = 'Your checkout was canceled. You can try again anytime.';
+                 statusMessage.classList.add('text-yellow-400');
+            }
+        });
+        
+        async function startCheckout(plan) {
+            try {
+                const { id: sessionId } = await apiRequest('stripe/create-checkout-session', { plan }, 'POST');
+                const { error } = await stripe.redirectToCheckout({ sessionId });
+                if (error) {
+                    alert(error.message);
+                }
+            } catch (error) {
+                 alert('Error: ' + error.message);
+            }
+        }
+        
+        async function manageBilling() {
+            try {
+                const { url } = await apiRequest('stripe/create-customer-portal', {}, 'POST');
+                window.location.href = url;
+            } catch(error) {
+                 alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
