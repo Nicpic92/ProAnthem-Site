@@ -53,13 +53,9 @@ exports.handler = async (event) => {
 
                 await client.query('BEGIN');
                 try {
-                    // Step 1: Still create a Stripe Customer for future-proofing, but NO subscription
                     const customer = await stripe.customers.create({ email, name: bandName });
-                    
-                    // Step 2: Hash default password
                     const password_hash = await bcrypt.hash("ProAnthem", 10);
                     
-                    // Step 3: Create Band
                     let bandNumber;
                     let isUnique = false;
                     while(!isUnique) {
@@ -70,7 +66,6 @@ exports.handler = async (event) => {
                     const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
                     const bandId = bandResult.rows[0].id;
                     
-                    // --- FIX: Insert user with the special 'admin_granted' status ---
                     const userQuery = `
                         INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo', 'admin_granted', 'solo')
@@ -101,8 +96,37 @@ exports.handler = async (event) => {
                  const { email } = body;
                 if (!email) return { statusCode: 400, body: JSON.stringify({ message: 'Email is required.' })};
                 
-                await client.query('DELETE FROM users WHERE email = $1', [email]);
-                return { statusCode: 204, body: '' };
+                await client.query('BEGIN');
+                try {
+                    // --- FIX: Safely delete the user and their associated band data ---
+                    // Step 1: Get the user's band_id before deleting them
+                    const { rows: [userToDelete] } = await client.query('SELECT band_id FROM users WHERE email = $1', [email]);
+                    
+                    if (userToDelete) {
+                        const { band_id } = userToDelete;
+                        
+                        // Step 2: Delete all lyric sheets and setlists associated with that band
+                        // This assumes a user being deleted also means their band content is deleted.
+                        await client.query('DELETE FROM lyric_sheets WHERE band_id = $1', [band_id]);
+                        await client.query('DELETE FROM setlists WHERE band_id = $1', [band_id]);
+                        
+                        // Step 3: Delete the user(s) in that band
+                        await client.query('DELETE FROM users WHERE band_id = $1', [band_id]);
+
+                        // Step 4: Delete the band itself
+                        await client.query('DELETE FROM bands WHERE id = $1', [band_id]);
+                    } else {
+                        // If user not found, maybe they exist without a band. Clean them up just in case.
+                        await client.query('DELETE FROM users WHERE email = $1', [email]);
+                    }
+                    
+                    await client.query('COMMIT');
+                    return { statusCode: 204, body: '' };
+                } catch (error) {
+                    await client.query('ROLLBACK');
+                    console.error('Error during transactional delete:', error);
+                    throw error; // Let the generic error handler catch it
+                }
             }
         }
         
