@@ -388,6 +388,12 @@
             soundingKeyDisplay.textContent = soundingKey;
         }
         async function openSetlistManager() {
+                if (document.getElementById('tool-content').classList.contains('hidden')) return;
+
+                setlistModal.classList.remove('hidden');
+                await loadSetlists();
+                handleSetlistSelection(null);
+            }            
             setlistModal.classList.remove('hidden');
             await loadSetlists();
             handleSetlistSelection(null);
