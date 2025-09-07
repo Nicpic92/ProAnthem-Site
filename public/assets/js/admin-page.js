@@ -29,7 +29,7 @@ async function handleCreateUser(event) {
         statusEl.textContent = result.message;
         statusEl.classList.add('text-green-400');
         document.getElementById('create-user-form').reset();
-        loadUsers(); // Refresh the user list
+        loadUsers();
     } catch (error) {
         statusEl.textContent = `Error: ${error.message}`;
         statusEl.classList.add('text-red-500');
@@ -68,8 +68,8 @@ async function loadUsers() {
                 </td>
                 <td class="p-3 text-gray-400">${signupDate}</td>
                 <td class="p-3">
-                    <button class="bg-red-600 text-white text-sm py-1 px-3 rounded hover:bg-red-700" onclick="deleteUser('${user.email}')">
-                        Delete User
+                    <button class="btn btn-danger btn-sm" onclick="deleteUser('${user.email}')">
+                        Delete
                     </button>
                 </td>
             `;
