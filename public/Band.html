@@ -40,19 +40,25 @@
             </div>
 
             <div class="mt-8 bg-gray-900 p-6 rounded-lg shadow-md">
-                 <h2 class="text-2xl font-bold text-white mb-4">Invite New Band Member</h2>
-                 <form id="invite-member-form" class="flex flex-col md:flex-row items-end gap-4">
+                 <h2 class="text-2xl font-bold text-white mb-4">Add New Band Member</h2>
+                 <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                      <div class="w-full">
-                         <label for="invite-email" class="block text-sm font-medium text-gray-300">Member's Email</label>
-                         <input type="email" id="invite-email" required class="form-input mt-1 block w-full p-2 rounded-md">
+                         <label for="new-member-firstname" class="block text-sm font-medium text-gray-300">First Name</label>
+                         <input type="text" id="new-member-firstname" required class="form-input mt-1 block w-full p-2 rounded-md">
                      </div>
-                     <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Generate Invite Link</button>
+                      <div class="w-full">
+                         <label for="new-member-lastname" class="block text-sm font-medium text-gray-300">Last Name</label>
+                         <input type="text" id="new-member-lastname" required class="form-input mt-1 block w-full p-2 rounded-md">
+                     </div>
+                     <div class="w-full">
+                         <label for="new-member-email" class="block text-sm font-medium text-gray-300">Email</label>
+                         <input type="email" id="new-member-email" required class="form-input mt-1 block w-full p-2 rounded-md">
+                     </div>
+                     <div class="md:col-span-3 text-right">
+                        <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Add Member</button>
+                     </div>
                  </form>
-                 <div id="invite-status-wrapper" class="mt-3" style="display: none;">
-                    <label class="block text-sm font-medium text-green-400">Invite Link Generated! Send this to your bandmate:</label>
-                    <input id="invite-link-display" type="text" readonly class="form-input mt-1 w-full bg-gray-800 cursor-pointer">
-                 </div>
-                 <p id="invite-error" class="text-sm text-red-500 mt-3 h-5"></p>
+                 <p id="add-member-status" class="text-sm mt-3 h-5"></p>
             </div>
 
             <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
@@ -99,15 +105,7 @@
             loadBandDetails();
             loadBandMembers();
             
-            const inviteForm = document.getElementById('invite-member-form');
-            inviteForm.addEventListener('submit', handleInvite);
-            
-            const inviteLinkDisplay = document.getElementById('invite-link-display');
-            inviteLinkDisplay.addEventListener('click', () => {
-                inviteLinkDisplay.select();
-                document.execCommand('copy');
-                alert('Invite link copied to clipboard!');
-            });
+            document.getElementById('add-member-form').addEventListener('submit', handleAddMember);
         });
 
         async function loadBandDetails() {
@@ -117,7 +115,7 @@
                 const details = await apiRequest('band', null, 'GET');
                 if (details) {
                     nameHeader.textContent = details.band_name || 'Your Band';
-                    idDisplay.textContent = `Band ID: ${details.band_number || 'N/A'}`;
+                    idDisplay.textContent = `Band Number: ${details.band_number || 'N/A'}`;
                 }
             } catch(error) {
                 idDisplay.textContent = `Could not load band info.`;
@@ -138,7 +136,8 @@
 
                     let actionsHtml = '';
                     if (member.role !== 'band_admin' && member.role !== 'admin') {
-                        actionsHtml = `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember('${member.email}')">Remove</button>`;
+                        // We use member.id here which is now correctly fetched by the API
+                        actionsHtml = `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember(${member.id}, '${member.email}')">Remove</button>`;
                     }
 
                     row.innerHTML = `
@@ -154,52 +153,22 @@
             }
         }
         
-        async function handleInvite(event) {
+        async function handleAddMember(event) {
             event.preventDefault();
-            const inviteStatusWrapper = document.getElementById('invite-status-wrapper');
-            const inviteLinkDisplay = document.getElementById('invite-link-display');
-            const inviteError = document.getElementById('invite-error');
+            const statusEl = document.getElementById('add-member-status');
+            statusEl.textContent = 'Adding member...';
+            statusEl.className = 'text-sm mt-3 h-5 text-yellow-400';
             const button = event.target.querySelector('button');
 
-            inviteStatusWrapper.style.display = 'none';
-            inviteError.textContent = '';
-            button.disabled = true;
-            button.textContent = 'Generating...';
+            const payload = {
+                firstName: document.getElementById('new-member-firstname').value,
+                lastName: document.getElementById('new-member-lastname').value,
+                email: document.getElementById('new-member-email').value,
+            };
 
-            const email = document.getElementById('invite-email').value;
+            button.disabled = true;
 
             try {
-                const bandDetails = await apiRequest('band', null, 'GET');
-                const password = `${bandDetails.band_name}${bandDetails.band_number}`;
-
-                // Logic for signup is on pricing page now, just generate the link and credentials
-                const credentialsText = `Email: ${email}\nPassword: ${password}`;
+                const result = await apiRequest('band/members', payload, 'POST');
                 
-                // Forcing the user to copy makes sure they have it.
-                prompt("Please copy these credentials and send them to your bandmate. They will use this to sign up.", credentialsText);
-                
-                inviteLinkDisplay.value = `${window.location.origin}/pricing.html`; // Direct them to signup page
-                inviteStatusWrapper.style.display = 'block';
-                event.target.reset();
-
-            } catch(error) {
-                inviteError.textContent = `Error: ${error.message}`;
-            } finally {
-                 button.disabled = false;
-                 button.textContent = 'Generate Invite Link';
-            }
-        }
-
-        async function removeMember(userEmail) {
-            if (confirm(`Are you sure you want to remove ${userEmail} from the band? They will lose access immediately.`)) {
-                try {
-                    await apiRequest('band/members', { emailToRemove: userEmail }, 'DELETE');
-                    loadBandMembers();
-                } catch(error) {
-                    alert(`Failed to remove member: ${error.message}`);
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+                alert(`Member added!\n\nPlease send them the following credentials:\nEmail: ${payload.email}\nPassw
