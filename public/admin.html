@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale-1.0">
     <title>Admin Panel - ProAnthem</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,6 +10,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
+        .form-input { background-color: #1f2937; border: 1px solid #4b5563; }
+        .btn-primary { background-color: #4f46e5; } .btn-primary:hover { background-color: #4338ca; }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -20,7 +22,7 @@
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
         <div id="nav-auth-section">
-             <!-- This will be populated by auth_proanthem.js -->
+             <!-- Populated by auth script -->
         </div>
     </header>
 
@@ -28,6 +30,24 @@
         <div id="admin-content" style="display: none;">
             <h1 class="text-4xl font-bold text-white">Admin Panel</h1>
             <p class="text-lg text-gray-400 mt-2">Manage all ProAnthem users and their roles.</p>
+            
+            <!-- NEW: Create User Form -->
+            <div class="mt-8 bg-gray-900 p-6 rounded-lg shadow-md">
+                 <h2 class="text-2xl font-bold text-white mb-4">Create a New User</h2>
+                 <form id="create-user-form" class="flex flex-col md:flex-row items-end gap-4">
+                     <div class="w-full">
+                         <label for="new-email" class="block text-sm font-medium text-gray-300">New User's Email</label>
+                         <input type="email" id="new-email" required class="form-input mt-1 block w-full p-2 rounded-md">
+                     </div>
+                     <div class="w-full">
+                         <label for="new-bandname" class="block text-sm font-medium text-gray-300">Artist/Band Name</label>
+                         <input type="text" id="new-bandname" required class="form-input mt-1 block w-full p-2 rounded-md">
+                     </div>
+                     <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Create User</button>
+                 </form>
+                 <p id="create-user-status" class="text-sm mt-3 h-5"></p>
+                 <p class="text-xs text-gray-500 mt-2">The new user will be created with the password "ProAnthem". They will be prompted to choose a subscription plan on their first login.</p>
+            </div>
 
             <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
                 <h2 class="text-2xl font-bold text-white mb-4">All Users</h2>
