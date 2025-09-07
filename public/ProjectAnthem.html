@@ -67,10 +67,10 @@
         </header>
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <!-- --- FIX: Corrected Sidebar Layout --- -->
-            <aside id="sidebar" class="md:col-span-1 h-full">
+                        <aside id="sidebar" class="md:col-span-1 h-full">
                 <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
                     <!-- Song Actions -->
-                    <div class="space-y-2">
+                    <div class="space-y-2 flex-shrink-0">
                         <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
                         <select id="songSelector" class="form-select"></select>
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
@@ -79,34 +79,35 @@
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
                     </div>
-                    <!-- Chord Palette -->
-                     <div class="space-y-3 pt-4 border-t border-gray-700">
-                        <h3 class="font-semibold text-lg">Chord Palette</h3>
-                        <p class="text-xs text-gray-400">Click to insert. Ctrl/Cmd+Click to add to queue.</p>
-                        <div id="chordPalette" class="flex flex-wrap gap-2"></div>
-                        <div class="flex gap-2">
-                            <input type="text" id="newChordInput" class="form-input text-sm" placeholder="e.g. F#m7">
-                            <button id="addChordBtn" class="btn btn-secondary btn-sm whitespace-nowrap">Add</button>
+                    <!-- Chord Palette & Musical Settings -->
+                    <div class="space-y-6 flex-shrink-0">
+                        <div class="space-y-3 pt-4 border-t border-gray-700">
+                            <h3 class="font-semibold text-lg">Chord Palette</h3>
+                            <p class="text-xs text-gray-400">Click to insert. Ctrl/Cmd+Click to add to queue.</p>
+                            <div id="chordPalette" class="flex flex-wrap gap-2"></div>
+                            <div class="flex gap-2">
+                                <input type="text" id="newChordInput" class="form-input text-sm" placeholder="e.g. F#m7">
+                                <button id="addChordBtn" class="btn btn-secondary btn-sm whitespace-nowrap">Add</button>
+                            </div>
                         </div>
-                    </div>
-                     <!-- Musical Settings -->
-                     <div class="space-y-3 pt-4 border-t border-gray-700">
-                        <h3 class="font-semibold text-lg">Musical Settings</h3>
-                        <div class="space-y-2">
-                            <div>
-                                <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1 text-right">Tuning</label>
-                                <select id="tuningSelector" class="form-select form-input text-sm"></select>
-                            </div>
-                            <div>
-                                <label for="capoFretInput" class="block text-sm font-medium text-gray-400 mb-1 text-right">Capo Fret</label>
-                                <input type="number" id="capoFretInput" class="form-input text-sm w-24 ml-auto" value="0" min="0" max="12">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-400 mb-1 text-right">Transpose All Chords</label>
-                                <div class="flex items-center gap-2 justify-end">
-                                    <button id="transposeDownBtn" class="btn btn-secondary btn-sm">-</button>
-                                    <span id="transposeStatus" class="font-bold text-lg w-8 text-center">0</span>
-                                    <button id="transposeUpBtn" class="btn btn-secondary btn-sm">+</button>
+                        <div class="space-y-3 pt-4 border-t border-gray-700">
+                            <h3 class="font-semibold text-lg">Musical Settings</h3>
+                            <div class="space-y-2 text-right">
+                                <div>
+                                    <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
+                                    <select id="tuningSelector" class="form-select form-input text-sm"></select>
+                                </div>
+                                <div>
+                                    <label for="capoFretInput" class="block text-sm font-medium text-gray-400 mb-1">Capo Fret</label>
+                                    <input type="number" id="capoFretInput" class="form-input text-sm w-24 ml-auto" value="0" min="0" max="12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Transpose All Chords</label>
+                                    <div class="flex items-center gap-2 justify-end">
+                                        <button id="transposeDownBtn" class="btn btn-secondary btn-sm">-</button>
+                                        <span id="transposeStatus" class="font-bold text-lg w-8 text-center">0</span>
+                                        <button id="transposeUpBtn" class="btn btn-secondary btn-sm">+</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
