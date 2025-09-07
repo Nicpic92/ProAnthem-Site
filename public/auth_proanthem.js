@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
 
+    // --- MODAL & FORM LOGIC ---
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -26,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- Core Auth & API Functions ---
 function getToken() { return localStorage.getItem('user_token'); }
 
 function getUserPayload() {
@@ -44,7 +44,6 @@ function getUserPayload() {
 
 function logout() {
     localStorage.removeItem('user_token');
-    // FIX: Always redirect to the main homepage.
     window.location.href = '/proanthem_index.html';
 }
 
@@ -109,7 +108,7 @@ function checkAccess() {
     if (user && user.force_reset) {
         if (toolContent) toolContent.style.display = 'none';
         if (accessDenied) accessDenied.style.display = 'none';
-        return false; // Explicitly deny access if reset is forced
+        return false;
     }
 
     if (hasAccess) {
@@ -162,52 +161,4 @@ async function handleLogin(event) {
     const form = event.target;
     const payload = {
         email: form.querySelector('#login-email').value,
-        password: form.querySelector('#login-password').value
-    };
-    try {
-        await performLogin(payload);
-    } catch(error) {
-        loginError.textContent = error.message;
-    }
-}
-
-async function performLogin(credentials, redirectTo = null) {
-    const result = await apiRequest('login', credentials, 'POST');
-    if (result.token) {
-        localStorage.setItem('user_token', result.token);
-        
-        if (redirectTo) {
-            window.location.href = redirectTo;
-            return;
-        }
-
-        const user = getUserPayload();
-        
-        const specialRoles = ['admin', 'band_admin', 'band_member'];
-        const validStatuses = ['active', 'trialing', 'admin_granted'];
-        const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
-        
-        if (user.force_reset) {
-            window.location.href = '/ProjectAnthem.html';
-        } else if (hasAccess) {
-            window.location.href = '/ProjectAnthem.html';
-        } else {
-            window.location.href = '/pricing.html';
-        }
-
-    } else {
-        throw new Error("Login failed: No token returned.");
-    }
-}
-
-function openModal(view) {
-    const authModal = document.getElementById('auth-modal');
-    if(authModal) {
-        const loginView = document.getElementById('login-view');
-        if(view === 'login' && loginView) {
-            authModal.classList.remove('hidden'); 
-            authModal.classList.add('flex'); 
-            loginView.classList.remove('hidden');
-        }
-    }
-}
+        password: form.querySelector('#login-pas
