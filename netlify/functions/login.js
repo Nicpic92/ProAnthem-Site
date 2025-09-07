@@ -41,7 +41,7 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        const specialRoles = ['admin', 'band_member'];
+        const specialRoles = ['admin', 'band_admin', 'band_member'];
         const specialStatuses = ['admin_granted'];
 
         if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
