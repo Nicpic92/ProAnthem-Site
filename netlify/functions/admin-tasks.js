@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -6,6 +6,10 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const JWT_SECRET = process.env.JWT_SECRET;
 const generateBandNumber = () => Math.floor(10000 + Math.random() * 90000);
 
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
 exports.handler = async (event) => {
     const authHeader = event.headers.authorization;
@@ -23,13 +27,9 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
+    const client = await pool.connect();
     
     try {
-        await client.connect();
         const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const resource = path.split('/')[2];
 
@@ -53,13 +53,9 @@ exports.handler = async (event) => {
 
                 await client.query('BEGIN');
                 try {
-                    // Step 1: Still create a Stripe Customer for future-proofing, but NO subscription
                     const customer = await stripe.customers.create({ email, name: bandName });
-                    
-                    // Step 2: Hash default password
                     const password_hash = await bcrypt.hash("ProAnthem", 10);
                     
-                    // Step 3: Create Band
                     let bandNumber;
                     let isUnique = false;
                     while(!isUnique) {
@@ -70,7 +66,6 @@ exports.handler = async (event) => {
                     const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
                     const bandId = bandResult.rows[0].id;
                     
-                    // --- FIX: Insert user with the special 'admin_granted' status ---
                     const userQuery = `
                         INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo', 'admin_granted', 'solo')
@@ -112,6 +107,6 @@ exports.handler = async (event) => {
         console.error('API Error in /api/admin-tasks:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
-        await client.end();
+        client.release();
     }
 };
