@@ -76,18 +76,26 @@ function checkAccess() {
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     
-    // The check is broken into two parts for clarity.
-    // 1. Does the user have a role that grants access regardless of subscription?
     const hasSpecialRole = user && specialRoles.includes(user.role);
-    // 2. Does the user have a valid subscription status?
     const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
 
     const hasAccess = hasSpecialRole || hasValidSubscription;
     
+    // --- THIS IS THE CRITICAL DEBUGGING LINE ---
+    console.log('--- Access Check ---', { 
+        userObject: user, 
+        role: user ? user.role : 'N/A',
+        status: user ? user.subscription_status : 'N/A',
+        hasSpecialRole: hasSpecialRole,
+        hasValidSubscription: hasValidSubscription,
+        finalDecision_hasAccess: hasAccess 
+    });
+    // --- END DEBUGGING LINE ---
+    
     const toolContent = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (!toolContent || !accessDenied) return true; // Failsafe for pages without these elements
+    if (!toolContent || !accessDenied) return true; 
 
     if (hasAccess) {
         accessDenied.style.display = 'none';
@@ -105,10 +113,8 @@ function checkAccess() {
     }
 }
 
-
 // --- Form Handlers ---
 async function handleSignupForPricing(event) {
-    // This logic is unchanged, it correctly creates band members now.
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
     signupError.textContent = '';
@@ -161,11 +167,10 @@ async function performLogin(credentials, redirectTo = null) {
         }
 
         const user = getUserPayload();
-        // Re-use the same access logic here for consistency
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
         
-        const hasSpecialRole = user && specialRoles.includes(user.role);
+        const hasSpecialRole = user && specialRoles.includes(_user.role);
         const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
         const hasAccess = hasSpecialRole || hasValidSubscription;
         
