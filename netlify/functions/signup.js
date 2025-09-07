@@ -8,6 +8,7 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
+    // Now accepting password for invites too
     const { email, password, firstName, lastName, artistBandName, inviteToken } = JSON.parse(event.body);
 
     if (!email || !password || !firstName || !lastName) {
@@ -25,10 +26,10 @@ exports.handler = async (event) => {
         
         const password_hash = await bcrypt.hash(password, 10);
         let bandId;
-        let role = 'solo'; // Default role
+        let role = 'solo';
 
         if (inviteToken) {
-            // --- INVITED USER FLOW ---
+            // INVITED USER FLOW
             const inviteQuery = 'SELECT band_id FROM band_invites WHERE token = $1 AND status = \'pending\' AND lower(email) = $2';
             const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, email.toLowerCase()]);
 
@@ -38,7 +39,6 @@ exports.handler = async (event) => {
             bandId = invite.band_id;
             role = 'band_member';
 
-            // Mark the invite as accepted
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
 
              const userInsertQuery = `
@@ -48,7 +48,7 @@ exports.handler = async (event) => {
             await client.query(userInsertQuery, [email, password_hash, firstName, lastName, bandId, role]);
 
         } else {
-            // --- NEW BAND ADMIN/SOLO USER FLOW ---
+            // NEW BAND ADMIN/SOLO USER FLOW
             if (!artistBandName) {
                 return { statusCode: 400, body: JSON.stringify({ message: 'Artist/Band Name is required.' }) };
             }
