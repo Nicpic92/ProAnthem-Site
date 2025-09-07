@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Band Management - ProAnthem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
+        .form-input { background-color: #1f2937; border: 1px solid #4b5563; }
+        .btn-primary { background-color: #4f46e5; } .btn-primary:hover { background-color: #4338ca; }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+        <a href="/proanthem_index.html" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
+        </a>
+        <div id="nav-auth-section">
+             <!-- Populated by auth script -->
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12 flex-grow">
+        <div id="band-content" style="display: none;">
+            <div class="flex justify-between items-center">
+                 <h1 class="text-4xl font-bold text-white">Band Management</h1>
+                 <a href="/ProjectAnthem.html" class="btn btn-secondary">← Back to Tool</a>
+            </div>
+
+            <!-- Invite New Member Form -->
+            <div class="mt-8 bg-gray-900 p-6 rounded-lg shadow-md">
+                 <h2 class="text-2xl font-bold text-white mb-4">Invite New Band Member</h2>
+                 <form id="invite-member-form" class="flex flex-col md:flex-row items-end gap-4">
+                     <div class="w-full">
+                         <label for="invite-email" class="block text-sm font-medium text-gray-300">Member's Email</label>
+                         <input type="email" id="invite-email" required class="form-input mt-1 block w-full p-2 rounded-md">
+                     </div>
+                     <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Send Invite</button>
+                 </form>
+                 <p id="invite-status" class="text-sm mt-3 h-5"></p>
+                 <p class="text-xs text-gray-500 mt-2">An invite link will be generated. Send it to your bandmate to have them join.</p>
+            </div>
+
+            <!-- Current Band Members -->
+            <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold text-white mb-4">Current Members</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-white">
+                        <thead class="bg-gray-800">
+                            <tr>
+                                <th class="p-3 text-left font-semibold">Email</th>
+                                <th class="p-3 text-left font-semibold">Name</th>
+                                <th class="p-3 text-left font-semibold">Role</th>
+                                <th class="p-3 text-left font-semibold">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="members-table-body" class="bg-gray-800/50">
+                            <!-- Rows will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="access-denied" class="text-center py-20" style="display: none;">
+            <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
+            <p class="mt-4 text-lg text-gray-300">You must be a Band Admin to view this page.</p>
+            <a href="/ProjectAnthem.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Return to the Tool</a>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script src="/auth_proanthem.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = getUserPayload();
+            if (!user || (user.role !== 'band_admin' && user.role !== 'admin')) {
+                document.getElementById('access-denied').style.display = 'block';
+                return;
+            }
+            
+            document.getElementById('band-content').style.display = 'block';
+            loadBandMembers();
+            
+            const inviteForm = document.getElementById('invite-member-form');
+            inviteForm.addEventListener('submit', handleInvite);
+        });
+
+        async function loadBandMembers() {
+            const tableBody = document.getElementById('members-table-body');
+            tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
+            try {
+                const members = await apiRequest('band/members', null, 'GET');
+                tableBody.innerHTML = '';
+                members.forEach(member => {
+                    const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-700';
+                    const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending setup';
+                    const roleDisplay = member.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                    let actionsHtml = '';
+                    if (member.role !== 'band_admin' && member.role !== 'admin') {
+                        actionsHtml = `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember(${member.id}, '${member.email}')">Remove</button>`;
+                    }
+
+                    row.innerHTML = `
+                        <td class="p-3">${member.email}</td>
+                        <td class="p-3 text-gray-400">${name}</td>
+                        <td class="p-3 text-gray-400">${roleDisplay}</td>
+                        <td class="p-3">${actionsHtml}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } catch (error) {
+                 tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load members: ${error.message}</td></tr>`;
+            }
+        }
+        
+        async function handleInvite(event) {
+            event.preventDefault();
+            const inviteStatus = document.getElementById('invite-status');
+            inviteStatus.textContent = 'Sending invite...';
+            inviteStatus.className = 'text-sm mt-3 h-5 text-yellow-400';
+            const email = document.getElementById('invite-email').value;
+
+            try {
+                const result = await apiRequest('band/invites', { emailToInvite: email }, 'POST');
+                const inviteLink = `${window.location.origin}/pricing.html?invite_token=${result.token}`;
+                
+                // For dev, log it. For prod, you'd email this.
+                console.log('Invite Link:', inviteLink); 
+                prompt("Here is the signup link for your bandmate. Please copy and send it to them:", inviteLink);
+                
+                inviteStatus.textContent = 'Invite Link Generated! Please send it to your bandmate.';
+                inviteStatus.className = 'text-sm mt-3 h-5 text-green-400';
+                event.target.reset();
+            } catch(error) {
+                inviteStatus.textContent = `Error: ${error.message}`;
+                inviteStatus.className = 'text-sm mt-3 h-5 text-red-500';
+            }
+        }
+
+        async function removeMember(userId, userEmail) {
+            if (confirm(`Are you sure you want to remove ${userEmail} from the band? They will lose access immediately.`)) {
+                try {
+                    await apiRequest('band/members', { userIdToRemove: userId }, 'DELETE');
+                    loadBandMembers(); // Refresh the list
+                } catch(error) {
+                    alert(`Failed to remove member: ${error.message}`);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
