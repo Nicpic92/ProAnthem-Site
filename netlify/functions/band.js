@@ -1,6 +1,7 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -20,10 +21,6 @@ exports.handler = async (event) => {
     
     const { email: userEmail, band_id: bandId, role: userRole } = decodedToken.user;
     
-    if (userRole !== 'band_admin' && userRole !== 'admin') {
-        return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to manage this band.' })};
-    }
-    
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
@@ -34,11 +31,39 @@ exports.handler = async (event) => {
         const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const pathParts = path.split('/').filter(Boolean);
         const resource = pathParts[1];
+        
+        // This endpoint requires user to be logged in, but not necessarily a band_admin (for changing their own password)
+        if (event.httpMethod === 'POST' && resource === 'change-password') {
+            const { currentPassword, newPassword } = JSON.parse(event.body);
+            if (!currentPassword || !newPassword) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'Current and new passwords are required.' })};
+            }
+            if(newPassword.length < 6) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'New password must be at least 6 characters long.' })};
+            }
 
+            const { rows: [user] } = await client.query('SELECT password_hash FROM users WHERE email = $1', [userEmail]);
+            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+            
+            if(!isMatch) {
+                return { statusCode: 401, body: JSON.stringify({ message: 'Current password is incorrect.' })};
+            }
+            
+            const new_password_hash = await bcrypt.hash(newPassword, 10);
+            await client.query('UPDATE users SET password_hash = $1 WHERE email = $2', [new_password_hash, userEmail]);
+            
+            return { statusCode: 200, body: JSON.stringify({ message: "Password updated successfully." }) };
+        }
+
+
+        // All routes below require band_admin or admin permissions
+        if (userRole !== 'band_admin' && userRole !== 'admin') {
+            return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission for this action.' })};
+        }
+        
         if (event.httpMethod === 'GET' && !resource) {
             const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
             const { rows: [bandDetails] } = await client.query(query, [bandId]);
-            if (!bandDetails) return { statusCode: 404, body: JSON.stringify({ message: "Band not found."}) };
             return { statusCode: 200, body: JSON.stringify(bandDetails) };
         }
 
@@ -59,19 +84,13 @@ exports.handler = async (event) => {
                 return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists.' }) };
             }
 
-            // Fetch band details to create the password
             const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
-            if (!bandDetails) {
-                 return { statusCode: 404, body: JSON.stringify({ message: 'Admin band not found.' }) };
-            }
-
             const defaultPassword = `${bandDetails.band_name}${bandDetails.band_number}`;
             const password_hash = await bcrypt.hash(defaultPassword, 10);
             
             const insertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
-                VALUES ($1, $2, $3, $4, $5, 'band_member')
-                RETURNING id, email;
+                INSERT INTO users (email, password_hash, first_name, last_name, band_id, role, password_reset_required)
+                VALUES ($1, $2, $3, $4, $5, 'band_member', TRUE)
             `;
             await client.query(insertQuery, [email.toLowerCase(), password_hash, firstName, lastName, bandId]);
             
