@@ -52,6 +52,20 @@
         <a href="/pricing.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Manage Subscription</a>
     </div>
 
+    <div id="password-reset-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold text-center mb-6">Change Your Password</h2>
+            <p class="text-center text-gray-400 mb-6">Welcome! As a new band member, you must change your temporary password before you can use the tool.</p>
+            <form id="password-reset-form" class="space-y-4">
+                <input id="current-password" type="password" required class="form-input" placeholder="Current Temporary Password">
+                <input id="new-password" type="password" required class="form-input" placeholder="New Password (min. 6 characters)">
+                <input id="confirm-password" type="password" required class="form-input" placeholder="Confirm New Password">
+                <button type="submit" class="w-full btn btn-primary py-3">Set New Password</button>
+            </form>
+            <p id="password-reset-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
+        </div>
+    </div>
+
     <div id="tool-content" class="max-w-6xl mx-auto hidden">
         <header class="border-b border-gray-700 pb-4 mb-6 flex justify-between items-center">
              <a href="/proanthem_index.html" class="flex items-center space-x-4">
@@ -65,7 +79,6 @@
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <aside id="sidebar" class="md:col-span-1 h-full">
                 <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
-                    <!-- Song Actions -->
                     <div class="space-y-2 flex-shrink-0">
                         <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
                         <select id="songSelector" class="form-select"></select>
@@ -76,7 +89,6 @@
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
                     </div>
-                    <!-- Chord Palette & Musical Settings -->
                     <div class="space-y-6 flex-shrink-0">
                         <div class="space-y-3 pt-4 border-t border-gray-700">
                             <h3 class="font-semibold text-lg">Chord Palette</h3>
@@ -198,7 +210,9 @@
     <script src="/auth_proanthem.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            if (checkAccess()) {
+            const hasAccess = checkAccess();
+            // initializeApp() will only run if the tool content is made visible by checkAccess
+            if (hasAccess && !document.getElementById('tool-content').classList.contains('hidden')) {
                 initializeApp();
             }
         });
@@ -493,6 +507,7 @@
                         }
                     };
 
+                    // Title Page
                     addWatermarkToPage();
                     doc.setFontSize(26);
                     doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
@@ -514,6 +529,7 @@
                         y += splitTitle.length * 7;
                     });
 
+                    // Individual Song Pages
                     for (const song of (setlist.songs || [])) {
                         addWatermarkToPage(); doc.addPage(); y = 20; addWatermarkToPage();
                         doc.setFontSize(18); doc.setFont(undefined, 'bold');
@@ -538,7 +554,7 @@
                             
                             doc.setFont('Courier', 'normal'); doc.setFontSize(10);
                             const lineHeight = 5;
-
+                            
                             const contentToRender = blockToRender.type === 'tab' ? renderTransposedTab(blockToRender) : (blockToRender.content || '');
 
                             for (const line of contentToRender.split('\n')) {
@@ -657,7 +673,6 @@
                 return null;
             }
 
-
             function drawFretboard(blockId) {
                 const container = document.getElementById(`fretboard-${blockId}`);
                 if (!container) return;
@@ -775,13 +790,20 @@
                 }
             }
 
-            function initializeNewSong() {
-                songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
-                titleInput.value = '';
-                artistInput.value = '';
-                songSelector.value = 'new';
-                renderSongBlocks();
+            async function initializeNewSong() {
+                const songs = await api.getSheets();
+                if (songs && songs.length > 0) {
+                    await loadSong(songs[0].id); // Load most recent song
+                    songSelector.value = songs[0].id;
+                } else {
+                    songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
+                    titleInput.value = '';
+                    artistInput.value = '';
+                    songSelector.value = 'new';
+                    renderSongBlocks();
+                }
             }
+
 
             async function handleSave() {
                 saveBtn.disabled = true;
@@ -793,7 +815,8 @@
                     songData.id = savedSong.id;
                     setStatus('Saved successfully!');
                     if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
-                        await loadSheetList();
+                        await loadSheetList(savedSong.id);
+                    } else {
                         songSelector.value = savedSong.id;
                     }
                 } catch (error) { 
@@ -817,8 +840,8 @@
             function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
             function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || ' ', lyricLine: lyricLine.trimEnd() || ' ' }; }
             function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
-            async function loadSheetList() { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); } catch (e) { setStatus('Failed to load songs.', true); } }
-            async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); initializeNewSong(); await loadSheetList(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
+            async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) songSelector.value = selectId; } catch (e) { setStatus('Failed to load songs.', true); } }
+            async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); await loadSheetList(); await initializeNewSong(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
             function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
             function updateTransposeStatus(steps) { musicalContext.transpose = steps; transposeStatus.textContent = steps > 0 ? `+${steps}` : steps; }
             function handleTranspose(amount) {
@@ -851,7 +874,6 @@
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
             async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
 
-            // Event listener setup
             const musicalInputs = [tuningSelector, capoFretInput];
             musicalInputs.forEach(el => el.addEventListener('input', () => {
                 musicalContext.tuning = tuningSelector.value;
@@ -895,7 +917,6 @@
                             if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
                                 block.data.notes.splice(clickedNoteIndex, 1);
                                 selectedNote = { blockId: null, noteIndex: null };
-                                renderPreview();
                             } else {
                                 selectedNote = { blockId, noteIndex: clickedNoteIndex };
                             }
@@ -937,7 +958,6 @@
                         if (clickData) {
                            note.position = clickData.position;
                            note.string = clickData.string;
-                           // The fret value does not change during drag
                            drawNotesOnFretboard(selectedNote.blockId);
                         }
                     }
@@ -955,7 +975,11 @@
                     const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
                     const note = block?.data?.notes[selectedNote.noteIndex];
                     if (note) {
-                         const rawFret = (note.position - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
+                         const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`);
+                         const wrapper = svg.closest('.fretboard-wrapper');
+                         const svgRect = svg.getBoundingClientRect();
+                         const x = event.clientX - svgRect.left + wrapper.scrollLeft;
+                         const rawFret = (x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
                          const finalFret = Math.max(0, Math.round(rawFret));
                          const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
                          note.fret = finalFret + totalOffset;
@@ -995,7 +1019,6 @@
                     }
                 }
             });
-
 
             document.addEventListener('keydown', (e) => {
                 if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
@@ -1046,7 +1069,7 @@
             
             recordBtn.addEventListener('click', startRecording);
             stopBtn.addEventListener('click', stopRecording);
-            songSelector.addEventListener('change', () => loadSong(songSelector.value === 'new' ? null : songSelector.value));
+            songSelector.addEventListener('change', () => loadSong(songSelector.value));
             setlistBtn.addEventListener('click', openSetlistManager);
             closeSetlistModalBtn.addEventListener('click', () => setlistModal.classList.add('hidden'));
             setlistSelector.addEventListener('change', (e) => handleSetlistSelection(e.target.value));
@@ -1067,9 +1090,8 @@
 
             (function main(){
                 populateTuningSelector(); 
-                loadSheetList();
+                loadSheetList().then(() => initializeNewSong());
                 loadChords();
-                initializeNewSong();
             })();
         }
     </script>
