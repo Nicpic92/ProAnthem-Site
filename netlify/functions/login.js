@@ -43,7 +43,7 @@ exports.handler = async (event) => {
 
         // --- FIX: Reverted specialStatuses array and corrected the logic ---
         const specialRoles = ['admin', 'band_member']; // Band admins are determined by Stripe, not a special role here
-        const specialStatuses = ['admin_granted'];
+        const specialStatuses = ['admin_granted', 'trialing'];
 
         if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
             // This is a special user (Super Admin, Invited Member, VIP), trust our database and do not check Stripe.
