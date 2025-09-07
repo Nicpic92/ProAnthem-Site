@@ -63,9 +63,11 @@ function updateNav() {
          buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
+        // THIS IS THE CORRECT LOGIC THAT SHOWS THE LOGIN BUTTON
         navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
+            // It's crucial that openModal is defined for this to work.
             loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
