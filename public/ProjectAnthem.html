@@ -475,17 +475,17 @@
             }
 
             async function handleCreateSetlist() {
-                const name = newSetlistInput.value.trim();
-                if (!name) return alert('Please enter a name for the new setlist.');
-                try {
-                    const newSetlist = await api.createSetlist({ name });
-                    newSetlistInput.value = '';
-                    setStatus('Setlist created!', false);
-                    await loadSetlists(newSetlist.id);
-                } catch (error)
-                    setStatus(`Error creating setlist: ${error.message}`, true);
-                }
-            }
+const name = newSetlistInput.value.trim();
+    if (!name) return alert('Please enter a name for the new setlist.');
+    try {
+        const newSetlist = await api.createSetlist({ name });
+        newSetlistInput.value = '';
+        setStatus('Setlist created!', false);
+        await loadSetlists(newSetlist.id);
+    } catch (error) {
+        setStatus(`Error creating setlist: ${error.message}`, true);
+    }
+}
 
             async function handleDeleteSetlist() {
                 const setlistId = setlistSelector.value;
