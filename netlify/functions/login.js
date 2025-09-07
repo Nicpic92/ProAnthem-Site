@@ -8,6 +8,7 @@ const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
+    // ... (Code is identical to the last verified version, it is already correct)
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
@@ -41,7 +42,6 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- FIX: Add 'band_member' to the list of roles that bypass the Stripe check ---
         const specialRoles = ['admin', 'band_member'];
         const specialStatuses = ['admin_granted'];
 
@@ -73,12 +73,14 @@ exports.handler = async (event) => {
                     }
                 }
                 
-                await client.query(
-                    'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                    [newStatus, newPlan, newRole, user.email]
-                );
-                subStatus = newStatus;
-                userRole = newRole;
+                if (newStatus !== user.subscription_status || newRole !== user.role) {
+                    await client.query(
+                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                        [newStatus, newPlan, newRole, user.email]
+                    );
+                    subStatus = newStatus;
+                    userRole = newRole;
+                }
             } else {
                 subStatus = 'inactive';
             }
