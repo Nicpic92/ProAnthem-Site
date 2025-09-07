@@ -38,53 +38,79 @@ function getUserPayload() {
 
 function logout() {
     localStorage.removeItem('user_token');
-    // We remove the redundant userRole item for consistency
     localStorage.removeItem('userRole'); 
     window.location.href = '/proanthem_index.html';
 }
 
 function updateNav() {
-    // This function checks the login status and updates the header buttons.
     const user = getUserPayload();
     const loginButton = document.getElementById('login-modal-button');
+    const navAuthSection = document.getElementById('nav-auth-section'); // For admin.html
 
-    if (loginButton) {
+    if (loginButton) { // For proanthem_index.html
         if (user) {
-            let buttonHtml = 'Dashboard';
-            // Prepend the Admin button if the user is an admin
+            let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Dashboard</a>`;
             if (user.role === 'admin') {
                  buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
             }
-            
-            loginButton.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
-            loginButton.onclick = () => window.location.href = '/ProjectAnthem.html';
-            
+            loginButton.parentElement.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
         } else {
             loginButton.textContent = 'Log In / Sign Up';
-            loginButton.onclick = () => openModal('login'); // Re-attach modal open function
+            loginButton.onclick = () => openModal('login');
+        }
+    }
+
+    if (navAuthSection) { // For admin.html
+         if (user) {
+            let navHtml = `<a href="/ProjectAnthem.html" class="text-gray-600 hover:text-indigo-600 font-medium">Main Tool</a>`;
+             if (user.role === 'admin') {
+                 navHtml += `<a href="/admin.html" class="text-indigo-600 hover:text-indigo-800 font-bold ml-4">Admin Panel</a>`;
+            }
+            navHtml += `<button onclick="logout()" class="ml-4 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log Out</button>`;
+            navAuthSection.innerHTML = navHtml;
+        } else {
+             navAuthSection.innerHTML = `<a href="/proanthem_index.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</a>`;
         }
     }
 }
 
-async function apiRequest(endpoint, data = null, method = 'POST') {
+// --- FIX: The apiRequest function is upgraded to handle authentication ---
+async function apiRequest(endpoint, data = null, method = 'GET') {
+    const token = getToken();
+    
     const options = {
         method,
         headers: { 
             'Content-Type': 'application/json',
         },
     };
+
+    // If a token exists, add the Authorization header to the request.
+    if (token) {
+        options.headers['Authorization'] = `Bearer ${token}`;
+    }
+
     if (data) {
         options.body = JSON.stringify(data);
     }
+    
     try {
+        // Use the full API path, assuming Netlify redirects are set up
         const response = await fetch(`/api/${endpoint}`, options);
+        
+        // Handle cases with no JSON response body (like DELETE 204)
+        if (response.status === 204) {
+            return null;
+        }
+        
         const responseData = await response.json();
+
         if (!response.ok) {
-            throw new Error(responseData.message || `API Request Error to ${endpoint}`);
+            throw new Error(responseData.message || `API Error: ${response.status}`);
         }
         return responseData;
     } catch (error) {
-        console.error(`API Request Error to ${endpoint}:`, error.message);
+        console.error(`API Request Error to ${endpoint}:`, error);
         throw error;
     }
 }
@@ -137,15 +163,12 @@ async function performLogin(credentials) {
     const result = await apiRequest('login', credentials, 'POST');
     if (result.token) {
         localStorage.setItem('user_token', result.token);
-        // No longer need to store userRole separately
         window.location.href = '/ProjectAnthem.html';
     } else {
         throw new Error("Login failed: No token returned.");
     }
 }
 
-// Re-add a reference to openModal if it's not globally available after this script runs
-// This is needed because the main page's inline script might not see the nav update.
 function openModal(view) {
     const authModal = document.getElementById('auth-modal');
     if(authModal) {
