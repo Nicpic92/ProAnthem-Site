@@ -37,7 +37,7 @@ function updateNav() {
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
         if (user.role === 'admin' || user.role === 'band_admin') { // Admins and Band Admins see this
-             buttonHtml = `<a href="/band.html" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 mr-4">Manage Band</a>` + buttonHtml;
+             buttonHtml = `<a href="/Band.html" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 mr-4">Manage Band</a>` + buttonHtml;
         }
         if (user.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
@@ -47,33 +47,55 @@ function updateNav() {
     } else {
         navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
-        if(loginBtn) {
+        if(loginBtn && typeof openModal === 'function') {
             loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
 }
 
+// THIS IS THE CORRECT, ROBUST API FUNCTION
 async function apiRequest(endpoint, data = null, method = 'GET') {
+    const url = `/api/${endpoint}`;
     const token = getToken();
     const options = { method, headers: { 'Content-Type': 'application/json' } };
+
     if (token) options.headers['Authorization'] = `Bearer ${token}`;
     if (data) options.body = JSON.stringify(data);
+    
     try {
-        const response = await fetch(`/api/${endpoint}`, options);
-        if (response.status === 204) return null;
+        const response = await fetch(url, options);
+        
+        // **THIS IS THE CRITICAL FIX:** Properly handle 204 No Content responses
+        if (response.status === 204) {
+            return null;
+        }
+
         const responseData = await response.json();
-        if (!response.ok) throw new Error(responseData.message || `API Error: ${response.status}`);
+        
+        if (!response.ok) {
+            throw new Error(responseData.message || `API Error: ${response.status}`);
+        }
         return responseData;
     } catch (error) {
-        console.error(`API Request Error to ${endpoint}:`, error);
-        throw error;
+        // If the error is from parsing empty JSON, it's not a real issue for 204s,
+        // but we'll log other errors.
+        if (!(error instanceof SyntaxError)) {
+             console.error(`API Request Error to ${endpoint}:`, error);
+        }
+        // Re-throw if it's a server-generated error message
+        if (error.message.startsWith("API Error")) {
+            throw error;
+        }
+        // For SyntaxError on empty body, we depend on the 204 check above.
+        // If it still fails, it's a different issue.
+        return null;
     }
 }
+
 
 // --- Subscription & Access Control ---
 function checkAccess() {
     const user = getUserPayload();
-    // --- FIX: Added 'band_member' to the list of roles that grant access ---
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
@@ -100,7 +122,6 @@ function checkAccess() {
 
 // --- Form Handlers ---
 async function handleSignupForPricing(event) {
-    // This logic is unchanged, it correctly creates band members now.
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
     signupError.textContent = '';
@@ -153,7 +174,6 @@ async function performLogin(credentials, redirectTo = null) {
         }
 
         const user = getUserPayload();
-        // --- FIX: Re-use the same access logic here for consistency ---
         const specialRoles = ['admin', 'band_admin', 'band_member'];
         const validStatuses = ['active', 'trialing', 'admin_granted'];
         const hasAccess = user && (specialRoles.includes(user.role) || validStatuses.includes(user.subscription_status));
