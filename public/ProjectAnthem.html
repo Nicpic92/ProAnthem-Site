@@ -40,9 +40,6 @@
         .resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
         .resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
         .btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
-        .btn-record { background-color: #ef4444; color: white; } .btn-record:hover:not(:disabled) { background-color: #f87171; }
-        .btn-record.recording { animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
         .modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
         .sortable-ghost { opacity: 0.4; background: #4a5568; }
@@ -68,15 +65,18 @@
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <aside id="sidebar" class="md:col-span-1 h-full">
                 <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
+                    <!-- Song Actions -->
                     <div class="space-y-2 flex-shrink-0">
                         <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
                         <select id="songSelector" class="form-select"></select>
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
                         <button id="setlistBtn" class="btn btn-secondary w-full">Setlists</button>
+                        <a href="/band.html" id="manageBandBtn" class="btn btn-secondary w-full text-center" style="display: none;">Manage Band</a>
                         <a href="/pricing.html" class="btn btn-secondary w-full text-center block">Manage Subscription</a>
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
                     </div>
+                    <!-- Chord Palette & Musical Settings -->
                     <div class="space-y-6 flex-shrink-0">
                         <div class="space-y-3 pt-4 border-t border-gray-700">
                             <h3 class="font-semibold text-lg">Chord Palette</h3>
@@ -201,7 +201,7 @@
             if (checkAccess()) {
                 initializeApp();
             }
-        }); 
+        });
         
         function initializeApp() {
             let songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [] };
@@ -851,6 +851,24 @@
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
             async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
 
+            // Event listener setup
+            const musicalInputs = [tuningSelector, capoFretInput];
+            musicalInputs.forEach(el => el.addEventListener('input', () => {
+                musicalContext.tuning = tuningSelector.value;
+                musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
+                renderSongBlocks();
+            }));
+            transposeUpBtn.addEventListener('click', () => handleTranspose(1));
+            transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
+            saveBtn.addEventListener('click', handleSave);
+            deleteBtn.addEventListener('click', handleDelete);
+            logoutBtn.addEventListener('click', () => { logout() });
+            addChordBtn.addEventListener('click', handleAddChord);
+            newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
+            clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
+            songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
+            songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
+            
             function attachFretboardListeners(svgEl) {
                 const blockId = svgEl.id.split('-').pop();
                 const block = songData.song_blocks.find(b => b.id === blockId);
@@ -877,6 +895,7 @@
                             if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
                                 block.data.notes.splice(clickedNoteIndex, 1);
                                 selectedNote = { blockId: null, noteIndex: null };
+                                renderPreview();
                             } else {
                                 selectedNote = { blockId, noteIndex: clickedNoteIndex };
                             }
@@ -917,8 +936,8 @@
                         const clickData = getFretFromClick(e, svg);
                         if (clickData) {
                            note.position = clickData.position;
-                           const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
-                           note.fret = clickData.fret + totalOffset;
+                           note.string = clickData.string;
+                           // The fret value does not change during drag
                            drawNotesOnFretboard(selectedNote.blockId);
                         }
                     }
@@ -933,6 +952,14 @@
                     document.body.style.cursor = '';
                 }
                 if(isDraggingNote) {
+                    const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
+                    const note = block?.data?.notes[selectedNote.noteIndex];
+                    if (note) {
+                         const rawFret = (note.position - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
+                         const finalFret = Math.max(0, Math.round(rawFret));
+                         const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                         note.fret = finalFret + totalOffset;
+                    }
                     isDraggingNote = false;
                     renderPreview(); 
                 }
