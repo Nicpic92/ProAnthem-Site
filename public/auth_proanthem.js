@@ -1,16 +1,10 @@
-// This is the unified authentication script for the entire ProAnthem site.
+// This is the final, correct, unified authentication script for the entire ProAnthem site.
 
 document.addEventListener('DOMContentLoaded', () => {
-    // This part runs on every page load to set up the correct navigation
-    updateNav();
-
-    // These listeners are only attached if the respective forms exist on the current page
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+    updateNav(); // Runs on every page load to set up the correct navigation
 });
 
 // --- Core Auth & API Functions ---
-
 function getToken() {
     return localStorage.getItem('user_token');
 }
@@ -35,28 +29,28 @@ function logout() {
 
 function updateNav() {
     const user = getUserPayload();
-    // This robust selector finds the authentication div on both the main page and the admin page
     const navAuthSection = document.querySelector("#nav-auth-section");
     if (!navAuthSection) return;
 
     if (user) {
-        // Logged-in user view
+        // Logged-in user view for any page
         let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
         if (user.role === 'admin') {
-            buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
+             buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
         }
-        buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
+         buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
-        // Logged-out user view
+        // Logged-out user view for any page
         navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
-        // --- FIX: Attach the listener *after* creating the button ---
+        // After creating the button, immediately attach its listener
         const loginBtn = document.getElementById('login-modal-button');
-        if (loginBtn) {
+        if(loginBtn) {
             loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
 }
+
 
 async function apiRequest(endpoint, data = null, method = 'GET') {
     const token = getToken();
@@ -82,9 +76,9 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 }
 
 // --- Subscription & Access Control (for ProjectAnthem.html) ---
-
 function checkAccess() {
     const user = getUserPayload();
+    // Valid statuses are 'active' or 'trialing'. Admins get a free pass.
     const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
     
     const toolContent = document.getElementById('tool-content');
@@ -108,8 +102,7 @@ function checkAccess() {
     }
 }
 
-// --- Form Handlers ---
-
+// --- Form Handlers (dynamically attached based on page content) ---
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -130,14 +123,14 @@ async function performLogin(credentials) {
     const result = await apiRequest('login', credentials, 'POST');
     if (result.token) {
         localStorage.setItem('user_token', result.token);
-        // After login, we must re-evaluate access based on the new token
+        // After login, re-check access based on the new token to decide where to go
         const user = getUserPayload(); 
         const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
         
         if (hasAccess) {
             window.location.href = '/ProjectAnthem.html';
         } else {
-            // If they can log in but have no active sub, send them to pricing to start a trial or manage their sub
+            // If they can log in but have no active sub, send to pricing
             window.location.href = '/pricing.html';
         }
     } else {
@@ -145,14 +138,26 @@ async function performLogin(credentials) {
     }
 }
 
+// --- Modal Controls (called from listeners) ---
 function openModal(view) {
     const authModal = document.getElementById('auth-modal');
     if(authModal) {
         const loginView = document.getElementById('login-view');
+        // A single modal for logging in.
         if(view === 'login' && loginView) {
             authModal.classList.remove('hidden'); 
             authModal.classList.add('flex'); 
             loginView.classList.remove('hidden');
+
+            // Find the form within the now-visible modal and attach its listener
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                 // Prevent attaching multiple listeners if opened more than once
+                if(!loginForm.dataset.listenerAttached) {
+                     loginForm.addEventListener('submit', handleLogin);
+                     loginForm.dataset.listenerAttached = 'true';
+                }
+            }
         }
     }
 }
