@@ -54,7 +54,8 @@ async function loadUsers() {
             const userRow = document.createElement('tr');
             userRow.className = 'border-b border-gray-700 hover:bg-gray-700/50';
 
-            const roleOptions = ['solo', 'band_admin', 'admin']
+            // --- FIX: Added 'band_member' to the list of available roles ---
+            const roleOptions = ['solo', 'band_member', 'band_admin', 'admin']
                 .map(role => `<option value="${role}" ${user.role === role ? 'selected' : ''}>${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>`)
                 .join('');
             
