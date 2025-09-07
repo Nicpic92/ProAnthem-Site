@@ -25,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- Core Auth & API Functions ---
 function getToken() { 
     return localStorage.getItem('user_token'); 
 }
@@ -83,7 +82,7 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
     try {
         const response = await fetch(url, options);
         if (response.status === 204) {
-            return null; // Handle empty responses correctly
+            return null;
         }
         const responseData = await response.json();
         if (!response.ok) {
