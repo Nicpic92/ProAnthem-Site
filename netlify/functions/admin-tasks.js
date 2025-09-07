@@ -98,25 +98,28 @@ exports.handler = async (event) => {
                 
                 await client.query('BEGIN');
                 try {
-                    // --- FIX: Safely delete the user and their associated band data ---
-                    // Step 1: Get the user's band_id before deleting them
+                    // --- FIX: New, safe deletion logic ---
+                    // Step 1: Get the user's band_id to check if they are part of a band.
                     const { rows: [userToDelete] } = await client.query('SELECT band_id FROM users WHERE email = $1', [email]);
                     
-                    if (userToDelete) {
+                    if (userToDelete && userToDelete.band_id) {
                         const { band_id } = userToDelete;
                         
-                        // Step 2: Delete all lyric sheets and setlists associated with that band
-                        // This assumes a user being deleted also means their band content is deleted.
-                        await client.query('DELETE FROM lyric_sheets WHERE band_id = $1', [band_id]);
-                        await client.query('DELETE FROM setlists WHERE band_id = $1', [band_id]);
-                        
-                        // Step 3: Delete the user(s) in that band
-                        await client.query('DELETE FROM users WHERE band_id = $1', [band_id]);
+                        // Step 2: Check how many other users are in this band.
+                        const countResult = await client.query('SELECT COUNT(*) FROM users WHERE band_id = $1 AND email != $2', [band_id, email]);
+                        const otherMembersCount = parseInt(countResult.rows[0].count, 10);
 
-                        // Step 4: Delete the band itself
-                        await client.query('DELETE FROM bands WHERE id = $1', [band_id]);
+                        // Step 3: Delete ONLY the specified user.
+                        await client.query('DELETE FROM users WHERE email = $1', [email]);
+
+                        // Step 4: If there were no other members, clean up the now-orphaned band and its data.
+                        if (otherMembersCount === 0) {
+                            await client.query('DELETE FROM lyric_sheets WHERE band_id = $1', [band_id]);
+                            await client.query('DELETE FROM setlists WHERE band_id = $1', [band_id]);
+                            await client.query('DELETE FROM bands WHERE id = $1', [band_id]);
+                        }
                     } else {
-                        // If user not found, maybe they exist without a band. Clean them up just in case.
+                        // If the user doesn't exist or has no band, just ensure they are deleted.
                         await client.query('DELETE FROM users WHERE email = $1', [email]);
                     }
                     
