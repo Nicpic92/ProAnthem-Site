@@ -28,13 +28,17 @@ async function loadBandDetails() {
 
 async function loadBandMembers() {
     const tableBody = document.getElementById('members-table-body');
-    tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">Loading...</td></tr>`;
     try {
         const members = await apiRequest('band/members', null, 'GET');
         tableBody.innerHTML = '';
+        if (members.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-gray-400">No members found.</td></tr>`;
+            return;
+        }
         members.forEach(member => {
             const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700';
+            row.className = 'border-b border-gray-700 hover:bg-gray-700/50';
             const name = (member.first_name && member.last_name && member.first_name !== 'New') ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
             const roleDisplay = member.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
