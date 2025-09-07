@@ -32,7 +32,7 @@ exports.handler = async (event) => {
         const pathParts = path.split('/').filter(Boolean);
         const resource = pathParts[1];
         
-        // This endpoint requires user to be logged in, but not necessarily a band_admin (for changing their own password)
+        // This endpoint requires the user to be logged in, but not necessarily a band_admin (for changing their own password)
         if (event.httpMethod === 'POST' && resource === 'change-password') {
             const { currentPassword, newPassword } = JSON.parse(event.body);
             if (!currentPassword || !newPassword) {
@@ -55,7 +55,6 @@ exports.handler = async (event) => {
             return { statusCode: 200, body: JSON.stringify({ message: "Password updated successfully." }) };
         }
 
-
         // All routes below require band_admin or admin permissions
         if (userRole !== 'band_admin' && userRole !== 'admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission for this action.' })};
@@ -68,7 +67,7 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            const query = `SELECT id, email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
+            const query = `SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
@@ -85,6 +84,10 @@ exports.handler = async (event) => {
             }
 
             const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
+            if (!bandDetails) {
+                 return { statusCode: 404, body: JSON.stringify({ message: 'Admin band not found.' }) };
+            }
+
             const defaultPassword = `${bandDetails.band_name}${bandDetails.band_number}`;
             const password_hash = await bcrypt.hash(defaultPassword, 10);
             
@@ -100,11 +103,12 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
-            const { userIdToRemove } = JSON.parse(event.body);
-            if (!userIdToRemove) {
-                 return { statusCode: 400, body: JSON.stringify({ message: 'User ID to remove is required.' })};
+            const { emailToRemove } = JSON.parse(event.body);
+            if (!emailToRemove) {
+                 return { statusCode: 400, body: JSON.stringify({ message: 'User email to remove is required.' })};
             }
-            const { rows: [userToRemove] } = await client.query('SELECT email, role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            
+            const { rows: [userToRemove] } = await client.query('SELECT role FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             if(!userToRemove) {
                  return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })};
             }
@@ -112,7 +116,7 @@ exports.handler = async (event) => {
                  return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin from the band.' })};
             }
 
-            await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            await client.query('DELETE FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             return { statusCode: 204, body: '' };
         }
 
