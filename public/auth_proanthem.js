@@ -1,7 +1,10 @@
-// This is the final, correct, unified authentication script for the entire ProAnthem site.
+// This is the unified authentication script for the entire ProAnthem site.
 
 document.addEventListener('DOMContentLoaded', () => {
-    updateNav(); // Runs on every page load to set up the correct navigation
+    updateNav(); // Runs on every page
+
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
 });
 
 // --- Core Auth & API Functions ---
@@ -33,7 +36,6 @@ function updateNav() {
     if (!navAuthSection) return;
 
     if (user) {
-        // Logged-in user view for any page
         let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
         if (user.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
@@ -41,9 +43,7 @@ function updateNav() {
          buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
-        // Logged-out user view for any page
         navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
-        // After creating the button, immediately attach its listener
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
             loginBtn.addEventListener('click', () => openModal('login'));
@@ -78,13 +78,14 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 // --- Subscription & Access Control (for ProjectAnthem.html) ---
 function checkAccess() {
     const user = getUserPayload();
-    // Valid statuses are 'active' or 'trialing'. Admins get a free pass.
-    const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
+    // --- FIX: Added 'admin_granted' to the list of valid statuses ---
+    const validStatuses = ['active', 'trialing', 'admin_granted'];
+    const hasAccess = user && (user.role === 'admin' || validStatuses.includes(user.subscription_status));
     
     const toolContent = document.getElementById('tool-content');
     const accessDenied = document.getElementById('access-denied');
 
-    if (!toolContent || !accessDenied) return true; // Not on the tool page, so don't block.
+    if (!toolContent || !accessDenied) return true;
 
     if (hasAccess) {
         accessDenied.style.display = 'none';
@@ -102,7 +103,7 @@ function checkAccess() {
     }
 }
 
-// --- Form Handlers (dynamically attached based on page content) ---
+// --- Form Handlers ---
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -123,14 +124,14 @@ async function performLogin(credentials) {
     const result = await apiRequest('login', credentials, 'POST');
     if (result.token) {
         localStorage.setItem('user_token', result.token);
-        // After login, re-check access based on the new token to decide where to go
         const user = getUserPayload(); 
-        const hasAccess = user && (user.role === 'admin' || user.subscription_status === 'active' || user.subscription_status === 'trialing');
+        
+        const validStatuses = ['active', 'trialing', 'admin_granted'];
+        const hasAccess = user && (user.role === 'admin' || validStatuses.includes(user.subscription_status));
         
         if (hasAccess) {
             window.location.href = '/ProjectAnthem.html';
         } else {
-            // If they can log in but have no active sub, send to pricing
             window.location.href = '/pricing.html';
         }
     } else {
@@ -143,16 +144,13 @@ function openModal(view) {
     const authModal = document.getElementById('auth-modal');
     if(authModal) {
         const loginView = document.getElementById('login-view');
-        // A single modal for logging in.
         if(view === 'login' && loginView) {
             authModal.classList.remove('hidden'); 
             authModal.classList.add('flex'); 
             loginView.classList.remove('hidden');
 
-            // Find the form within the now-visible modal and attach its listener
             const loginForm = document.getElementById('login-form');
             if (loginForm) {
-                 // Prevent attaching multiple listeners if opened more than once
                 if(!loginForm.dataset.listenerAttached) {
                      loginForm.addEventListener('submit', handleLogin);
                      loginForm.dataset.listenerAttached = 'true';
