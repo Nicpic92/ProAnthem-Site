@@ -20,7 +20,7 @@
             <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
-        <div>
+        <div id="nav-auth-section">
             <button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
                 Log In
             </button>
@@ -28,7 +28,6 @@
     </header>
 
     <main class="flex-grow">
-        <!-- Hero Section -->
         <section class="text-center py-20 px-6">
             <div class="container mx-auto">
                 <h2 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white">
@@ -45,7 +44,6 @@
             </div>
         </section>
 
-        <!-- Features Section -->
         <section id="features" class="py-20 px-6 bg-gray-900">
             <div class="container mx-auto">
                 <div class="text-center mb-16">
@@ -55,7 +53,8 @@
                     </p>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 text-center">
-                    <div class="flex flex-col items-center">
+                    <!-- Features -->
+                     <div class="flex flex-col items-center">
                         <div class="feature-icon bg-indigo-500/20 text-indigo-300 rounded-lg flex items-center justify-center mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         </div>
@@ -99,7 +98,7 @@
             <div class="container mx-auto">
                 <h3 class="text-4xl font-bold text-white">Ready to Organize Your Music?</h3>
                  <p class="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
-                    Spend less time managing files and more time making music. Start your free trial and get instant access to the entire ProAnthem toolkit.
+                    Spend less time managing files and more time making music. Create your account and get instant access to the entire ProAnthem toolkit.
                 </p>
                 <div class="mt-8">
                     <a href="/pricing.html" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
@@ -108,7 +107,6 @@
                 </div>
             </div>
         </section>
-
     </main>
 
     <footer class="text-center py-6 text-gray-500">
@@ -121,34 +119,22 @@
             <div id="login-view">
                 <h2 class="text-3xl font-bold text-center mb-6">Log In to ProAnthem</h2>
                 <form id="login-form" class="space-y-6">
-                    <input id="login-email" name="email" type="email" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Email address">
-                    <input id="login-password" name="password" type="password" required class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-md" placeholder="Password">
+                    <input id="login-email" name="email" type="email" required class="form-input" placeholder="Email address">
+                    <input id="login-password" name="password" type="password" required class="form-input" placeholder="Password">
                     <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Log In</button>
                 </form>
                 <p id="login-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
                 <p class="text-center text-sm text-gray-400 mt-4">Don't have an account? <a href="/pricing.html" class="font-medium text-indigo-400 hover:text-indigo-300">Sign up here</a></p>
             </div>
-            <!-- The signup form is removed from here as it's no longer the primary entry point -->
         </div>
     </div>
 
     <script src="/auth_proanthem.js"></script>
     <script>
+        // Modal is now only for logging in
         const authModal = document.getElementById('auth-modal');
-        const loginModalButton = document.getElementById('login-modal-button');
         const closeModalButton = document.getElementById('close-modal-button');
-        const loginView = document.getElementById('login-view');
-        
-        // This is called by the `updateNav` in the auth script
-        function openModal(view) {
-             if (view === 'login') {
-                authModal.classList.remove('hidden');
-                authModal.classList.add('flex');
-            }
-        };
-
-        const closeModal = () => { authModal.classList.add('hidden'); authModal.classList.remove('flex'); };
-        loginModalButton.addEventListener('click', () => openModal('login'));
+        const closeModal = () => authModal.classList.add('hidden');
         closeModalButton.addEventListener('click', closeModal);
         authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
     </script>
