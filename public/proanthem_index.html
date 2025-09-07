@@ -11,6 +11,18 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
         .feature-icon { width: 4rem; height: 4rem; }
+        /* --- FIX: Specific styles for the login modal inputs --- */
+        #auth-modal input {
+            background-color: #1f2937; /* dark gray */
+            border: 1px solid #4b5563; /* medium gray */
+            color: #ffffff; /* white text */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 0.75rem 1rem; /* px-4 py-3 */
+            width: 100%;
+        }
+        #auth-modal input::placeholder {
+            color: #9ca3af; /* gray-400 */
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -21,12 +33,13 @@
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
         <div id="nav-auth-section">
-            <!-- Populated by auth script -->
+            <button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
+                Log In
+            </button>
         </div>
     </header>
 
     <main class="flex-grow">
-        <!-- Hero Section -->
         <section class="text-center py-20 px-6">
             <div class="container mx-auto">
                 <h2 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white">
@@ -43,7 +56,6 @@
             </div>
         </section>
 
-        <!-- Features Section -->
         <section id="features" class="py-20 px-6 bg-gray-900">
             <div class="container mx-auto">
                 <div class="text-center mb-16">
@@ -112,15 +124,15 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <!-- ProAnthem Login/Signup Modal -->
     <div id="auth-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
         <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-md w-full text-white" role="dialog" aria-modal="true">
             <button id="close-modal-button" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button>
             <div id="login-view">
                 <h2 class="text-3xl font-bold text-center mb-6">Log In to ProAnthem</h2>
+                <!-- --- FIX: Removed inline classes from inputs so the <style> tag can take over --- -->
                 <form id="login-form" class="space-y-6">
-                    <input id="login-email" name="email" type="email" required class="form-input" placeholder="Email address">
-                    <input id="login-password" name="password" type="password" required class="form-input" placeholder="Password">
+                    <input id="login-email" name="email" type="email" required placeholder="Email address">
+                    <input id="login-password" name="password" type="password" required placeholder="Password">
                     <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Log In</button>
                 </form>
                 <p id="login-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
@@ -131,7 +143,7 @@
 
     <script src="/auth_proanthem.js"></script>
     <script>
-        // --- FIX: This script is now lean and only handles closing the modal ---
+        // Lean and clean: auth_proanthem.js now handles the "Log In" button listener.
         const authModal = document.getElementById('auth-modal');
         const closeModalButton = document.getElementById('close-modal-button');
         const closeModal = () => authModal.classList.add('hidden');
