@@ -58,8 +58,6 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- FIX: Removed the non-existent 'id' column from the SELECT statement. ---
-            // The frontend only needs email, name, and role.
             const query = `SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
@@ -77,7 +75,8 @@ exports.handler = async (event) => {
             }
             
             const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
-            const defaultPassword = `${bandDetails.band_name}${bandDetails.band_number}`;
+            // --- FIX: Changed default password to be only the band number ---
+            const defaultPassword = bandDetails.band_number.toString();
             const password_hash = await bcrypt.hash(defaultPassword, 10);
             
             const insertQuery = `
@@ -89,16 +88,13 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
-            // --- FIX: The body from the frontend sends `emailToRemove`. This now correctly reads that value. ---
             const { emailToRemove } = JSON.parse(event.body);
             if (!emailToRemove) { return { statusCode: 400, body: JSON.stringify({ message: 'User email is required.' })}; }
 
-            // --- FIX: The query now correctly uses `email` to find the user to remove. ---
             const { rows: [userToRemove] } = await client.query('SELECT role FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             if(!userToRemove) { return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })}; }
             if(userToRemove.role === 'band_admin' || userToRemove.role === 'admin') { return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin.' })}; }
 
-            // --- FIX: The DELETE statement now correctly uses `email` to remove the user. ---
             await client.query('DELETE FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
             return { statusCode: 204, body: '' };
         }
