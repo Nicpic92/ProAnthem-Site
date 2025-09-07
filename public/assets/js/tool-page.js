@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         const hasAccess = checkAccess();
         if (hasAccess && document.getElementById('tool-content')) {
+            // Check if the element exists before trying to modify it
             document.getElementById('tool-content').style.display = 'block';
             initializeApp();
         }
@@ -47,7 +48,7 @@ function initializeApp() {
     let mediaRecorder, audioChunks = [];
     let fretSelectionContext = { blockId: null, string: null, position: null };
     let selectedNote = { blockId: null, noteIndex: null };
-    let activeResize = { element: null, startY: 0, startHeight: 0 };
+    let activeResize = { element: null, startY: 0, startHeight: 0, blockId: null };
     let isDraggingNote = false;
 
     // Element selectors
@@ -74,6 +75,8 @@ function initializeApp() {
     const recordBtn = document.getElementById('recordBtn');
     const stopBtn = document.getElementById('stopBtn');
     const recordingStatus = document.getElementById('recordingStatus');
+    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+    const audioPlayer = document.getElementById('audioPlayer');
     const setlistModal = document.getElementById('setlistModal');
     const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
     const setlistSelector = document.getElementById('setlistSelector');
@@ -598,6 +601,12 @@ function initializeApp() {
             songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [] };
             titleInput.value = songData.title;
             artistInput.value = songData.artist;
+            if (songData.audio_url) {
+                audioPlayer.src = songData.audio_url;
+                audioPlayerContainer.classList.remove('hidden');
+            } else {
+                audioPlayerContainer.classList.add('hidden');
+            }
             renderSongBlocks();
             setStatus('Song loaded.');
         } catch (error) {
@@ -610,6 +619,7 @@ function initializeApp() {
         songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
         titleInput.value = '';
         artistInput.value = '';
+        audioPlayerContainer.classList.add('hidden');
         songSelector.value = 'new';
         renderSongBlocks();
     }
@@ -667,7 +677,7 @@ function initializeApp() {
     
     function parseLineForRender(rawLine) { let chordLine = ''; let lyricLine = ''; const regex = /(\[[^\]]+\])|([^\[]+)/g; let match; if (!rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' }; while ((match = regex.exec(rawLine)) !== null) { if (match[1]) { const chordName = match[1].slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } if (match[2]) { chordLine += ' '.repeat(match[2].length); lyricLine += match[2]; } } return { chordLine: chordLine.trimEnd() || ' ', lyricLine: lyricLine.trimEnd() || ' ' }; }
     function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
-    async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) songSelector.value = selectId; else if (songs.length > 0) { await loadSong(songs[0].id); songSelector.value = songs[0].id; } else { initializeNewSong(); }} catch (e) { setStatus('Failed to load songs.', true); } }
+    async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) { songSelector.value = selectId; await loadSong(selectId); } else if (songs.length > 0) { await loadSong(songs[0].id); songSelector.value = songs[0].id; } else { initializeNewSong(); }} catch (e) { setStatus('Failed to load songs.', true); } }
     async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); await loadSheetList(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
     function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
     function updateTransposeStatus(steps) { musicalContext.transpose = steps; transposeStatus.textContent = steps > 0 ? `+${steps}` : steps; }
@@ -699,7 +709,7 @@ function initializeApp() {
     async function handleAddChord() { const name = newChordInput.value.trim(); if (!name) return; try { await api.createChord({ name }); newChordInput.value = ''; setStatus(`'${name}' added.`); await loadChords(); } catch (e) { setStatus(e.message, true); } }
     async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
     function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
-    async function handleSaveRecording() { /* ... This function would need Cloudinary setup ... */ setStatus('Recording upload not configured.', true); }
+    async function handleSaveRecording() { setStatus('Recording upload not yet implemented.', true); } // Placeholder
     
     function attachFretboardListeners(svgEl) {
         const blockId = svgEl.id.split('-').pop();
@@ -812,6 +822,7 @@ function initializeApp() {
 
     document.addEventListener('mousemove', e => {
         if (activeResize.element) {
+            document.body.style.cursor = 'ns-resize';
             const height = activeResize.startHeight + e.clientY - activeResize.startY;
             activeResize.element.style.height = `${Math.max(50, height)}px`;
         }
@@ -834,7 +845,7 @@ function initializeApp() {
         if (activeResize.element) {
             const newHeight = activeResize.element.offsetHeight;
             updateBlockData(activeResize.blockId, null, null, newHeight);
-            activeResize = { element: null, startY: 0, startHeight: 0 };
+            activeResize = { element: null, startY: 0, startHeight: 0, blockId: null };
             document.body.style.cursor = '';
         }
         if(isDraggingNote) {
@@ -852,6 +863,19 @@ function initializeApp() {
             }
             isDraggingNote = false;
             renderPreview(); 
+        }
+    });
+
+    songBlocksContainer.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('resize-handle')) {
+            const blockEl = e.target.closest('.song-block');
+            const textarea = blockEl.querySelector('textarea');
+            activeResize = {
+                element: textarea,
+                startY: e.clientY,
+                startHeight: textarea.offsetHeight,
+                blockId: blockEl.dataset.blockId
+            };
         }
     });
 
