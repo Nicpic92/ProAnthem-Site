@@ -171,4 +171,30 @@
             try {
                 const result = await apiRequest('band/members', payload, 'POST');
                 
-                alert(`Member added!\n\nPlease send them the following credentials:\nEmail: ${payload.email}\nPassw
+                alert(`Member added!\n\nPlease send them the following credentials:\nEmail: ${payload.email}\nPassword: ${result.message.split(': ')[1]}`);
+
+                statusEl.textContent = 'Member added successfully!';
+                statusEl.className = 'text-sm mt-3 h-5 text-green-400';
+                event.target.reset();
+                loadBandMembers();
+            } catch(error) {
+                statusEl.textContent = `Error: ${error.message}`;
+                statusEl.className = 'text-sm mt-3 h-5 text-red-500';
+            } finally {
+                 button.disabled = false;
+            }
+        }
+
+        async function removeMember(userId, userEmail) {
+            if (confirm(`Are you sure you want to remove ${userEmail} from the band? They will lose access immediately.`)) {
+                try {
+                    await apiRequest('band/members', { userIdToRemove: userId }, 'DELETE');
+                    loadBandMembers();
+                } catch(error) {
+                    alert(`Failed to remove member: ${error.message}`);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
