@@ -8,7 +8,6 @@ const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
-    // ... (Code is identical to the last verified version, it is already correct)
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
@@ -46,13 +45,13 @@ exports.handler = async (event) => {
         const specialStatuses = ['admin_granted'];
 
         if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
-            console.log(`Bypassing Stripe check for special role/status user: ${user.email}`);
+            // This is a special user, trust our database and do not check Stripe.
         } else {
+            // This is a paying customer, verify their status with Stripe
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
-                    status: 'all',
-                    limit: 1,
+                    status: 'all', limit: 1,
                 });
 
                 let newStatus = 'inactive';
@@ -73,14 +72,12 @@ exports.handler = async (event) => {
                     }
                 }
                 
-                if (newStatus !== user.subscription_status || newRole !== user.role) {
-                    await client.query(
-                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                        [newStatus, newPlan, newRole, user.email]
-                    );
-                    subStatus = newStatus;
-                    userRole = newRole;
-                }
+                await client.query(
+                    'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                    [newStatus, newPlan, newRole, user.email]
+                );
+                subStatus = newStatus;
+                userRole = newRole;
             } else {
                 subStatus = 'inactive';
             }
@@ -88,24 +85,19 @@ exports.handler = async (event) => {
         
         const tokenPayload = {
             user: {
-                email: user.email,
-                role: userRole,
-                name: user.first_name,
-                band_id: user.band_id,
-                subscription_status: subStatus,
+                email: user.email, role: userRole, name: user.first_name,
+                band_id: user.band_id, subscription_status: subStatus,
                 force_reset: forceReset 
             }
         };
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
 
+        // IMPORTANT: Clear the flag *after* the token has been created
         if(forceReset) {
             await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
         }
         
-        return {
-            statusCode: 200,
-            body: JSON.stringify({ message: 'Login successful.', token: token })
-        };
+        return { statusCode: 200, body: JSON.stringify({ message: 'Login successful.', token: token }) };
     } catch (error) {
         console.error('Login Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error' }) };
