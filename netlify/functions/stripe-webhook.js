@@ -14,6 +14,12 @@ exports.handler = async ({ body, headers }) => {
         return { statusCode: 400, body: `Webhook Error: ${err.message}` };
     }
 
+    // --- Only handle the events we care about ---
+    if (!event.type.startsWith('customer.subscription.')) {
+        console.log(`Ignoring irrelevant Stripe event type: ${event.type}`);
+        return { statusCode: 200, body: JSON.stringify({ received: true, message: "Event ignored." }) };
+    }
+    
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
@@ -24,18 +30,21 @@ exports.handler = async ({ body, headers }) => {
 
         const subscription = event.data.object;
         const stripeCustomerId = subscription.customer;
-        const newStatus = subscription.status; // 'active', 'trialing', 'canceled', etc.
+        const newStatus = subscription.status; // e.g., 'trialing', 'active', 'canceled'
         const subscriptionId = subscription.id;
         
-        // Log all incoming events for debugging
-        console.log(`Received Stripe event: ${event.type} for customer ${stripeCustomerId} with status ${newStatus}`);
+        console.log(`HANDLING STRIPE EVENT: Type=${event.type}, Customer=${stripeCustomerId}, New Status=${newStatus}`);
 
-        // Update the user's status and subscription ID in your database
-        // This covers trial starting, payment succeeding, payment failing, cancellation, etc.
-        await client.query(
+        const result = await client.query(
             `UPDATE users SET subscription_status = $1, subscription_id = $2 WHERE stripe_customer_id = $3`, 
             [newStatus, subscriptionId, stripeCustomerId]
         );
+        
+        if (result.rowCount > 0) {
+            console.log(`SUCCESS: User status updated for customer ${stripeCustomerId}.`);
+        } else {
+            console.warn(`WARNING: No user found with stripe_customer_id ${stripeCustomerId}. Update failed.`);
+        }
 
     } catch (error) {
         console.error('Error handling webhook:', error);
