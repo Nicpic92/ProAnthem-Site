@@ -1,3 +1,4 @@
+--chunk 1
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -67,7 +68,7 @@
         </header>
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <aside id="sidebar" class="md:col-span-1">
-                <div class="sticky top-8 space-y-6 max-h-[90vh] overflow-y-auto pr-2">
+                <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
                     <div>
                         <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
                         <select id="songSelector" class="form-select"></select>
@@ -109,6 +110,7 @@
                     </div>
                 </div>
             </aside>
+            --chunk 2
             <div class="md:col-span-3 space-y-4">
                 <input type="text" id="titleInput" class="form-input text-xl" placeholder="Song Title">
                 <input type="text" id="artistInput" class="form-input" placeholder="Artist Name">
@@ -192,14 +194,14 @@
             <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
         </div>
     </div>
-
+    --chunk 3
     <script src="/auth_proanthem.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             if (checkAccess()) {
                 initializeApp();
             }
-        }); 
+        });
         
         function initializeApp() {
             let songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [] };
@@ -329,7 +331,7 @@
                     setStatus('Failed to load setlists.', true);
                 }
             }
-
+    ---chunk 4
             async function handleSetlistSelection(setlistId) {
                 if (!setlistId) {
                     currentSetlistTitle.textContent = 'Select a setlist';
@@ -491,7 +493,6 @@
                         }
                     };
 
-                    // Title Page
                     addWatermarkToPage();
                     doc.setFontSize(26);
                     doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth });
@@ -513,7 +514,6 @@
                         y += splitTitle.length * 7;
                     });
 
-                    // Individual Song Pages
                     for (const song of (setlist.songs || [])) {
                         addWatermarkToPage(); doc.addPage(); y = 20; addWatermarkToPage();
                         doc.setFontSize(18); doc.setFont(undefined, 'bold');
@@ -656,6 +656,7 @@
                 }
                 return null;
             }
+
 
             function drawFretboard(blockId) {
                 const container = document.getElementById(`fretboard-${blockId}`);
@@ -875,25 +876,24 @@
                 svgEl.addEventListener('mousedown', (e) => {
                     isDraggingNote = false; 
                     if (block.editMode && e.target.closest('.note-group')) {
+                        isDraggingNote = true;
                         const noteGroup = e.target.closest('.note-group');
                         const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
                         selectedNote = { blockId, noteIndex };
-                        isDraggingNote = true;
                         drawNotesOnFretboard(blockId);
                     }
                 });
                 
                 svgEl.addEventListener('click', (e) => {
                     if (isDraggingNote) { isDraggingNote = false; return; }
-                    
                     const isNoteClick = e.target.closest('.note-group');
+                    
                     if (block.editMode) {
                         if (isNoteClick) {
                             const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
                             if (selectedNote.blockId === blockId && selectedNote.noteIndex === clickedNoteIndex) {
                                 block.data.notes.splice(clickedNoteIndex, 1);
                                 selectedNote = { blockId: null, noteIndex: null };
-                                renderPreview();
                             } else {
                                 selectedNote = { blockId, noteIndex: clickedNoteIndex };
                             }
@@ -933,9 +933,10 @@
                         const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`);
                         const clickData = getFretFromClick(e, svg);
                         if (clickData) {
-                           note.position = clickData.position;
-                           note.string = clickData.string;
-                           drawNotesOnFretboard(selectedNote.blockId);
+                        note.position = clickData.position;
+                        const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                        note.fret = clickData.fret + totalOffset;
+                        drawNotesOnFretboard(selectedNote.blockId);
                         }
                     }
                 }
