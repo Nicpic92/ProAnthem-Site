@@ -108,23 +108,24 @@ exports.handler = async (event) => {
             }
         }
         if (event.httpMethod === 'DELETE') {
-             // --- NEW: Delete an entire setlist ---
             if (setlistId && !resourceType) {
                  await client.query('BEGIN');
                  try {
-                     await client.query('DELETE FROM setlist_songs WHERE setlist_id = $1', [setlistId]);
-                     const result = await client.query('DELETE FROM setlists WHERE id = $1 AND band_id = $2', [setlistId, bandId]);
-                     if (result.rowCount === 0) {
+                     // Check if setlist belongs to the user's band before deleting
+                     const checkQuery = `SELECT 1 FROM setlists WHERE id = $1 AND band_id = $2`;
+                     const checkResult = await client.query(checkQuery, [setlistId, bandId]);
+                     if (checkResult.rows.length === 0) {
                          throw new Error('Setlist not found or access denied');
                      }
+                     await client.query('DELETE FROM setlist_songs WHERE setlist_id = $1', [setlistId]);
+                     await client.query('DELETE FROM setlists WHERE id = $1', [setlistId]);
                      await client.query('COMMIT');
                      return { statusCode: 204, body: '' };
                  } catch (e) {
                      await client.query('ROLLBACK');
                      throw e;
                  }
-            }
-            if (setlistId && resourceType === 'songs' && songId) {
+            } else if (setlistId && resourceType === 'songs' && songId) {
                  const checkQuery = `SELECT 1 FROM setlists WHERE id = $1 AND band_id = $2`;
                  const checkResult = await client.query(checkQuery, [setlistId, bandId]);
                  if (checkResult.rows.length === 0) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden' }) };
