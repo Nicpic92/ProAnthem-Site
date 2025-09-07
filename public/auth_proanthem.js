@@ -2,10 +2,30 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
+
+    // --- MODAL & FORM LOGIC ---
+    // This logic is now part of the main auth script to ensure it runs correctly.
     const loginForm = document.getElementById('login-form');
-    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
+    
     const signupFormPricing = document.querySelector("#signup-view form");
-    if(signupFormPricing) signupFormPricing.addEventListener('submit', handleSignupForPricing);
+    if(signupFormPricing) {
+        signupFormPricing.addEventListener('submit', handleSignupForPricing);
+    }
+
+    const authModal = document.getElementById('auth-modal');
+    const closeModalButton = document.getElementById('close-modal-button');
+    if (authModal && closeModalButton) {
+        const closeModal = () => authModal.classList.add('hidden');
+        closeModalButton.addEventListener('click', closeModal);
+        authModal.addEventListener('click', (e) => { 
+            if (e.target === authModal) {
+                closeModal(); 
+            }
+        });
+    }
 });
 
 // --- Core Auth & API Functions ---
@@ -36,7 +56,7 @@ function updateNav() {
 
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
-        if (user.role === 'admin' || user.role === 'band_admin') { // Admins and Band Admins see this
+        if (user.role === 'admin' || user.role === 'band_admin') {
              buttonHtml = `<a href="/Band.html" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 mr-4">Manage Band</a>` + buttonHtml;
         }
         if (user.role === 'admin') {
@@ -47,13 +67,12 @@ function updateNav() {
     } else {
         navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
-        if(loginBtn && typeof openModal === 'function') {
+        if(loginBtn) {
             loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
 }
 
-// THIS IS THE CORRECT, ROBUST API FUNCTION
 async function apiRequest(endpoint, data = null, method = 'GET') {
     const url = `/api/${endpoint}`;
     const token = getToken();
@@ -64,34 +83,19 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
     
     try {
         const response = await fetch(url, options);
-        
-        // **THIS IS THE CRITICAL FIX:** Properly handle 204 No Content responses
         if (response.status === 204) {
             return null;
         }
-
         const responseData = await response.json();
-        
         if (!response.ok) {
             throw new Error(responseData.message || `API Error: ${response.status}`);
         }
         return responseData;
     } catch (error) {
-        // If the error is from parsing empty JSON, it's not a real issue for 204s,
-        // but we'll log other errors.
-        if (!(error instanceof SyntaxError)) {
-             console.error(`API Request Error to ${endpoint}:`, error);
-        }
-        // Re-throw if it's a server-generated error message
-        if (error.message.startsWith("API Error")) {
-            throw error;
-        }
-        // For SyntaxError on empty body, we depend on the 204 check above.
-        // If it still fails, it's a different issue.
-        return null;
+        console.error(`API Request Error to ${endpoint}:`, error);
+        throw error;
     }
 }
-
 
 // --- Subscription & Access Control ---
 function checkAccess() {
@@ -184,6 +188,7 @@ async function performLogin(credentials, redirectTo = null) {
     }
 }
 
+// This function is called by the nav button.
 function openModal(view) {
     const authModal = document.getElementById('auth-modal');
     if(authModal) {
@@ -192,11 +197,6 @@ function openModal(view) {
             authModal.classList.remove('hidden'); 
             authModal.classList.add('flex'); 
             loginView.classList.remove('hidden');
-            const loginForm = document.getElementById('login-form');
-            if (loginForm && !loginForm.dataset.listenerAttached) {
-                 loginForm.addEventListener('submit', handleLogin);
-                 loginForm.dataset.listenerAttached = 'true';
-            }
         }
     }
 }
