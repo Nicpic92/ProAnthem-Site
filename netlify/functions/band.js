@@ -1,7 +1,7 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const crypto = require('crypto'); // Built-in Node.js module for generating secure tokens
+const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -33,11 +33,12 @@ exports.handler = async (event) => {
 
     try {
         await client.connect();
-        const path = event.path.replace('/.netlify/functions', '').replace('/api', ''); //  /band, /band/members, etc.
+        const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const pathParts = path.split('/').filter(Boolean);
-        const resource = pathParts[1]; // 'members' or 'invites'
+        const resource = pathParts[1];
 
         if (event.httpMethod === 'GET' && resource === 'members') {
+            // --- FIX: The SQL query now selects the correct columns ---
             const query = `SELECT id, email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
@@ -51,7 +52,6 @@ exports.handler = async (event) => {
 
             const inviteToken = crypto.randomBytes(32).toString('hex');
             
-            // Check if user already exists in the system or in the band
             const { rows: [existingUser] } = await client.query('SELECT band_id FROM users WHERE email = $1', [emailToInvite.toLowerCase()]);
             if (existingUser) {
                 return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists in the system.' }) };
@@ -61,15 +61,15 @@ exports.handler = async (event) => {
                 INSERT INTO band_invites (band_id, email, token)
                 VALUES ($1, $2, $3)
                 ON CONFLICT (band_id, email) DO UPDATE SET token = EXCLUDED.token
-                RETURNING *;
+                RETURNING token;
             `;
             const result = await client.query(query, [bandId, emailToInvite.toLowerCase(), inviteToken]);
+            const newInviteToken = result.rows[0].token;
             
-            // In a real application, you would email this link:
-            const signupLink = `${process.env.SITE_URL}/pricing.html?invite_token=${inviteToken}`;
+            const signupLink = `${process.env.SITE_URL}/pricing.html?invite_token=${newInviteToken}`;
             console.log(`SIGNUP LINK (for dev): ${signupLink}`);
             
-            return { statusCode: 201, body: JSON.stringify({ message: 'Invite sent successfully.' }) };
+            return { statusCode: 201, body: JSON.stringify({ message: 'Invite sent successfully.', token: newInviteToken }) };
         }
 
         if (event.httpMethod === 'DELETE' && resource === 'members') {
@@ -77,10 +77,12 @@ exports.handler = async (event) => {
             if (!userIdToRemove) {
                  return { statusCode: 400, body: JSON.stringify({ message: 'User ID to remove is required.' })};
             }
-            // You can't remove yourself, the band_admin
-            const { rows: [userToRemove] } = await client.query('SELECT email FROM users WHERE id = $1', [userIdToRemove]);
-            if(userToRemove.email === userEmail) {
-                 return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove yourself from the band.' })};
+            const { rows: [userToRemove] } = await client.query('SELECT email, role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
+            if(!userToRemove) {
+                 return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })};
+            }
+            if(userToRemove.role === 'band_admin' || userToRemove.role === 'admin') {
+                 return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin from the band.' })};
             }
 
             await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
