@@ -121,8 +121,16 @@
             </div>
         </div>
     </div>
-
-    <script src="/assets/auth.js"></script>
-    <script src="/assets/home-page.js"></script>
+    
+    <!-- CORRECTED SCRIPT PATHS -->
+    <script src="/assets/auth_proanthem.js"></script>
+    <script>
+        // Lean and clean: auth_proanthem.js now handles the "Log In" button listener.
+        const authModal = document.getElementById('auth-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const closeModal = () => authModal.classList.add('hidden');
+        closeModalButton.addEventListener('click', closeModal);
+        authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
+    </script>
 </body>
 </html>
