@@ -214,7 +214,7 @@
     </div>
 
     <script src="/auth_proanthem.js"></script>
-        <script>
+    <script>
         document.addEventListener('DOMContentLoaded', () => {
             const hasAccess = checkAccess();
             // initializeApp() will only run if the tool content is made visible by checkAccess
@@ -245,7 +245,6 @@
             const songSelector = document.getElementById('songSelector');
             const saveBtn = document.getElementById('saveBtn');
             const deleteBtn = document.getElementById('deleteBtn');
-            // const logoutBtn = document.getElementById('logoutBtn'); // --- THIS LINE IS REMOVED ---
             const statusMessage = document.getElementById('statusMessage');
             const chordPalette = document.querySelector('#sidebar #chordPalette');
             const newChordInput = document.querySelector('#sidebar #newChordInput');
@@ -278,6 +277,9 @@
             const fretNumberSelector = document.getElementById('fret-number-selector');
             const addFretBtn = document.getElementById('add-fret-btn');
             const cancelFretBtn = document.getElementById('cancel-fret-btn');
+            
+            // --- NEW: Define the sounding key display element ---
+            const soundingKeyDisplay = document.getElementById('soundingKeyDisplay');
             
             const TUNINGS = { 
                 E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
@@ -327,6 +329,32 @@
                 updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
             };
             
+            // --- NEW: Function to calculate and display the sounding key ---
+            function updateSoundingKey() {
+                const capoFret = parseInt(capoFretInput.value, 10) || 0;
+                let firstChord = null;
+
+                // Find the first chord in the entire song's content
+                for (const block of songData.song_blocks) {
+                    if (block.type === 'lyrics' && block.content) {
+                        const match = block.content.match(/\[([^\]]+)\]/);
+                        if (match) {
+                            firstChord = match[1];
+                            break; // Found it, no need to look further
+                        }
+                    }
+                }
+                
+                if (!firstChord) {
+                    soundingKeyDisplay.textContent = '-'; // Display a dash if no chords are found
+                    return;
+                }
+
+                // Use the existing transposeChord helper function for the calculation
+                const soundingKey = transposeChord(firstChord, capoFret);
+                soundingKeyDisplay.textContent = soundingKey;
+            }
+
             async function openSetlistManager() {
                 setlistModal.classList.remove('hidden');
                 await loadSetlists();
@@ -790,6 +818,7 @@
                     artistInput.value = songData.artist;
                     renderSongBlocks();
                     setStatus('Song loaded.');
+                    updateSoundingKey(); // --- Call after song loads ---
                 } catch (error) {
                     setStatus(`Error loading song: ${error.message}`, true);
                     initializeNewSong();
@@ -807,6 +836,7 @@
                     artistInput.value = '';
                     songSelector.value = 'new';
                     renderSongBlocks();
+                    updateSoundingKey();
                 }
             }
 
@@ -880,22 +910,32 @@
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
             async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
 
+            // --- CORRECTED: Combined musical input listeners ---
             const musicalInputs = [tuningSelector, capoFretInput];
             musicalInputs.forEach(el => el.addEventListener('input', () => {
                 musicalContext.tuning = tuningSelector.value;
                 musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
                 renderSongBlocks();
+                updateSoundingKey(); // This now correctly handles capo changes
             }));
+
             transposeUpBtn.addEventListener('click', () => handleTranspose(1));
             transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
             saveBtn.addEventListener('click', handleSave);
             deleteBtn.addEventListener('click', handleDelete);
-            // logoutBtn.addEventListener('click', () => { logout() }); // --- THIS LINE IS REMOVED ---
             addChordBtn.addEventListener('click', handleAddChord);
             newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
             clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
             songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
-            songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); } });
+            
+            // --- CORRECTED: Added updateSoundingKey() to the input listener ---
+            songBlocksContainer.addEventListener('input', e => {
+                if (e.target.dataset.field) {
+                    const blockId = e.target.closest('.song-block').dataset.blockId;
+                    updateBlockData(blockId, 'content', e.target.value);
+                    updateSoundingKey();
+                }
+            });
             
             function attachFretboardListeners(svgEl) {
                 const blockId = svgEl.id.split('-').pop();
@@ -1025,7 +1065,7 @@
                     }
                 }
             });
-
+            
             document.addEventListener('keydown', (e) => {
                 if (!selectedNote.blockId || selectedNote.noteIndex === null) return;
                 if (e.key === 'Backspace' || e.key === 'Delete') {
