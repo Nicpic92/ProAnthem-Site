@@ -208,7 +208,7 @@
     </div>
 
     <script src="/auth_proanthem.js"></script>
-    <script>
+        <script>
         document.addEventListener('DOMContentLoaded', () => {
             const hasAccess = checkAccess();
             // initializeApp() will only run if the tool content is made visible by checkAccess
@@ -239,7 +239,7 @@
             const songSelector = document.getElementById('songSelector');
             const saveBtn = document.getElementById('saveBtn');
             const deleteBtn = document.getElementById('deleteBtn');
-            const logoutBtn = document.getElementById('logoutBtn');
+            // const logoutBtn = document.getElementById('logoutBtn'); // --- THIS LINE IS REMOVED ---
             const statusMessage = document.getElementById('statusMessage');
             const chordPalette = document.querySelector('#sidebar #chordPalette');
             const newChordInput = document.querySelector('#sidebar #newChordInput');
@@ -884,7 +884,7 @@
             transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
             saveBtn.addEventListener('click', handleSave);
             deleteBtn.addEventListener('click', handleDelete);
-            logoutBtn.addEventListener('click', () => { logout() });
+            // logoutBtn.addEventListener('click', () => { logout() }); // --- THIS LINE IS REMOVED ---
             addChordBtn.addEventListener('click', handleAddChord);
             newChordInput.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
             clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
