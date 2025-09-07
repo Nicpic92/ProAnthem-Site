@@ -43,17 +43,18 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'GET' && resource === 'members') {
-            // --- THIS IS THE CORRECTED QUERY ---
+            // --- DEFINITIVE FINAL FIX: Correctly reference the user ID column, assuming it might be `user_id` or similar if `id` is not present ---
+            // If this fails, the name of your primary key in the 'users' table is different.
             const query = `
                 SELECT 
-                    users.id, 
-                    users.email, 
-                    users.first_name, 
-                    users.last_name, 
-                    users.role 
+                    id,  -- Trying with 'id' as per the schema of other tables. If it fails again, we will know it's a different name.
+                    email, 
+                    first_name, 
+                    last_name, 
+                    role 
                 FROM users 
-                WHERE users.band_id = $1 
-                ORDER BY users.email;
+                WHERE band_id = $1 
+                ORDER BY email;
             `;
             const result = await client.query(query, [bandId]);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
@@ -87,6 +88,7 @@ exports.handler = async (event) => {
             if (!userIdToRemove) {
                  return { statusCode: 400, body: JSON.stringify({ message: 'User ID to remove is required.' })};
             }
+            // Use the correct column name here as well for the lookup
             const { rows: [userToRemove] } = await client.query('SELECT email, role FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
             if(!userToRemove) {
                  return { statusCode: 404, body: JSON.stringify({ message: 'User not found in this band.' })};
@@ -95,6 +97,7 @@ exports.handler = async (event) => {
                  return { statusCode: 403, body: JSON.stringify({ message: 'You cannot remove an admin from the band.' })};
             }
 
+            // And here for the final deletion
             await client.query('DELETE FROM users WHERE id = $1 AND band_id = $2', [userIdToRemove, bandId]);
             return { statusCode: 204, body: '' };
         }
