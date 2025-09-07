@@ -18,8 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
 async function handleCreateUser(event) {
     event.preventDefault();
     const statusEl = document.getElementById('create-user-status');
+    const button = event.target.querySelector('button[type="submit"]');
+    const originalButtonText = button.textContent;
+
     statusEl.textContent = 'Creating user...';
-    statusEl.classList.remove('text-green-400', 'text-red-500');
+    statusEl.className = 'text-sm mt-3 h-5 text-yellow-400';
+    button.disabled = true;
+    button.textContent = 'Creating...';
 
     const email = document.getElementById('new-email').value;
     const bandName = document.getElementById('new-bandname').value;
@@ -27,12 +32,15 @@ async function handleCreateUser(event) {
     try {
         const result = await apiRequest('admin-tasks/create-user', { email, bandName }, 'POST');
         statusEl.textContent = result.message;
-        statusEl.classList.add('text-green-400');
+        statusEl.className = 'text-sm mt-3 h-5 text-green-400';
         document.getElementById('create-user-form').reset();
         loadUsers();
     } catch (error) {
         statusEl.textContent = `Error: ${error.message}`;
-        statusEl.classList.add('text-red-500');
+        statusEl.className = 'text-sm mt-3 h-5 text-red-500';
+    } finally {
+        button.disabled = false;
+        button.textContent = originalButtonText;
     }
 }
 
@@ -84,16 +92,16 @@ async function loadUsers() {
 
 async function changeUserRole(email, newRole) {
     if (!confirm(`Are you sure you want to change the role for ${email} to "${newRole}"?`)) {
-        loadUsers();
+        loadUsers(); // Reload to reset the dropdown if the user cancels
         return;
     }
     try {
         await apiRequest('admin-tasks/update-role', { email, newRole }, 'POST');
         alert('User role updated successfully.');
-        loadUsers();
+        // No need to reload here, the UI is already updated. A success message is enough.
     } catch (error) {
         alert(`Error updating role: ${error.message}`);
-        loadUsers();
+        loadUsers(); // Reload to reset the UI state on error
     }
 }
 
@@ -104,7 +112,7 @@ async function deleteUser(email) {
     try {
         await apiRequest('admin-tasks/delete-user', { email }, 'POST');
         alert('User deleted successfully.');
-        loadUsers();
+        loadUsers(); // Reload the list to remove the deleted user
     } catch (error) {
         alert(`Error deleting user: ${error.message}`);
     }
