@@ -8,34 +8,17 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
-        .feature-icon { width: 4rem; height: 4rem; }
-        /* --- FIX: Specific styles for the login modal inputs --- */
-        #auth-modal input {
-            background-color: #1f2937; /* dark gray */
-            border: 1px solid #4b5563; /* medium gray */
-            color: #ffffff; /* white text */
-            border-radius: 0.375rem; /* rounded-md */
-            padding: 0.75rem 1rem; /* px-4 py-3 */
-            width: 100%;
-        }
-        #auth-modal input::placeholder {
-            color: #9ca3af; /* gray-400 */
-        }
-    </style>
+    <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body class="flex flex-col min-h-screen">
 
     <header class="container mx-auto p-6 flex justify-between items-center">
         <a href="/proanthem_index.html" class="flex items-center space-x-4">
-            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <img src="/assets/img/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
         <div id="nav-auth-section">
-            <button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">
-                Log In
-            </button>
+            <!-- Populated by auth script -->
         </div>
     </header>
 
@@ -49,7 +32,7 @@
                     Stop chasing files across notes apps, voice memos, and email chains. ProAnthem is the single source of truth for your music, providing a unified workspace to write, organize, and perform with perfect clarity.
                 </p>
                 <div class="mt-8">
-                    <a href="/pricing.html" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
+                    <a href="/pricing.html" class="btn btn-primary text-lg rounded-full py-4 px-10">
                         View Plans & Start 3-Day Trial
                     </a>
                 </div>
@@ -66,7 +49,7 @@
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 text-center">
                      <div class="flex flex-col items-center">
-                        <div class="feature-icon bg-indigo-500/20 text-indigo-300 rounded-lg flex items-center justify-center mb-4">
+                        <div class="w-16 h-16 bg-indigo-500/20 text-indigo-300 rounded-lg flex items-center justify-center mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         </div>
                         <h4 class="text-2xl font-bold text-white">Pro Songwriting</h4>
@@ -75,7 +58,7 @@
                         </p>
                     </div>
                     <div class="flex flex-col items-center">
-                        <div class="feature-icon bg-purple-500/20 text-purple-300 rounded-lg flex items-center justify-center mb-4">
+                        <div class="w-16 h-16 bg-purple-500/20 text-purple-300 rounded-lg flex items-center justify-center mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 6l12-3" /></svg>
                         </div>
                         <h4 class="text-2xl font-bold text-white">Effortless Setlists</h4>
@@ -84,7 +67,7 @@
                         </p>
                     </div>
                     <div class="flex flex-col items-center">
-                         <div class="feature-icon bg-green-500/20 text-green-300 rounded-lg flex items-center justify-center mb-4">
+                         <div class="w-16 h-16 bg-green-500/20 text-green-300 rounded-lg flex items-center justify-center mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-2v13M9 18c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 13c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM21 12c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" /></svg>
                         </div>
                         <h4 class="text-2xl font-bold text-white">Multi-Instrument Ready</h4>
@@ -93,7 +76,7 @@
                         </p>
                     </div>
                     <div class="flex flex-col items-center">
-                        <div class="feature-icon bg-red-500/20 text-red-300 rounded-lg flex items-center justify-center mb-4">
+                        <div class="w-16 h-16 bg-red-500/20 text-red-300 rounded-lg flex items-center justify-center mb-4">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                         </div>
                         <h4 class="text-2xl font-bold text-white">Capture Ideas Instantly</h4>
@@ -112,7 +95,7 @@
                     Spend less time managing files and more time making music. Create your account and get instant access to the entire ProAnthem toolkit.
                 </p>
                 <div class="mt-8">
-                    <a href="/pricing.html" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
+                    <a href="/pricing.html" class="btn btn-primary text-lg rounded-full py-4 px-10">
                         Start Your Free Trial Now
                     </a>
                 </div>
@@ -124,16 +107,15 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <div id="auth-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
-        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-md w-full text-white" role="dialog" aria-modal="true">
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-md w-full text-white relative" role="dialog" aria-modal="true">
             <button id="close-modal-button" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button>
             <div id="login-view">
                 <h2 class="text-3xl font-bold text-center mb-6">Log In to ProAnthem</h2>
-                <!-- --- FIX: Removed inline classes from inputs so the <style> tag can take over --- -->
                 <form id="login-form" class="space-y-6">
-                    <input id="login-email" name="email" type="email" required placeholder="Email address">
-                    <input id="login-password" name="password" type="password" required placeholder="Password">
-                    <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Log In</button>
+                    <input id="login-email" name="email" type="email" required class="form-input" placeholder="Email address">
+                    <input id="login-password" name="password" type="password" required class="form-input" placeholder="Password">
+                    <button type="submit" class="btn btn-primary w-full py-3">Log In</button>
                 </form>
                 <p id="login-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
                 <p class="text-center text-sm text-gray-400 mt-4">Don't have an account? <a href="/pricing.html" class="font-medium text-indigo-400 hover:text-indigo-300">Sign up here</a></p>
@@ -141,14 +123,7 @@
         </div>
     </div>
 
-    <script src="/auth_proanthem.js"></script>
-    <script>
-        // Lean and clean: auth_proanthem.js now handles the "Log In" button listener.
-        const authModal = document.getElementById('auth-modal');
-        const closeModalButton = document.getElementById('close-modal-button');
-        const closeModal = () => authModal.classList.add('hidden');
-        closeModalButton.addEventListener('click', closeModal);
-        authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
-    </script>
+    <script src="/assets/js/auth.js"></script>
+    <script src="/assets/js/home-page.js"></script>
 </body>
 </html>
