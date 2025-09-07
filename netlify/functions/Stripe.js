@@ -1,10 +1,15 @@
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const SOLO_PLAN_PRICE_ID = process.env.STRIPE_SOLO_PRICE_ID;
 const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
 exports.handler = async (event) => {
     const authHeader = event.headers.authorization;
@@ -21,13 +26,8 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
-
+    const client = await pool.connect();
     try {
-        await client.connect();
         const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const resource = path.split('/')[2];
         
@@ -73,6 +73,6 @@ exports.handler = async (event) => {
         console.error('Stripe API Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
-        await client.end();
+        client.release();
     }
 };
