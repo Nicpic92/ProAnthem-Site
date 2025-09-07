@@ -57,4 +57,46 @@
                         <span class="text-5xl font-bold text-white">$3.50</span>
                         <span class="text-gray-400">/ week</span>
                     </div>
-                    <ul class="space-y
+                    <ul class="space-y-4 text-gray-300 flex-grow">
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs & Setlists</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Lyric, Chord & Drum Tab Editors</li>
+                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Interactive Guitar Tab Editor</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Professional PDF Export</li>
+                    </ul>
+                    <button onclick="startCheckout('solo')" class="mt-8 w-full btn btn-primary py-3">Start 3-Day Solo Trial</button>
+                </div>
+
+                 <div class="bg-gray-800 p-8 rounded-xl border-2 border-indigo-500 flex flex-col">
+                    <h2 class="text-3xl font-bold text-white">Band</h2>
+                    <p class="text-gray-400 mt-2">Unlock collaboration for your entire team.</p>
+                     <div class="my-6">
+                        <span class="text-5xl font-bold text-white">$8.00</span>
+                        <span class="text-gray-400">/ week</span>
+                    </div>
+                    <ul class="space-y-4 text-gray-300 flex-grow">
+                        <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Up to 5 Band Members</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Real-time Song Syncing</li>
+                        <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Shared Band Setlists</li>
+                    </ul>
+                    <button onclick="startCheckout('band')" class="mt-8 w-full btn btn-primary bg-indigo-500 hover:bg-indigo-600 py-3">Start 3-Day Band Trial</button>
+                </div>
+            </div>
+            
+            <div id="manage-billing-section" class="text-center mt-16">
+                <h3 class="text-2xl font-bold">Already a member?</h3>
+                <p class="text-gray-400 mt-2">You can update your payment method, cancel, or change your plan at any time.</p>
+                <button onclick="manageBilling()" class="mt-4 btn btn-secondary">Open Customer Portal</button>
+            </div>
+            <div id="status-message" class="mt-8 text-center text-lg"></div>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+    
+    <script src="/assets/auth.js"></script>
+    <script src="/assets/pricing-page.js"></script>
+</body>
+</html>
