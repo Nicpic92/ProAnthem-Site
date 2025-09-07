@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
@@ -6,6 +6,11 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const SOLO_PLAN_PRICE_ID = process.env.STRIPE_SOLO_PRICE_ID;
 const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
 const JWT_SECRET = process.env.JWT_SECRET;
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+});
 
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
@@ -17,15 +22,10 @@ exports.handler = async (event) => {
         return { statusCode: 400, body: JSON.stringify({ message: 'Email and password are required.' }) };
     }
 
-    const client = new Client({
-        connectionString: process.env.DATABASE_URL,
-        ssl: { rejectUnauthorized: false }
-    });
-
+    const client = await pool.connect();
     try {
-        await client.connect();
         const userQuery = 'SELECT * FROM users WHERE email = $1';
-        const userResult = await client.query(userQuery, [email]);
+        const userResult = await client.query(userQuery, [email.toLowerCase()]);
 
         if (userResult.rows.length === 0) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
@@ -92,7 +92,6 @@ exports.handler = async (event) => {
         };
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
 
-        // IMPORTANT: Clear the flag *after* the token has been created
         if(forceReset) {
             await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
         }
@@ -102,6 +101,6 @@ exports.handler = async (event) => {
         console.error('Login Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error' }) };
     } finally {
-        await client.end();
+        client.release();
     }
 };
