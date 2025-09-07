@@ -41,9 +41,9 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- FIX: Added 'band_admin' to this array for consistency with the frontend ---
         const specialRoles = ['admin', 'band_admin', 'band_member'];
-        const specialStatuses = ['admin_granted'];
+        // --- FIX: Added 'trialing' to this array ---
+        const specialStatuses = ['admin_granted', 'trialing'];
 
         if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
             // This is a special user, trust our database and do not check Stripe.
