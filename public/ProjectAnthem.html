@@ -109,7 +109,7 @@
                     </div>
                 </div>
             </aside>
-<div class="md:col-span-3 space-y-4">
+            <div class="md:col-span-3 space-y-4">
                 <input type="text" id="titleInput" class="form-input text-xl" placeholder="Song Title">
                 <input type="text" id="artistInput" class="form-input" placeholder="Artist Name">
                 
@@ -192,7 +192,6 @@
             <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
         </div>
     </div>
-    --chunk 3
     <script src="/auth_proanthem.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -329,7 +328,6 @@
                     setStatus('Failed to load setlists.', true);
                 }
             }
-    ---chunk 4
             async function handleSetlistSelection(setlistId) {
                 if (!setlistId) {
                     currentSetlistTitle.textContent = 'Select a setlist';
