@@ -53,9 +53,13 @@ exports.handler = async (event) => {
 
                 await client.query('BEGIN');
                 try {
+                    // Step 1: Still create a Stripe Customer for future-proofing, but NO subscription
                     const customer = await stripe.customers.create({ email, name: bandName });
+                    
+                    // Step 2: Hash default password
                     const password_hash = await bcrypt.hash("ProAnthem", 10);
                     
+                    // Step 3: Create Band
                     let bandNumber;
                     let isUnique = false;
                     while(!isUnique) {
@@ -66,15 +70,16 @@ exports.handler = async (event) => {
                     const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
                     const bandId = bandResult.rows[0].id;
                     
+                    // --- FIX: Insert user with the special 'admin_granted' status ---
                     const userQuery = `
-                        INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo')
+                        INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo', 'admin_granted', 'solo')
                         ON CONFLICT (email) DO NOTHING;
                     `;
                     await client.query(userQuery, [email, password_hash, 'New', 'User', bandName, bandId, customer.id]);
                     
                     await client.query('COMMIT');
-                    return { statusCode: 201, body: JSON.stringify({ message: `User ${email} created successfully.` })};
+                    return { statusCode: 201, body: JSON.stringify({ message: `User ${email} created with permanent solo access.` })};
                 } catch (error) {
                     await client.query('ROLLBACK');
                     if (error.code === '23505') {
