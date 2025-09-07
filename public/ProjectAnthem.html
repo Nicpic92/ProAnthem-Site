@@ -311,6 +311,7 @@
             const recordBtn = document.getElementById('recordBtn');
             const stopBtn = document.getElementById('stopBtn');
             const recordingStatus = document.getElementById('recordingStatus');
+            const deleteAudioBtn = document.getElementById('deleteAudioBtn');\
             
             const setlistModal = document.getElementById('setlistModal');
             const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
@@ -826,6 +827,15 @@ const name = newSetlistInput.value.trim();
                     songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [] };
                     titleInput.value = songData.title;
                     artistInput.value = songData.artist;
+                    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    if (songData.audio_url) {
+                        audioPlayerContainer.classList.remove('hidden');
+                        audioPlayer.src = songData.audio_url;
+                    } else {
+                        audioPlayerContainer.classList.add('hidden');
+                        audioPlayer.src = '';
+                    }                    
                     renderSongBlocks();
                     setStatus('Song loaded.');
                     updateSoundingKey();
@@ -1120,6 +1130,19 @@ const name = newSetlistInput.value.trim();
                     handleRemoveSongFromSetlist(songId);
                 }
             });
+                deleteAudioBtn.addEventListener('click', async () => {
+                    if (confirm('Are you sure you want to permanently delete this voice memo?')) {
+                        songData.audio_url = null;
+                        try {
+                            await handleSave(); // Use the existing save function to update the song
+                            document.getElementById('audioPlayerContainer').classList.add('hidden');
+                            document.getElementById('audioPlayer').src = '';
+                            setStatus('Recording deleted.', false);
+                        } catch (error) {
+                            setStatus(`Failed to delete recording: ${error.message}`, true);
+                        }
+                    }
+                });            
             (function main(){
                 populateTuningSelector(); 
                 loadSheetList().then(() => initializeNewSong());
