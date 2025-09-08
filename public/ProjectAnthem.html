@@ -965,6 +965,22 @@ const name = newSetlistInput.value.trim();
                     updateSoundingKey();
                 }
             });
+            songBlocksContainer.addEventListener('mousedown', e => {
+                if (e.target.classList.contains('resize-handle')) {
+                    e.preventDefault();
+                    const blockEl = e.target.closest('.song-block');
+                    const textarea = blockEl.querySelector('.form-textarea');
+                    if (textarea) {
+                        activeResize = {
+                            element: textarea,
+                            startY: e.clientY,
+                            startHeight: textarea.offsetHeight,
+                            blockId: blockEl.dataset.blockId
+                        };
+                        document.body.style.cursor = 'ns-resize';
+                     }
+                }
+            });
             function attachFretboardListeners(svgEl) {
                 const blockId = svgEl.id.split('-').pop();
                 const block = songData.song_blocks.find(b => b.id === blockId);
