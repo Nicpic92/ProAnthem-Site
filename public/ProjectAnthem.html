@@ -830,7 +830,7 @@ const name = newSetlistInput.value.trim();
                 }
             }
             async function loadSong(id) {
-                if (!id) { initializeNewSong(); return; }
+                if (!id || id === 'new') { initializeNewSong(); return; }
                 setStatus('Loading song...');
                 try {
                     const data = await api.getSheet(id);
