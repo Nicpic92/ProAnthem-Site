@@ -680,7 +680,19 @@ const name = newSetlistInput.value.trim();
                 if (block.type === 'lyrics') {
                     contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
                 } else if (block.type === 'tab') {
-                    contentHtml = `<div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`;
+                    const stringOptions = [6, 7, 8]
+                        .map(num => `<option value="${num}" ${block.strings === num ? 'selected' : ''}>${num}-String</option>`)
+                        .join('');
+                    
+                    contentHtml = `
+                        <div class="mb-2">
+                            <label class="text-xs text-gray-400">Instrument:</label>
+                            <select class="form-select form-input text-sm w-32 bg-gray-900" data-action="change-strings">
+                                ${stringOptions}
+                            </select>
+                        </div>
+                        <div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>
+                    `;                    
                     const isEditMode = block.editMode || false;
                     const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary';
                     headerControls = `<button class="btn ${editButtonClass} btn-sm" data-action="edit-tab">${isEditMode ? 'Done Editing' : 'Edit'}</button>`;
@@ -1082,11 +1094,27 @@ async function initializeNewSong(forceNew = false) {
                     renderPreview(); 
                 }
             });
+// This new listener handles the dropdown change
+songBlocksContainer.addEventListener('change', (e) => {
+    if (e.target.dataset.action === 'change-strings') {
+        const blockEl = e.target.closest('.song-block');
+        const blockId = blockEl.dataset.blockId;
+        const block = songData.song_blocks.find(b => b.id === blockId);
+        if (block) {
+            block.strings = parseInt(e.target.value, 10);
+            // Redraw the fretboard for this block with the new string count
+            drawFretboard(blockId);
+        }
+    }
+});
+
+// This is the original click listener, now with the 'change' logic removed.
             songBlocksContainer.addEventListener('click', (e) => {
                 const blockEl = e.target.closest('.song-block');
                 if (!blockEl) return;
                 const blockId = blockEl.dataset.blockId;
                 const block = songData.song_blocks.find(b => b.id === blockId);
+            
                 if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
                     e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; 
                     const t = `[${chordToPlace}]`; const p = textarea.selectionStart; 
