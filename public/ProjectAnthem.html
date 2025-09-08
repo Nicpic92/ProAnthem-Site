@@ -154,9 +154,6 @@
                     <h3 class="text-lg font-semibold">Voice Memo</h3>
                     <div id="audioPlayerContainer" class="hidden">
                         <audio id="audioPlayer" controls class="w-full"></audio>
-                    </div>
-                    <div id="audioPlayerContainer" class="hidden">
-                        <audio id="audioPlayer" controls class="w-full"></audio>
                         <button id="deleteAudioBtn" class="btn btn-danger btn-sm mt-2">Delete Recording</button>
                     </div>
                     <div class="flex items-center gap-4">
@@ -311,7 +308,7 @@
             const recordBtn = document.getElementById('recordBtn');
             const stopBtn = document.getElementById('stopBtn');
             const recordingStatus = document.getElementById('recordingStatus');
-            const deleteAudioBtn = document.getElementById('deleteAudioBtn');\
+            const deleteAudioBtn = document.getElementById('deleteAudioBtn');
             
             const setlistModal = document.getElementById('setlistModal');
             const closeSetlistModalBtn = document.getElementById('closeSetlistModalBtn');
@@ -493,6 +490,19 @@ const name = newSetlistInput.value.trim();
         setStatus(`Error creating setlist: ${error.message}`, true);
     }
 }
+            deleteAudioBtn.addEventListener('click', async () => {
+    if (confirm('Are you sure you want to permanently delete this voice memo?')) {
+        songData.audio_url = null;
+        try {
+            await handleSave(); // Use the existing save function to update the song
+            document.getElementById('audioPlayerContainer').classList.add('hidden');
+            document.getElementById('audioPlayer').src = '';
+            setStatus('Recording deleted.', false);
+        } catch (error) {
+            setStatus(`Failed to delete recording: ${error.message}`, true);
+        }
+    }
+});
 
             async function handleDeleteSetlist() {
                 const setlistId = setlistSelector.value;
@@ -855,6 +865,15 @@ const name = newSetlistInput.value.trim();
                     artistInput.value = '';
                     songSelector.value = 'new';
                     renderSongBlocks();
+                    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+                    const audioPlayer = document.getElementById('audioPlayer');
+                    if (songData.audio_url) {
+                        audioPlayerContainer.classList.remove('hidden');
+                        audioPlayer.src = songData.audio_url;
+                    } else {
+                        audioPlayerContainer.classList.add('hidden');
+                        audioPlayer.src = '';
+                    }
                     updateSoundingKey();
                 }
             }
