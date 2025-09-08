@@ -1070,7 +1070,7 @@ async function initializeNewSong(forceNew = false) {
                     }
                 }
             });
-            document.addEventListener('mouseup', () => {
+                        document.addEventListener('mouseup', () => {
                 if (activeResize.element) {
                     const newHeight = activeResize.element.offsetHeight;
                     updateBlockData(activeResize.blockId, null, null, newHeight);
@@ -1078,27 +1078,23 @@ async function initializeNewSong(forceNew = false) {
                     document.body.style.cursor = '';
                 }
                 if(isDraggingNote) {
-                    // The mousemove event has already updated the note's position and string.
-                    // We don't need to do anything else to the note's data here.
-                    // Just finalize the drag state and re-render the preview.
                     isDraggingNote = false;
                     renderPreview(); 
                 }
-                // This new listener handles the dropdown change
-                songBlocksContainer.addEventListener('change', (e) => {
-                    if (e.target.dataset.action === 'change-strings') {
-                        const blockEl = e.target.closest('.song-block');
-                        const blockId = blockEl.dataset.blockId;
-                        const block = songData.song_blocks.find(b => b.id === blockId);
-                        if (block) {
-                            block.strings = parseInt(e.target.value, 10);
-                            // Redraw the fretboard for this block with the new string count
-                            drawFretboard(blockId);
-                        }
-                    }
-                });
+            });
 
-// This is the original click listener, now with the 'change' logic removed.
+            songBlocksContainer.addEventListener('change', (e) => {
+                if (e.target.dataset.action === 'change-strings') {
+                    const blockEl = e.target.closest('.song-block');
+                    const blockId = blockEl.dataset.blockId;
+                    const block = songData.song_blocks.find(b => b.id === blockId);
+                    if (block) {
+                        block.strings = parseInt(e.target.value, 10);
+                        drawFretboard(blockId);
+                    }
+                }
+            });
+
             songBlocksContainer.addEventListener('click', (e) => {
                 const blockEl = e.target.closest('.song-block');
                 if (!blockEl) return;
