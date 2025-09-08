@@ -1078,35 +1078,25 @@ async function initializeNewSong(forceNew = false) {
                     document.body.style.cursor = '';
                 }
                 if(isDraggingNote) {
-                    const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
-                    const note = block?.data?.notes[selectedNote.noteIndex];
-                    if (note) {
-                         const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`);
-                         const wrapper = svg.closest('.fretboard-wrapper');
-                         const svgRect = svg.getBoundingClientRect();
-                         const x = event.clientX - svgRect.left + wrapper.scrollLeft;
-                         const rawFret = (x - FRETBOARD_CONFIG.nutWidth) / FRETBOARD_CONFIG.fretSpacing;
-                         const finalFret = Math.max(0, Math.round(rawFret));
-                         const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
-                         note.fret = finalFret + totalOffset;
-                    }
+                    // The mousemove event has already updated the note's position and string.
+                    // We don't need to do anything else to the note's data here.
+                    // Just finalize the drag state and re-render the preview.
                     isDraggingNote = false;
                     renderPreview(); 
                 }
-            });
-// This new listener handles the dropdown change
-songBlocksContainer.addEventListener('change', (e) => {
-    if (e.target.dataset.action === 'change-strings') {
-        const blockEl = e.target.closest('.song-block');
-        const blockId = blockEl.dataset.blockId;
-        const block = songData.song_blocks.find(b => b.id === blockId);
-        if (block) {
-            block.strings = parseInt(e.target.value, 10);
-            // Redraw the fretboard for this block with the new string count
-            drawFretboard(blockId);
-        }
-    }
-});
+                // This new listener handles the dropdown change
+                songBlocksContainer.addEventListener('change', (e) => {
+                    if (e.target.dataset.action === 'change-strings') {
+                        const blockEl = e.target.closest('.song-block');
+                        const blockId = blockEl.dataset.blockId;
+                        const block = songData.song_blocks.find(b => b.id === blockId);
+                        if (block) {
+                            block.strings = parseInt(e.target.value, 10);
+                            // Redraw the fretboard for this block with the new string count
+                            drawFretboard(blockId);
+                        }
+                    }
+                });
 
 // This is the original click listener, now with the 'change' logic removed.
             songBlocksContainer.addEventListener('click', (e) => {
