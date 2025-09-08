@@ -830,7 +830,7 @@ const name = newSetlistInput.value.trim();
                 }
             }
             async function loadSong(id) {
-                if (!id || id === 'new') { initializeNewSong(); return; }
+                if (!id || id === 'new') { initializeNewSong(true); return; }
                 setStatus('Loading song...');
                 try {
                     const data = await api.getSheet(id);
@@ -854,29 +854,38 @@ const name = newSetlistInput.value.trim();
                     initializeNewSong();
                 }
             }
-            async function initializeNewSong() {
-                const songs = await api.getSheets();
-                if (songs && songs.length > 0) {
-                    await loadSong(songs[0].id);
-                    songSelector.value = songs[0].id;
-                } else {
-                    songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
-                    titleInput.value = '';
-                    artistInput.value = '';
-                    songSelector.value = 'new';
-                    renderSongBlocks();
-                    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
-                    const audioPlayer = document.getElementById('audioPlayer');
-                    if (songData.audio_url) {
-                        audioPlayerContainer.classList.remove('hidden');
-                        audioPlayer.src = songData.audio_url;
-                    } else {
-                        audioPlayerContainer.classList.add('hidden');
-                        audioPlayer.src = '';
-                    }
-                    updateSoundingKey();
-                }
-            }
+async function initializeNewSong(forceNew = false) {
+    // Logic for creating a blank song state
+    const createBlankSong = () => {
+        songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
+        titleInput.value = '';
+        artistInput.value = '';
+        songSelector.value = 'new';
+        
+        const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+        audioPlayerContainer.classList.add('hidden');
+        document.getElementById('audioPlayer').src = '';
+        
+        renderSongBlocks();
+        updateSoundingKey();
+    };
+
+    // If the user explicitly clicked "Create New Song", always give them a blank slate.
+    if (forceNew) {
+        createBlankSong();
+        return;
+    }
+
+    // Otherwise (on initial page load), try to load the most recent song.
+    const songs = await api.getSheets();
+    if (songs && songs.length > 0) {
+        await loadSong(songs[0].id);
+        songSelector.value = songs[0].id;
+    } else {
+        // If there are no songs at all, create a blank one.
+        createBlankSong();
+    }
+}
             async function handleSave() {
                 saveBtn.disabled = true;
                 setStatus('Saving...');
@@ -1180,7 +1189,7 @@ const name = newSetlistInput.value.trim();
                 });            
             (function main(){
                 populateTuningSelector(); 
-                loadSheetList().then(() => initializeNewSong());
+                loadSheetList().then(() => initializeNewSong(false));
                 loadChords();
             })();
         }
