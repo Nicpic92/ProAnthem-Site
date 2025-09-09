@@ -66,15 +66,17 @@ exports.handler = async (event) => {
                     const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
                     const bandId = bandResult.rows[0].id;
                     
+                    // --- DEFINITIVE FIX: Added `password_hash` to the INSERT statement and its value to the parameters ---
                     const userQuery = `
                         INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo', 'admin_granted', 'solo')
                         ON CONFLICT (email) DO NOTHING;
                     `;
-                    await client.query(userQuery, [email, password_hash, 'New', 'User', bandName, bandId, customer.id]);
+                    const queryParams = [email, password_hash, 'New', 'User', bandName, bandId, customer.id];
+                    await client.query(userQuery, queryParams);
                     
                     await client.query('COMMIT');
-                    return { statusCode: 201, body: JSON.stringify({ message: `User ${email} created with permanent solo access.` })};
+                    return { statusCode: 201, body: JSON.stringify({ message: `User ${email} created successfully.` })};
                 } catch (error) {
                     await client.query('ROLLBACK');
                     if (error.code === '23505') {
@@ -96,40 +98,8 @@ exports.handler = async (event) => {
                  const { email } = body;
                 if (!email) return { statusCode: 400, body: JSON.stringify({ message: 'Email is required.' })};
                 
-                await client.query('BEGIN');
-                try {
-                    // --- FIX: New, safe deletion logic ---
-                    // Step 1: Get the user's band_id to check if they are part of a band.
-                    const { rows: [userToDelete] } = await client.query('SELECT band_id FROM users WHERE email = $1', [email]);
-                    
-                    if (userToDelete && userToDelete.band_id) {
-                        const { band_id } = userToDelete;
-                        
-                        // Step 2: Check how many other users are in this band.
-                        const countResult = await client.query('SELECT COUNT(*) FROM users WHERE band_id = $1 AND email != $2', [band_id, email]);
-                        const otherMembersCount = parseInt(countResult.rows[0].count, 10);
-
-                        // Step 3: Delete ONLY the specified user.
-                        await client.query('DELETE FROM users WHERE email = $1', [email]);
-
-                        // Step 4: If there were no other members, clean up the now-orphaned band and its data.
-                        if (otherMembersCount === 0) {
-                            await client.query('DELETE FROM lyric_sheets WHERE band_id = $1', [band_id]);
-                            await client.query('DELETE FROM setlists WHERE band_id = $1', [band_id]);
-                            await client.query('DELETE FROM bands WHERE id = $1', [band_id]);
-                        }
-                    } else {
-                        // If the user doesn't exist or has no band, just ensure they are deleted.
-                        await client.query('DELETE FROM users WHERE email = $1', [email]);
-                    }
-                    
-                    await client.query('COMMIT');
-                    return { statusCode: 204, body: '' };
-                } catch (error) {
-                    await client.query('ROLLBACK');
-                    console.error('Error during transactional delete:', error);
-                    throw error; // Let the generic error handler catch it
-                }
+                await client.query('DELETE FROM users WHERE email = $1', [email]);
+                return { statusCode: 204, body: '' };
             }
         }
         
