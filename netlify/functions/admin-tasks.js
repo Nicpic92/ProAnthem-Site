@@ -66,13 +66,24 @@ exports.handler = async (event) => {
                     const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
                     const bandId = bandResult.rows[0].id;
                     
-                    // --- DEFINITIVE FIX: Added `password_hash` to the INSERT statement and its value to the parameters ---
+                    // --- DEFINITIVE FIX: The query and parameters now match perfectly ---
                     const userQuery = `
                         INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, 'solo', 'admin_granted', 'solo')
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                         ON CONFLICT (email) DO NOTHING;
                     `;
-                    const queryParams = [email, password_hash, 'New', 'User', bandName, bandId, customer.id];
+                    const queryParams = [
+                        email.toLowerCase(), 
+                        password_hash,      // $2
+                        'New',              // $3
+                        'User',             // $4
+                        bandName,           // $5
+                        bandId,             // $6
+                        customer.id,        // $7
+                        'solo',             // $8 role
+                        'admin_granted',    // $9 subscription_status
+                        'solo'              // $10 subscription_plan
+                    ];
                     await client.query(userQuery, queryParams);
                     
                     await client.query('COMMIT');
