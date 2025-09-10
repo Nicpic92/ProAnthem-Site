@@ -1,11 +1,7 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const JWT_SECRET = process.env.JWT_SECRET;
-const generateBandNumber = () => Math.floor(10000 + Math.random() * 90000);
-
 
 exports.handler = async (event) => {
     const authHeader = event.headers.authorization;
@@ -34,83 +30,38 @@ exports.handler = async (event) => {
         const resource = path.split('/')[2];
 
         if (event.httpMethod === 'GET' && resource === 'users') {
-            const query = `
-                SELECT u.email, u.role, u.created_at, b.band_name
-                FROM users u
-                LEFT JOIN bands b ON u.band_id = b.id
-                ORDER BY u.created_at DESC;
-            `;
+            const query = `SELECT u.email, u.role, u.created_at, b.band_name, u.band_id FROM users u LEFT JOIN bands b ON u.band_id = b.id ORDER BY u.created_at DESC;`;
             const result = await client.query(query);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
+        
+        if (event.httpMethod === 'GET' && resource === 'bands') {
+            const result = await client.query('SELECT id, band_name FROM bands ORDER BY band_name ASC');
+            return { statusCode: 200, body: JSON.stringify(result.rows) };
+        }
+        
+        if (event.httpMethod === 'GET' && resource === 'songs') {
+            const result = await client.query('SELECT s.id, s.title, s.artist, b.band_name FROM lyric_sheets s JOIN bands b on s.band_id = b.id ORDER BY b.band_name, s.title');
+            return { statusCode: 200, body: JSON.stringify(result.rows) };
+        }
+
 
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body);
 
-            if (resource === 'create-user') {
-                const { email, bandName } = body;
-                if (!email || !bandName) return { statusCode: 400, body: JSON.stringify({ message: 'Email and Band Name are required.' })};
-
-                await client.query('BEGIN');
-                try {
-                    const customer = await stripe.customers.create({ email, name: bandName });
-                    const password_hash = await bcrypt.hash("ProAnthem", 10);
-                    
-                    let bandNumber;
-                    let isUnique = false;
-                    while(!isUnique) {
-                        bandNumber = generateBandNumber();
-                        const res = await client.query('SELECT id FROM bands WHERE band_number = $1', [bandNumber]);
-                        if (res.rows.length === 0) isUnique = true;
-                    }
-                    const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, bandName]);
-                    const bandId = bandResult.rows[0].id;
-                    
-                    // --- DEFINITIVE FIX: The query and parameters now match perfectly ---
-                    const userQuery = `
-                        INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status, subscription_plan)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                        ON CONFLICT (email) DO NOTHING;
-                    `;
-                    const queryParams = [
-                        email.toLowerCase(), 
-                        password_hash,      // $2
-                        'New',              // $3
-                        'User',             // $4
-                        bandName,           // $5
-                        bandId,             // $6
-                        customer.id,        // $7
-                        'solo',             // $8 role
-                        'admin_granted',    // $9 subscription_status
-                        'solo'              // $10 subscription_plan
-                    ];
-                    await client.query(userQuery, queryParams);
-                    
-                    await client.query('COMMIT');
-                    return { statusCode: 201, body: JSON.stringify({ message: `User ${email} created successfully.` })};
-                } catch (error) {
-                    await client.query('ROLLBACK');
-                    if (error.code === '23505') {
-                        return { statusCode: 409, body: JSON.stringify({ message: 'User with this email already exists.' })};
-                    }
-                    throw error;
-                }
+            if (resource === 'reassign-user') {
+                const { email, newBandId } = body;
+                if (!email || !newBandId) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newBandId are required.' })};
+                await client.query('UPDATE users SET band_id = $1 WHERE email = $2', [newBandId, email]);
+                return { statusCode: 200, body: JSON.stringify({ message: `User ${email} reassigned successfully.`}) };
             }
             
-            if (resource === 'update-role') {
-                const { email, newRole } = body;
-                if (!email || !newRole) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRole are required.' })};
-                
-                await client.query('UPDATE users SET role = $1 WHERE email = $2', [newRole, email]);
-                return { statusCode: 200, body: JSON.stringify({ message: 'Role updated successfully.' }) };
-            }
-
-            if (resource === 'delete-user') {
-                 const { email } = body;
-                if (!email) return { statusCode: 400, body: JSON.stringify({ message: 'Email is required.' })};
-                
-                await client.query('DELETE FROM users WHERE email = $1', [email]);
-                return { statusCode: 204, body: '' };
+            if (resource === 'copy-song') {
+                const { songId, targetBandId } = body;
+                if (!songId || !targetBandId) return { statusCode: 400, body: JSON.stringify({ message: 'songId and targetBandId are required.' })};
+                // Call the SQL function we created earlier
+                await client.query('SELECT copy_song_to_band($1, $2)', [songId, targetBandId]);
+                return { statusCode: 200, body: JSON.stringify({ message: `Song copied successfully.`}) };
             }
         }
         
