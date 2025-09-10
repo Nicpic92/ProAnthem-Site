@@ -226,16 +226,19 @@
             function initializeDemoSong() {
                 songData = { 
                     id: 'demo-song', 
-                    title: 'Anthem for a Demo', 
-                    artist: 'The Transients', 
+                    title: 'The ProAnthem Feature Tour', 
+                    artist: 'The Dev Team', 
                     audio_url: null, 
                     song_blocks: [
-                        { id: 'block_1', type: 'lyrics', label: 'Verse 1', content: 'This is a [C]demo, you can [G]try it out\nSee what this [Am]editor is [F]all about\n[C]Change the chords, or [G]add a new [C]part.', height: 120 },
-                        { id: 'block_2', type: 'lyrics', label: 'Chorus', content: '[F]Oh, Project [C]Anthem, shines so [G]bright\nHelps you build your [C]songs just right\n[F]Drag and drop and [C]edit with [G]ease\nIt\'s a web app [Am]symphony on the [F]breeze.', height: 150 },
-                        { id: 'block_3', type: 'tab', label: 'Guitar Riff', strings: 6, data: { notes: [
-                            {string: 4, fret: 0, position: 200}, {string: 4, fret: 0, position: 300},
-                            {string: 3, fret: 2, position: 400}, {string: 2, fret: 3, position: 500},
-                        ]}, editMode: false }
+                        { id: 'block_1', type: 'lyrics', label: 'Lyrics & Chords', content: '[G]Just type your lyrics [D]in this space,\nPut [Em]chords in brackets, [C]right in place.\nThe [G]preview updates, [D]as you go,\nA [C]perfect layout for your [G]show.', height: 140 },
+                        { id: 'block_2', type: 'lyrics', label: 'Interactive Tabs', content: '[G]Below this block, a [D]fretboard lies,\nClick [Em]any string, a [C]note will rise.\nThen [G]drag and drop to [D]find your sound,\nThe [C]cleanest tabs you\'ve ever [G]found.', height: 140 },
+                        { id: 'block_3', type: 'tab', label: 'Guitar Riff Example', strings: 6, data: { notes: [
+                            {string: 3, fret: 5, position: 200}, {string: 3, fret: 7, position: 350},
+                            {string: 2, fret: 5, position: 500}, {string: 2, fret: 7, position: 650},
+                        ]}, editMode: false },
+                        { id: 'block_4', type: 'lyrics', label: 'Musical Settings', content: '[Am]Is the key too high? [G]Feeling strained?\nUse the [C]Transpose buttons, [F]no song\'s chained.\nAdd a [Am]capo, change the [G]tuning too,\nThe [F]sidebar settings [E7]work for you.', height: 140 },
+                        { id: 'block_5', type: 'lyrics', label: 'The Song Builder', content: '[C]Need another verse? A [G]bridge or two?\nThe [Am]"Add Section" buttons [F]wait for you.\nThen [C]grab the header, [G]drag and drop,\nArrange your song, right [C]from the top.', height: 140 },
+                        { id: 'block_6', type: 'lyrics', label: 'Save & Sign Up (Outro)', content: '[G]This is a demo, [D]please be aware,\nYour [Em]masterpiece won\'t [C]save from here.\nFor [G]setlists, voice memos, and [D]cloud-based drive,\nJust [C]sign on up and watch your music [G]thrive!', height: 140 }
                     ],
                     tuning: 'E_STANDARD', capo: 0, transpose: 0
                 };
@@ -254,7 +257,7 @@
             }
 
             function loadDemoChords() {
-                const demoChords = ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'F', 'G'];
+                const demoChords = ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'];
                 chordPalette.innerHTML = '';
                 demoChords.forEach(cName => {
                     const btn = document.createElement('button');
@@ -273,8 +276,6 @@
                     chordPalette.appendChild(btn);
                 });
             }
-
-            // --- ALL THE MISSING FUNCTIONS ARE NOW INCLUDED BELOW ---
 
             function updateSoundingKey() {
                 const capoFret = songData.capo || 0;
