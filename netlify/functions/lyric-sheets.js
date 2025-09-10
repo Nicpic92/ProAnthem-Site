@@ -35,7 +35,6 @@ exports.handler = async (event) => {
 
         if (id) { // Operations on a specific lyric sheet
             if (event.httpMethod === 'GET') {
-                // --- FIX: Query scoped by band_id ---
                 const result = await client.query('SELECT * FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 if (result.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied' }) };
                 
@@ -47,31 +46,59 @@ exports.handler = async (event) => {
                 return { statusCode: 200, body: JSON.stringify(sheet) };
             }
             if (event.httpMethod === 'PUT') {
-                const { title, artist, audio_url, song_blocks } = JSON.parse(event.body);
+                // --- UPDATED: Destructure the new musical settings fields ---
+                const { title, artist, audio_url, song_blocks, tuning, capo, transpose } = JSON.parse(event.body);
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
-                // --- FIX: Query scoped by band_id ---
-                const query = 'UPDATE lyric_sheets SET title = $1, artist = $2, audio_url = $3, song_blocks = $4, updated_at = NOW() WHERE id = $5 AND band_id = $6 RETURNING *';
-                const result = await client.query(query, [title, artist, audio_url, songBlocksJson, id, bandId]);
+                
+                // --- UPDATED: The SQL query now includes the new columns ---
+                const query = `
+                    UPDATE lyric_sheets 
+                    SET 
+                        title = $1, 
+                        artist = $2, 
+                        audio_url = $3, 
+                        song_blocks = $4, 
+                        tuning = $5, 
+                        capo = $6, 
+                        transpose = $7, 
+                        updated_at = NOW() 
+                    WHERE id = $8 AND band_id = $9 
+                    RETURNING *`;
+                
+                // --- UPDATED: Add the new values to the query parameters array ---
+                const result = await client.query(query, [title, artist, audio_url, songBlocksJson, tuning, capo, transpose, id, bandId]);
+                
                 if (result.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied.' })};
                 return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
             }
             if (event.httpMethod === 'DELETE') {
-                 // --- FIX: Query scoped by band_id ---
                 await client.query('DELETE FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 return { statusCode: 204, body: '' };
             }
         } else { // Operations on the collection
             if (event.httpMethod === 'GET') {
-                // --- FIX: Query scoped by band_id ---
                 const result = await client.query('SELECT id, title, artist, updated_at FROM lyric_sheets WHERE band_id = $1 ORDER BY updated_at DESC', [bandId]);
                 return { statusCode: 200, body: JSON.stringify(result.rows) };
             }
             if (event.httpMethod === 'POST') {
-                const { title, artist, song_blocks } = JSON.parse(event.body);
+                // --- UPDATED: Destructure all new fields from the body ---
+                const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = JSON.parse(event.body);
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
-                 // --- FIX: INSERT now uses the user's band_id ---
-                const query = 'INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks) VALUES($1, $2, $3, $4, $5) RETURNING *';
-                const result = await client.query(query, [title, artist, userEmail, bandId, songBlocksJson]);
+
+                // --- NEW: Provide default values in case they are missing from the request ---
+                const newTuning = tuning ?? 'E_STANDARD';
+                const newCapo = capo ?? 0;
+                const newTranspose = transpose ?? 0;
+
+                // --- UPDATED: The SQL query now includes all new columns ---
+                const query = `
+                    INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks, audio_url, tuning, capo, transpose) 
+                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+                    RETURNING *`;
+
+                // --- UPDATED: Add all new values to the query parameters array ---
+                const result = await client.query(query, [title, artist, userEmail, bandId, songBlocksJson, audio_url, newTuning, newCapo, newTranspose]);
+                
                 return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
             }
         }
