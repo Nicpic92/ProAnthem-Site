@@ -66,7 +66,6 @@
 </head>
 <body class="p-4 md:p-8">
 
-    <!-- DEMO BANNER -->
     <div class="max-w-6xl mx-auto mb-6 p-4 bg-yellow-900 border border-yellow-600 text-yellow-100 rounded-lg text-center">
         <p class="font-bold">Welcome to the Project Anthem Live Demo!</p>
         <p class="text-sm">Feel free to experiment with all the features. Please note that your work will not be saved.</p>
@@ -78,13 +77,11 @@
                 <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
                 <h1 class="text-4xl font-bold">Project Anthem</h1>
             </a>
-            <!-- Removed Auth Section -->
         </header>
         <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <aside id="sidebar" class="md:col-span-1 h-full">
                 <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
                     <div class="space-y-2 flex-shrink-0">
-                        <!-- Modified Sidebar for Demo -->
                         <label class="block text-sm font-medium text-gray-300 mb-1">Demo Controls</label>
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
                         <a href="/proanthem_index.html" class="btn btn-secondary w-full text-center block">Sign Up to Save</a>
@@ -161,7 +158,6 @@
         </main>
     </div>
     
-    <!-- Fret Selection Modal (unchanged) -->
     <div id="fret-selection-modal" class="hidden fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4 space-y-2">
         <label for="fret-number-selector" class="text-sm text-gray-300">Select Fret:</label>
         <select id="fret-number-selector" class="form-select text-sm w-full"></select>
@@ -171,19 +167,13 @@
         </div>
     </div>
 
-    <!-- REMOVED auth_proanthem.js SCRIPT TAG -->
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Simplified initializer for demo page
             initializeApp();
         });
         
-        // This function contains the entire application logic, modified for the demo.
         function initializeApp() {
-            // Initial song data is now hardcoded for the demo
             let songData = {}; 
-            
-            // Other state variables (unchanged)
             let chordQueue = [];
             let chordQueueIndex = 0;
             let lastFocusedLyricsBlock = null;
@@ -192,7 +182,6 @@
             let activeResize = { element: null, startY: 0, startHeight: 0 };
             let isDraggingNote = false;
 
-            // Element references
             const titleInput = document.getElementById('titleInput');
             const artistInput = document.getElementById('artistInput');
             const songBlocksContainer = document.getElementById('song-blocks-container');
@@ -216,7 +205,6 @@
             const cancelFretBtn = document.getElementById('cancel-fret-btn');
             const soundingKeyDisplay = document.getElementById('soundingKeyDisplay');
             
-            // Constants (unchanged)
             const TUNINGS = { 
                 E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
                 EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, 
@@ -224,26 +212,17 @@
                 DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, 
                 DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } 
             };
-            const STRING_CONFIG = {
-                6: { height: 180, stringSpacing: 28 },
-                7: { height: 210, stringSpacing: 28 },
-                8: { height: 240, stringSpacing: 28 }
-            };
+            const STRING_CONFIG = { 6: { height: 180, stringSpacing: 28 }, 7: { height: 210, stringSpacing: 28 }, 8: { height: 240, stringSpacing: 28 } };
             const FRETBOARD_CONFIG = { frets: 24, width: 8000, nutWidth: 15, fretSpacing: 80, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 };
             const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
             
-            // The API object is now "neutered" for the demo. It does nothing.
-            const api = {};
-
-            // Helper function to sync the musical settings UI with the current songData
             function updateMusicalSettingsUI() {
                 tuningSelector.value = songData.tuning;
                 capoFretInput.value = songData.capo;
                 const steps = songData.transpose;
-                transposeStatus.textContent = steps > 0 `+${steps}` : steps;
+                transposeStatus.textContent = steps > 0 ? `+${steps}` : steps;
             }
 
-            // Function to set up the initial demo state
             function initializeDemoSong() {
                 songData = { 
                     id: 'demo-song', 
@@ -254,15 +233,11 @@
                         { id: 'block_1', type: 'lyrics', label: 'Verse 1', content: 'This is a [C]demo, you can [G]try it out\nSee what this [Am]editor is [F]all about\n[C]Change the chords, or [G]add a new [C]part.', height: 120 },
                         { id: 'block_2', type: 'lyrics', label: 'Chorus', content: '[F]Oh, Project [C]Anthem, shines so [G]bright\nHelps you build your [C]songs just right\n[F]Drag and drop and [C]edit with [G]ease\nIt\'s a web app [Am]symphony on the [F]breeze.', height: 150 },
                         { id: 'block_3', type: 'tab', label: 'Guitar Riff', strings: 6, data: { notes: [
-                            {string: 4, fret: 0 + 0, position: 200},
-                            {string: 4, fret: 0 + 0, position: 300},
-                            {string: 3, fret: 2 + 0, position: 400},
-                            {string: 2, fret: 3 + 0, position: 500},
+                            {string: 4, fret: 0, position: 200}, {string: 4, fret: 0, position: 300},
+                            {string: 3, fret: 2, position: 400}, {string: 2, fret: 3, position: 500},
                         ]}, editMode: false }
                     ],
-                    tuning: 'E_STANDARD',
-                    capo: 0,
-                    transpose: 0
+                    tuning: 'E_STANDARD', capo: 0, transpose: 0
                 };
                 
                 titleInput.value = songData.title;
@@ -274,15 +249,11 @@
                 setStatus('Demo loaded. Your changes will not be saved.');
             }
             
-            // --- MODIFIED CORE FUNCTIONS FOR DEMO ---
-
             function handleSave() {
-                // Instead of saving, just show a message.
                 setStatus('Saving is disabled in the demo.', true);
             }
 
             function loadDemoChords() {
-                // Load a hardcoded list of chords instead of fetching from an API.
                 const demoChords = ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'F', 'G'];
                 chordPalette.innerHTML = '';
                 demoChords.forEach(cName => {
@@ -291,14 +262,11 @@
                     btn.textContent = cName;
                     btn.onclick = (e) => {
                         if (e.ctrlKey || e.metaKey) {
-                            chordQueue.push(cName);
-                            renderChordQueue();
+                            chordQueue.push(cName); renderChordQueue();
                         } else if (lastFocusedLyricsBlock) {
-                            const t = `[${cName}]`;
-                            const p = lastFocusedLyricsBlock.selectionStart;
+                            const t = `[${cName}]`; const p = lastFocusedLyricsBlock.selectionStart;
                             lastFocusedLyricsBlock.value = lastFocusedLyricsBlock.value.slice(0, p) + t + lastFocusedLyricsBlock.value.slice(p);
-                            lastFocusedLyricsBlock.focus();
-                            lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length);
+                            lastFocusedLyricsBlock.focus(); lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length);
                             updateBlockData(lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', lastFocusedLyricsBlock.value);
                         }
                     };
@@ -306,10 +274,7 @@
                 });
             }
 
-
-            // --- UNCHANGED FUNCTIONS (can be copy-pasted from original) ---
-            // The functions below are mostly for UI and local state management,
-            // so they don't need significant changes.
+            // --- ALL THE MISSING FUNCTIONS ARE NOW INCLUDED BELOW ---
 
             function updateSoundingKey() {
                 const capoFret = songData.capo || 0;
@@ -540,8 +505,6 @@
                 });
             }
             
-            // --- EVENT LISTENERS (many are unchanged) ---
-            
             [tuningSelector, capoFretInput].forEach(el => el.addEventListener('input', () => {
                 songData.tuning = tuningSelector.value;
                 songData.capo = parseInt(capoFretInput.value, 10) || 0;
@@ -551,7 +514,7 @@
 
             transposeUpBtn.addEventListener('click', () => handleTranspose(1));
             transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
-            saveBtn.addEventListener('click', handleSave); // This now calls the demo-safe version
+            saveBtn.addEventListener('click', handleSave);
             resetDemoBtn.addEventListener('click', () => {
                 if (confirm('Are you sure you want to reset the demo? All your changes will be lost.')) {
                     initializeDemoSong();
@@ -751,11 +714,10 @@
             addFretBtn.addEventListener('click', confirmFretSelection);
             cancelFretBtn.addEventListener('click', () => fretSelectionModal.classList.add('hidden'));
 
-            // --- INITIALIZATION ---
             (function main(){
                 populateTuningSelector(); 
                 loadDemoChords();
-                initializeDemoSong(); // Load the hardcoded demo song
+                initializeDemoSong();
             })();
         }
     </script>
