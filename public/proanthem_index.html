@@ -11,7 +11,7 @@
     <style>
         body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
         .feature-icon { width: 4rem; height: 4rem; }
-        /* --- FIX: Specific styles for the login modal inputs --- */
+        /* --- Styles for the login modal inputs --- */
         #auth-modal input {
             background-color: #1f2937; /* dark gray */
             border: 1px solid #4b5563; /* medium gray */
@@ -48,7 +48,6 @@
                 <p class="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-gray-300">
                     Stop chasing files across notes apps, voice memos, and email chains. ProAnthem is the single source of truth for your music, providing a unified workspace to write, organize, and perform with perfect clarity.
                 </p>
-                <!-- === MODIFIED SECTION START === -->
                 <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                     <a href="/pricing.html" class="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
                         View Plans & Start 3-Day Trial
@@ -57,7 +56,6 @@
                         Try a Live Demo
                     </a>
                 </div>
-                <!-- === MODIFIED SECTION END === -->
             </div>
         </section>
 
@@ -123,6 +121,44 @@
                 </div>
             </div>
         </section>
+
+        <!-- CONTACT FORM SECTION START -->
+        <section id="contact" class="py-20 px-6 bg-gray-900">
+            <div class="container mx-auto max-w-3xl">
+                <div class="text-center mb-12">
+                    <h3 class="text-4xl font-bold text-white">Have a Question?</h3>
+                    <p class="mt-4 text-lg text-gray-400">
+                        We'd love to hear from you. Fill out the form below and we'll get back to you as soon as possible.
+                    </p>
+                </div>
+                
+                <form id="contact-form" action="YOUR_FORMPSREE_URL_HERE" method="POST" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Your Name</label>
+                            <input type="text" name="name" id="name" required class="w-full bg-gray-800 border-gray-700 rounded-md p-3 text-white focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Your Email</label>
+                            <input type="email" name="email" id="email" required class="w-full bg-gray-800 border-gray-700 rounded-md p-3 text-white focus:ring-indigo-500 focus:border-indigo-500">
+                            <input type="hidden" name="_replyto" value="">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="message" class="block text-sm font-medium text-gray-300 mb-2">Message</label>
+                        <textarea name="message" id="message" required rows="5" class="w-full bg-gray-800 border-gray-700 rounded-md p-3 text-white focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    </div>
+                    <input type="text" name="_gotcha" style="display:none">
+                    <div class="text-center">
+                        <button type="submit" id="contact-submit-button" class="bg-indigo-600 text-white font-semibold py-3 px-8 rounded-md hover:bg-indigo-700 transition duration-300">
+                            Send Message
+                        </button>
+                    </div>
+                </form>
+                <p id="contact-status" class="text-center mt-6 h-6"></p>
+            </div>
+        </section>
+        <!-- CONTACT FORM SECTION END -->
     </main>
 
     <footer class="text-center py-6 text-gray-500">
@@ -134,7 +170,6 @@
             <button id="close-modal-button" class="absolute top-4 right-4 text-gray-500 hover:text-white text-2xl">&times;</button>
             <div id="login-view">
                 <h2 class="text-3xl font-bold text-center mb-6">Log In to ProAnthem</h2>
-                <!-- --- FIX: Removed inline classes from inputs so the <style> tag can take over --- -->
                 <form id="login-form" class="space-y-6">
                     <input id="login-email" name="email" type="email" required placeholder="Email address">
                     <input id="login-password" name="password" type="password" required placeholder="Password">
@@ -148,12 +183,59 @@
 
     <script src="/auth_proanthem.js"></script>
     <script>
-        // Lean and clean: auth_proanthem.js now handles the "Log In" button listener.
+        // Existing modal logic
         const authModal = document.getElementById('auth-modal');
         const closeModalButton = document.getElementById('close-modal-button');
         const closeModal = () => authModal.classList.add('hidden');
         closeModalButton.addEventListener('click', closeModal);
         authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
+
+        // --- NEW JAVASCRIPT FOR THE CONTACT FORM ---
+        const contactForm = document.getElementById('contact-form');
+        const contactStatus = document.getElementById('contact-status');
+        const replyToInput = document.querySelector('input[name="_replyto"]');
+        const emailInput = document.getElementById('email');
+
+        // Keep the _replyto field in sync with the email field
+        emailInput.addEventListener('input', () => {
+            replyToInput.value = emailInput.value;
+        });
+
+        async function handleContactSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const data = new FormData(form);
+            
+            contactStatus.textContent = 'Sending...';
+            contactStatus.style.color = '#9ca3af'; // gray
+
+            try {
+                const response = await fetch(form.action, {
+                    method: form.method,
+                    body: data,
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    contactStatus.textContent = "Thanks for your message! We'll be in touch soon.";
+                    contactStatus.style.color = '#4ade80'; // green
+                    form.reset();
+                } else {
+                    const responseData = await response.json();
+                    if (Object.hasOwn(responseData, 'errors')) {
+                        contactStatus.textContent = responseData["errors"].map(error => error["message"]).join(", ");
+                    } else {
+                        contactStatus.textContent = "Oops! There was a problem submitting your form.";
+                    }
+                    contactStatus.style.color = '#f87171'; // red
+                }
+            } catch (error) {
+                contactStatus.textContent = "Oops! There was a network error.";
+                contactStatus.style.color = '#f87171'; // red
+            }
+        }
+        contactForm.addEventListener("submit", handleContactSubmit);
+        // --- END OF NEW JAVASCRIPT ---
     </script>
 </body>
 </html>
