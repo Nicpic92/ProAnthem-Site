@@ -1,6 +1,11 @@
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const sgMail = require('@sendgrid/mail'); // --- NEW: Import SendGrid ---
+
+// --- NEW: Set the API key from your environment variables ---
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
 const generateBandNumber = () => Math.floor(10000 + Math.random() * 90000);
 
 exports.handler = async (event) => {
@@ -10,7 +15,6 @@ exports.handler = async (event) => {
 
     const { email, password, firstName, lastName, artistBandName, inviteToken } = JSON.parse(event.body);
 
-    // Invited members still need a first and last name from the signup form.
     if (!email || !password || !firstName || !lastName) {
         return { statusCode: 400, body: JSON.stringify({ message: 'Missing required user fields.' }) };
     }
@@ -41,7 +45,6 @@ exports.handler = async (event) => {
 
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
-            // Invited members do not have a subscription status set, it will default to inactive but their 'band_member' role grants access.
              const userInsertQuery = `
                 INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6);
@@ -66,9 +69,6 @@ exports.handler = async (event) => {
             const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, artistBandName]);
             bandId = bandResult.rows[0].id;
             
-            // --- FIX: Reverted to the original query. ---
-            // This correctly omits subscription_status, allowing it to be set to the database default (e.g., 'inactive').
-            // The user must complete a Stripe checkout to activate their trial.
             const userInsertQuery = `
                 INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
@@ -77,6 +77,44 @@ exports.handler = async (event) => {
         }
         
         await client.query('COMMIT');
+        
+        // --- NEW: SEND WELCOME EMAIL ---
+        const msg = {
+            to: email, // The user's email address
+            from: 'spreadsheetsimplicity@gmail.com', // Your verified SendGrid sender
+            subject: 'Welcome to ProAnthem!',
+            html: `
+                <div style="font-family: Inter, system-ui, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
+                    <h1 style="color: #4f46e5; text-align: center;">Welcome to ProAnthem, ${firstName}!</h1>
+                    <p>We're thrilled to have you on board. Your account has been created successfully.</p>
+                    <p>ProAnthem is your band's new digital command center, designed to make writing, organizing, and performing your music easier than ever.</p>
+                    <p style="text-align: center; margin: 30px 0;">
+                        <a href="https://your-app-url.com/proanthem_index.html" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
+                            Log In and Get Started
+                        </a>
+                    </p>
+                    <p>If you're a new band admin, your next step is to choose a plan to start your 3-day free trial.</p>
+                    <p>If you were invited to a band, you can log in now and start collaborating immediately.</p>
+                    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 0.9em; color: #777;">If you have any questions, just reply to this email.</p>
+                    <p style="font-size: 0.9em; color: #777;">Rock on,<br>The ProAnthem Team</p>
+                </div>
+            `,
+        };
+
+        try {
+            await sgMail.send(msg);
+            console.log('Welcome email sent successfully to:', email);
+        } catch (error) {
+            // Log the error but don't fail the entire signup process.
+            // The user account is more important than the welcome email.
+            console.error('Failed to send welcome email:', error);
+            if (error.response) {
+                console.error(error.response.body);
+            }
+        }
+        // --- END OF NEW CODE ---
+        
         return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.' }) };
 
     } catch (error) {
