@@ -274,8 +274,19 @@
         function initializeApp() {
             const CLOUDINARY_CLOUD_NAME = "dawbku2eq";
             const CLOUDINARY_UPLOAD_PRESET = "project-anthem-unsigned";
-            let songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [] };
-            let musicalContext = { tuning: 'E_STANDARD', capo: 0, transpose: 0 };
+            // The main data object for the currently loaded song. Musical settings are now part of this object.
+            let songData = { 
+                id: null, 
+                title: '', 
+                artist: '', 
+                audio_url: null, 
+                song_blocks: [],
+                tuning: 'E_STANDARD',
+                capo: 0,
+                transpose: 0
+            };
+            
+            // Other state variables
             let chordQueue = [];
             let chordQueueIndex = 0;
             let lastFocusedLyricsBlock = null;
@@ -285,6 +296,7 @@
             let activeResize = { element: null, startY: 0, startHeight: 0 };
             let isDraggingNote = false;
 
+            // Element references
             const titleInput = document.getElementById('titleInput');
             const artistInput = document.getElementById('artistInput');
             const songBlocksContainer = document.getElementById('song-blocks-container');
@@ -330,6 +342,7 @@
             const cancelFretBtn = document.getElementById('cancel-fret-btn');
             const soundingKeyDisplay = document.getElementById('soundingKeyDisplay');
             
+            // Constants
             const TUNINGS = { 
                 E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
                 EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, 
@@ -378,8 +391,17 @@
                 updateSetlistSongOrder: (id, song_ids) => api.request(`/setlists/${id}/songs`, { method: 'PUT', body: JSON.stringify({ song_ids }) }) 
             };
             
+            // --- NEW ---
+            // Helper function to sync the musical settings UI with the current songData
+            function updateMusicalSettingsUI() {
+                tuningSelector.value = songData.tuning;
+                capoFretInput.value = songData.capo;
+                const steps = songData.transpose;
+                transposeStatus.textContent = steps > 0 ? `+${steps}` : steps;
+            }
+
             function updateSoundingKey() {
-                const capoFret = parseInt(capoFretInput.value, 10) || 0;
+                const capoFret = songData.capo || 0;
                 let firstChord = null;
                 for (const block of songData.song_blocks) {
                     if (block.type === 'lyrics' && block.content) {
@@ -425,10 +447,9 @@
             }
 
             async function handleSetlistSelection(setlistId) {
-                // Destroy any previous Sortable instance to prevent duplicates
                 if (songsInSetlist.sortableInstance) {
                     songsInSetlist.sortableInstance.destroy();
-                    songsInSetlist.sortableInstance = null; // <-- THE FIX IS HERE
+                    songsInSetlist.sortableInstance = null;
                 }
 
                 if (!setlistId) {
@@ -458,7 +479,6 @@
                         songsInSetlist.appendChild(li);
                     });
 
-                    // Initialize SortableJS on the song list
                     songsInSetlist.sortableInstance = new Sortable(songsInSetlist, {
                         animation: 150,
                         ghostClass: 'sortable-ghost',
@@ -466,7 +486,6 @@
                             const currentSetlistId = setlistSelector.value;
                             if (!currentSetlistId) return;
                             const songIds = Array.from(evt.target.children).map(li => li.dataset.songId);
-
                             try {
                                 setStatus('Saving new song order...');
                                 await api.updateSetlistSongOrder(currentSetlistId, songIds);
@@ -521,7 +540,7 @@
                 if (confirm('Are you sure you want to permanently delete this voice memo?')) {
                     songData.audio_url = null;
                     try {
-                        await handleSave(); // Use the existing save function to update the song
+                        await handleSave();
                         document.getElementById('audioPlayerContainer').classList.add('hidden');
                         document.getElementById('audioPlayer').src = '';
                         setStatus('Recording deleted.', false);
@@ -817,7 +836,7 @@
                 notesGroup.innerHTML = '';
                 const numStrings = block.strings || 6;
                 const stringConfig = STRING_CONFIG[numStrings];
-                const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                const totalOffset = (TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo;
                 (block.data?.notes || []).forEach((note, index) => {
                     if (note.string >= numStrings) return;
                     const transposedFret = note.fret - totalOffset;
@@ -831,9 +850,9 @@
             function renderTransposedTab(tabBlock) {
                 if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data.';
                 const numStrings = tabBlock.strings || 6;
-                const tuningInfo = TUNINGS[musicalContext.tuning];
+                const tuningInfo = TUNINGS[songData.tuning];
                 const stringNames = tuningInfo?.strings?.slice(0, numStrings) || STRING_CONFIG[6].names;
-                const totalOffset = (tuningInfo?.offset ?? 0) + musicalContext.capo + musicalContext.transpose;
+                const totalOffset = (tuningInfo?.offset ?? 0) + songData.capo + songData.transpose;
                 const positionMap = new Map();
                 const sortedNotes = [...tabBlock.data.notes].sort((a,b) => a.position - b.position);
                 sortedNotes.forEach(note => {
@@ -873,9 +892,22 @@
                 setStatus('Loading song...');
                 try {
                     const data = await api.getSheet(id);
-                    songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [] };
+                    // Merge loaded data into the songData object
+                    songData = { 
+                        id: data.id, 
+                        title: data.title || '', 
+                        artist: data.artist || '', 
+                        audio_url: data.audio_url, 
+                        song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [],
+                        tuning: data.tuning ?? 'E_STANDARD', // Use default if not present
+                        capo: data.capo ?? 0,
+                        transpose: data.transpose ?? 0
+                    };
+                    
                     titleInput.value = songData.title;
                     artistInput.value = songData.artist;
+                    
+                    // Update UI for audio player
                     const audioPlayerContainer = document.getElementById('audioPlayerContainer');
                     const audioPlayer = document.getElementById('audioPlayer');
                     if (songData.audio_url) {
@@ -884,44 +916,51 @@
                     } else {
                         audioPlayerContainer.classList.add('hidden');
                         audioPlayer.src = '';
-                    }                    
-                    renderSongBlocks();
+                    }           
+                    
+                    updateMusicalSettingsUI(); // Sync UI with loaded song settings
+                    renderSongBlocks(); // This will now use the correct song-specific settings
                     setStatus('Song loaded.');
                     updateSoundingKey();
                 } catch (error) {
                     setStatus(`Error loading song: ${error.message}`, true);
-                    initializeNewSong();
+                    initializeNewSong(true); // Force a new blank song on error
                 }
             }
             async function initializeNewSong(forceNew = false) {
-                // Logic for creating a blank song state
                 const createBlankSong = () => {
-                    songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }] };
+                    songData = { 
+                        id: null, 
+                        title: '', 
+                        artist: '', 
+                        audio_url: null, 
+                        song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }],
+                        tuning: 'E_STANDARD',
+                        capo: 0,
+                        transpose: 0
+                    };
                     titleInput.value = '';
                     artistInput.value = '';
                     songSelector.value = 'new';
                     
-                    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
-                    audioPlayerContainer.classList.add('hidden');
+                    document.getElementById('audioPlayerContainer').classList.add('hidden');
                     document.getElementById('audioPlayer').src = '';
                     
+                    updateMusicalSettingsUI(); // Reset UI to defaults
                     renderSongBlocks();
                     updateSoundingKey();
                 };
 
-                // If the user explicitly clicked "Create New Song", always give them a blank slate.
                 if (forceNew) {
                     createBlankSong();
                     return;
                 }
 
-                // Otherwise (on initial page load), try to load the most recent song.
                 const songs = await api.getSheets();
                 if (songs && songs.length > 0) {
                     await loadSong(songs[0].id);
                     songSelector.value = songs[0].id;
                 } else {
-                    // If there are no songs at all, create a blank one.
                     createBlankSong();
                 }
             }
@@ -931,12 +970,15 @@
                 try {
                     songData.title = titleInput.value || 'Untitled';
                     songData.artist = artistInput.value || 'Unknown Artist';
+                    // No need to manually add musical settings, they are already part of songData
                     const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData);
                     songData.id = savedSong.id;
                     setStatus('Saved successfully!');
                     if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
                         await loadSheetList(savedSong.id);
                     } else {
+                        // Refresh the title in the dropdown in case it changed
+                        songSelector.querySelector(`option[value="${savedSong.id}"]`).textContent = songData.title;
                         songSelector.value = savedSong.id;
                     }
                 } catch (error) { 
@@ -961,15 +1003,19 @@
             async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) songSelector.value = selectId; } catch (e) { setStatus('Failed to load songs.', true); } }
             async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); await loadSheetList(); await initializeNewSong(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
             function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
-            function updateTransposeStatus(steps) { musicalContext.transpose = steps; transposeStatus.textContent = steps > 0 ? `+${steps}` : steps; }
+
             function handleTranspose(amount) {
-                updateTransposeStatus(musicalContext.transpose + amount);
+                const newTranspose = songData.transpose + amount;
+                songData.transpose = newTranspose; // Update song data
+                updateMusicalSettingsUI(); // Update UI
+                
+                // Apply transposition to lyrics
                 songData.song_blocks.forEach(block => {
                     if (block.type === 'lyrics' && block.content) {
                         block.content = block.content.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`);
                     }
                 });
-                renderSongBlocks();
+                renderSongBlocks(); // Re-render blocks with new chords and transposed tabs
             }
             function renderChordQueue() {
                 chordQueueDiv.innerHTML = '';
@@ -991,13 +1037,17 @@
             async function startRecording() { try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); mediaRecorder = new MediaRecorder(stream); mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); }; mediaRecorder.onstop = handleSaveRecording; audioChunks = []; mediaRecorder.start(); recordBtn.textContent = 'Recording...'; recordBtn.classList.add('recording'); recordBtn.disabled = true; stopBtn.disabled = false; recordingStatus.textContent = 'Recording in progress.'; } catch (err) { setStatus('Microphone access denied.', true); console.error("Error accessing microphone:", err); } }
             function stopRecording() { if(mediaRecorder) mediaRecorder.stop(); recordBtn.textContent = 'Record'; recordBtn.classList.remove('recording'); recordBtn.disabled = false; stopBtn.disabled = true; recordingStatus.textContent = 'Processing...'; }
             async function handleSaveRecording() { const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); const formData = new FormData(); formData.append('file', audioBlob); formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET); const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/video/upload`; try { const response = await fetch(url, { method: 'POST', body: formData }); if (!response.ok) throw new Error('Upload to Cloudinary failed.'); const data = await response.json(); songData.audio_url = data.secure_url; await handleSave(); recordingStatus.textContent = 'Recording saved.'; document.getElementById('audioPlayerContainer').classList.remove('hidden'); document.getElementById('audioPlayer').src = data.secure_url; } catch (error) { setStatus('Failed to upload recording.', true); console.error("Upload error:", error); recordingStatus.textContent = ''; } }
-            const musicalInputs = [tuningSelector, capoFretInput];
-            musicalInputs.forEach(el => el.addEventListener('input', () => {
-                musicalContext.tuning = tuningSelector.value;
-                musicalContext.capo = parseInt(capoFretInput.value, 10) || 0;
-                renderSongBlocks();
+            
+            // --- EVENT LISTENERS ---
+            
+            // Listener for Tuning and Capo changes
+            [tuningSelector, capoFretInput].forEach(el => el.addEventListener('input', () => {
+                songData.tuning = tuningSelector.value;
+                songData.capo = parseInt(capoFretInput.value, 10) || 0;
+                renderSongBlocks(); // Re-render to reflect changes (e.g., in tabs)
                 updateSoundingKey();
             }));
+
             transposeUpBtn.addEventListener('click', () => handleTranspose(1));
             transposeDownBtn.addEventListener('click', () => handleTranspose(-1));
             saveBtn.addEventListener('click', handleSave);
@@ -1171,7 +1221,7 @@
                 const fret = parseInt(fretNumberSelector.value, 10);
                 const block = songData.song_blocks.find(b => b.id === blockId);
                 if(block && string !== null && position !== null && fret >= 0) {
-                    const totalOffset = (TUNINGS[musicalContext.tuning]?.offset ?? 0) + musicalContext.capo;
+                    const totalOffset = (TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo;
                     if (!block.data) block.data = { notes: [] };
                     block.data.notes.push({ string, fret: fret + totalOffset, position });
                     drawNotesOnFretboard(blockId);
@@ -1228,6 +1278,7 @@
                     }
                 }
             });            
+            // --- INITIALIZATION ---
             (function main(){
                 populateTuningSelector(); 
                 loadSheetList().then(() => initializeNewSong(false));
