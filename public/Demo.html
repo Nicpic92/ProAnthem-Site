@@ -299,128 +299,131 @@
                 });
             }
 
-            // --- IMPROVED: Advanced Song Parser Logic ---
+            // --- FINAL: Robust Multi-Format Song Parser ---
             function parsePastedSong(text) {
                 let metadata = { capo: 0, tuning: 'E_STANDARD' };
-                let lines = text.split('\n');
+                let lines = text.split('\n').map(l => l.replace(/\r/g, '')); // Normalize line endings
                 
                 // 1. Pre-process to extract metadata and remove junk lines
                 lines = lines.filter(line => {
-                    const capoMatch = line.match(/capo\s+(\d+)/i);
-                    if (capoMatch) {
-                        metadata.capo = parseInt(capoMatch[1], 10);
-                        return false; // Remove line
+                    const capoMatch = line.match(/capo\s*:?\s*(\d+)/i);
+                    if (capoMatch) { metadata.capo = parseInt(capoMatch[1], 10); return false; }
+
+                    if (line.match(/tuning/i)) {
+                        const l = line.toLowerCase();
+                        if (l.includes('eb') || l.includes('e flat')) metadata.tuning = 'EB_STANDARD';
+                        else if (l.includes('drop d')) metadata.tuning = 'DROP_D';
+                        else if (l.includes('d standard')) metadata.tuning = 'D_STANDARD';
+                        else if (l.includes('drop c')) metadata.tuning = 'DROP_C';
+                        else metadata.tuning = 'E_STANDARD';
+                        return false;
                     }
-                    const tuningMatch = line.match(/tuning/i);
-                    if (tuningMatch) {
-                        if(line.toLowerCase().includes('eb') || line.toLowerCase().includes('e flat')) metadata.tuning = 'EB_STANDARD';
-                        else if(line.toLowerCase().includes('drop d')) metadata.tuning = 'DROP_D';
-                        else if(line.toLowerCase().includes('d standard')) metadata.tuning = 'D_STANDARD';
-                        else if(line.toLowerCase().includes('drop c')) metadata.tuning = 'DROP_C';
-                        // Add more tuning detections here if needed
-                        return false; // Remove line
-                    }
-                    if (line.match(/^Page \d+\/\d+$/i)) {
-                        return false; // Remove junk page markers
+                    if (line.match(/^Page \d+\/\d+$/i) || line.match(/ultimate-guitar\.com/i)) {
+                        return false; // Remove junk lines
                     }
                     return true;
                 });
 
                 const newBlocks = [];
                 let currentBlock = null;
-
-                const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|solo|outro|tag)[\s\d:]*)\s*$/i;
+                const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
                 const tabLineRegex = /^\s*([a-zA-Z]\||[\|gteADGBCF]).*[\d\-xphb/\\~]/;
-                const chordLineRegex = /^\s*([A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7)?[0-9]*(?:\/[A-G][b#]?)?\s*)+$/;
+                const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
+                const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
 
                 const pushBlock = () => {
-                    if (currentBlock && currentBlock.content.trim()) {
+                    if (currentBlock) {
                         currentBlock.content = currentBlock.content.trim();
-                        newBlocks.push(currentBlock);
+                        if(currentBlock.content) newBlocks.push(currentBlock);
                     }
                 };
                 
                 const createNewBlock = (label, type) => {
                     pushBlock();
-                    const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
+                    const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase().replace('prechorus', 'Pre-Chorus');
                     currentBlock = {
                         id: `block_${Date.now()}_${newBlocks.length}`,
                         label: capitalizedLabel || 'Section',
-                        type: type,
-                        content: '',
-                        height: 120
+                        type: type, content: '', height: 120
                     };
                 };
+
+                // This function takes a line of lyrics and puts brackets around any chord-like words.
+                function bracketInlineChords(line) {
+                    if (line.includes('[') || line.trim() === '') return line; // Already formatted or empty
+                    const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g');
+                    return line.replace(chordTokenRegex, '[$1]');
+                }
+
+                // This is the key function to merge a chord line and a lyric line into a single line.
+                function mergeChordLyricLines(chordLine, lyricLine) {
+                    let chords = [];
+                    const chordFinderRegex = new RegExp(chordRegexSource, 'g');
+                    let match;
+                    while ((match = chordFinderRegex.exec(chordLine)) !== null) {
+                        chords.push({ text: match[0], index: match.index });
+                    }
+                    
+                    let mergedLine = lyricLine;
+                    // Insert chords from back to front to avoid shifting indices.
+                    for (let i = chords.length - 1; i >= 0; i--) {
+                        const chord = chords[i];
+                        let insertionIndex = Math.min(chord.index, mergedLine.length);
+                        // If the insertion point isn't the start and the previous character isn't a space, add one.
+                        if (insertionIndex > 0 && mergedLine[insertionIndex-1] !== ' ') {
+                            mergedLine = mergedLine.slice(0, insertionIndex) + ' ' + mergedLine.slice(insertionIndex);
+                        }
+                        mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
+                    }
+                    // Clean up by removing space after a bracket and ensuring a space if a word follows immediately.
+                    return mergedLine.replace(/\[([^\]]+)\]\s*/g, '[$1]').replace(/\[([^\]]+)\](\S)/g, '[$1] $2');
+                }
 
                 let sectionLines = [];
                 for (const line of lines) {
                     const headerMatch = line.match(headerRegex);
                     if (headerMatch) {
-                        processSectionLines(sectionLines);
+                        if(sectionLines.length > 0) processSectionLines(sectionLines);
                         sectionLines = [];
                         const label = (headerMatch[1] || headerMatch[2] || 'Section').trim();
                         createNewBlock(label, 'lyrics');
-                    } else {
+                    } else if (line.trim() !== '') {
                         sectionLines.push(line);
+                    } else if (sectionLines.length > 0) {
+                        // An empty line usually signifies the end of a stanza or block.
+                        if(sectionLines.length > 0) processSectionLines(sectionLines);
+                        sectionLines = [];
                     }
                 }
-                processSectionLines(sectionLines);
+                if(sectionLines.length > 0) processSectionLines(sectionLines);
                 pushBlock();
-                
+
                 function processSectionLines(blockLines) {
                     if (!currentBlock) createNewBlock('Verse 1', 'lyrics');
+                    
                     if (blockLines.some(l => l.match(tabLineRegex))) {
                         currentBlock.type = 'tab';
-                    }
-
-                    if (currentBlock.type === 'lyrics') {
-                        let mergedContent = [];
-                        for (let i = 0; i < blockLines.length; i++) {
-                            const currentLine = blockLines[i];
-                            const nextLine = (i + 1 < blockLines.length) ? blockLines[i+1] : null;
-
-                            if (currentLine.match(chordLineRegex) && nextLine && nextLine.trim() !== '') {
-                                // This is a chord line followed by a lyric line, so merge them
-                                mergedContent.push(mergeChordLyricLines(currentLine, nextLine));
-                                i++; // Skip the next line as it's been processed
-                            } else {
-                                // It's a lyric line, a standalone chord line, or an empty line
-                                if(currentLine.match(chordLineRegex)) {
-                                    const chords = currentLine.trim().split(/\s+/).map(c => `[${c}]`).join('');
-                                    mergedContent.push(chords);
-                                } else {
-                                    mergedContent.push(currentLine);
-                                }
-                            }
-                        }
-                        currentBlock.content = mergedContent.join('\n');
-                    } else { // It's a tab or something else
-                        currentBlock.content = blockLines.join('\n');
-                    }
-                }
-
-                function mergeChordLyricLines(chordLine, lyricLine) {
-                    const chords = [];
-                    const chordRegex = /[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7)?[0-9]*(?:\/[A-G][b#]?)?/g;
-                    let match;
-                    while ((match = chordRegex.exec(chordLine)) !== null) {
-                        chords.push({ text: match[0], index: match.index });
+                        currentBlock.content += blockLines.join('\n') + '\n\n';
+                        return;
                     }
                     
-                    // Insert chords into lyric line from back to front to avoid index shifting
-                    let mergedLine = lyricLine;
-                    for (let i = chords.length - 1; i >= 0; i--) {
-                        const chord = chords[i];
-                        mergedLine = mergedLine.slice(0, chord.index) + `[${chord.text}]` + mergedLine.slice(chord.index);
+                    let processedLines = [];
+                    for (let i = 0; i < blockLines.length; i++) {
+                        const currentLine = blockLines[i];
+                        const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null;
+
+                        if (chordLineRegex.test(currentLine) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine)) {
+                            // This is a two-line format: chord line followed by a lyric line. Merge them.
+                            processedLines.push(mergeChordLyricLines(currentLine, nextLine));
+                            i++; // Important: skip the next line as it's been processed.
+                        } else {
+                            // This is a one-line format (with or without chords) or just lyrics.
+                            processedLines.push(bracketInlineChords(currentLine));
+                        }
                     }
-                    return mergedLine;
+                    currentBlock.content += processedLines.join('\n') + '\n\n';
                 }
 
-                if (newBlocks.length === 0 && text.trim()) {
-                     processSectionLines(text.split('\n'));
-                     pushBlock();
-                }
-                
                 return { blocks: newBlocks, metadata: metadata };
             }
 
@@ -451,21 +454,14 @@
                 div.className = 'song-block';
                 div.dataset.blockId = block.id;
                 let contentHtml = '', headerControls = '';
-                const drumPlaceholder = `HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`;
-                if (block.type === 'lyrics') {
-                    contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
-                } else if (block.type === 'tab') {
-                    // For imported tabs, we'll just use a textarea for now, as parsing into interactive notes is a much bigger feature.
-                    contentHtml = `<textarea class="form-textarea" data-field="content" style="font-family: 'Courier New', monospace; height: ${block.height || 120}px;" placeholder="Enter tab...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
-                } else if (block.type === 'drum_tab') {
-                    contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`;
+                if (block.type === 'lyrics' || block.type === 'tab' || block.type === 'drum_tab') {
+                    const fontFamily = block.type === 'tab' || block.type === 'drum_tab' ? "font-family: 'Courier New', monospace;" : "";
+                    contentHtml = `<textarea class="form-textarea" data-field="content" style="${fontFamily} height: ${block.height || 120}px;">${block.content || ''}</textarea><div class="resize-handle"></div>`;
                 } else if (block.type === 'reference') {
                     const originalBlock = songData.song_blocks.find(b => b.id === block.originalId);
                     contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`;
                 }
                 div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type.replace('_', ' ')})</span></div></div><div class="flex items-center gap-2">${headerControls}<button class="btn-sm text-xs hover:underline" data-action="rename">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`;
-                // The interactive fretboard is disabled for imported tabs for simplicity.
-                // if (block.type === 'tab') setTimeout(() => drawFretboard(block.id), 0);
                 return div;
             }
 
@@ -494,24 +490,6 @@
                     }
                 });
                 livePreview.innerHTML = previewHtml;
-            }
-
-            function getFretFromClick(evt, svgEl) {
-                // This function is for the interactive fretboard, which we are simplifying for imported tabs.
-                // It can be kept for manually created tab sections.
-            }
-
-            function drawFretboard(blockId) {
-                // This function is for the interactive fretboard, which we are simplifying for imported tabs.
-                // It can be kept for manually created tab sections.
-            }
-
-            function drawNotesOnFretboard(blockId) {
-                // This function is for the interactive fretboard, which we are simplifying for imported tabs.
-            }
-
-            function renderTransposedTab(tabBlock) {
-                 // This function is for the interactive fretboard, which we are simplifying for imported tabs.
             }
 
             function updateBlockData(blockId, field, value, height) {
@@ -603,8 +581,6 @@
 
                 if (result.blocks.length > 0) {
                     songData.song_blocks = result.blocks;
-                    
-                    // Reset and apply metadata
                     songData.title = 'Imported Song';
                     songData.artist = '';
                     songData.tuning = result.metadata.tuning;
@@ -625,16 +601,13 @@
                 importModal.classList.add('hidden');
             });
 
-            // ... (rest of the event listeners for fretboard, resizing, etc.)
-            // NOTE: Since the new parser simplifies imported tabs to text areas, the interactive fretboard
-            // logic won't apply to them, but will still work for tab sections created manually via the UI.
             clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
-            songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
+            songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('form-textarea')) lastFocusedLyricsBlock = e.target; });
             songBlocksContainer.addEventListener('input', e => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); updateSoundingKey(); } });
             songBlocksContainer.addEventListener('mousedown', e => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
             document.addEventListener('mousemove', e => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } });
             document.addEventListener('mouseup', () => { if (activeResize.element) { const newHeight = activeResize.element.offsetHeight; updateBlockData(activeResize.blockId, null, null, newHeight); activeResize = { element: null, startY: 0, startHeight: 0 }; document.body.style.cursor = ''; } });
-            songBlocksContainer.addEventListener('click', (e) => { const blockEl = e.target.closest('.song-block'); if (!blockEl) return; const blockId = blockEl.dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); } else if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); } } else if (e.target.dataset.action === 'rename') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); } } });
+            songBlocksContainer.addEventListener('click', (e) => { const blockEl = e.target.closest('.song-block'); if (!blockEl) return; const blockId = blockEl.dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if (e.target.classList.contains('form-textarea') && chordQueue.length > 0) { e.preventDefault(); const textarea = e.target; const chordToPlace = chordQueue[chordQueueIndex]; const t = `[${chordToPlace}]`; const p = textarea.selectionStart; textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p); textarea.focus(); const newPos = p + t.length; textarea.setSelectionRange(newPos, newPos); chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length; updateBlockData(blockId, 'content', textarea.value); renderChordQueue(); } else if (e.target.dataset.action === 'delete') { if (confirm('Are you sure?')) { songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId); renderSongBlocks(); } } else if (e.target.dataset.action === 'rename') { const newLabel = prompt('Enter new label:', block.label); if (newLabel) { block.label = newLabel; renderSongBlocks(); } } });
             addBlockButtonsContainer.addEventListener('click', e => { const target = e.target; if (target.id === 'insert-ref-btn') { document.getElementById('ref-dropdown').classList.toggle('hidden'); } else if (target.closest('#ref-dropdown')) { const originalId = target.dataset.originalId; const originalBlock = songData.song_blocks.find(b => b.id === originalId); if(originalBlock) { songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId }); renderSongBlocks(); } document.getElementById('ref-dropdown').classList.add('hidden'); } else if (target.dataset.action === 'add') { const type = target.dataset.type; const baseLabel = target.textContent.trim().replace('+', '').trim(); const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1; const label = `${baseLabel} ${count}`; const newBlock = { id: `block_${Date.now()}`, type, label, height: 100 }; if (type === 'lyrics' || type === 'drum_tab' || type === 'tab') newBlock.content = ''; songData.song_blocks.push(newBlock); renderSongBlocks(); } });
 
             (function main(){
