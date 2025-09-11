@@ -84,6 +84,8 @@
                     <div class="space-y-2 flex-shrink-0">
                         <label class="block text-sm font-medium text-gray-300 mb-1">Demo Controls</label>
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
+                        <!-- --- NEW: Import Button --- -->
+                        <button id="importBtn" class="btn btn-secondary w-full">Import Song</button>
                         <a href="/proanthem_index.html" class="btn btn-secondary w-full text-center block">Sign Up to Save</a>
                         <button id="resetDemoBtn" class="btn btn-danger w-full">Reset Demo</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
@@ -167,6 +169,22 @@
         </div>
     </div>
 
+    <!-- --- NEW: Import Modal --- -->
+    <div id="import-modal" class="modal-overlay hidden">
+        <div class="modal-content space-y-4">
+            <h2 class="text-2xl font-bold">Import Song</h2>
+            <p class="text-sm text-gray-400">
+                Paste your song text below. The tool will try to automatically identify sections.
+                For best results, place section headers like <code class="bg-gray-700 p-1 rounded">[Verse]</code> or <code class="bg-gray-700 p-1 rounded">Chorus:</code> on their own lines.
+            </p>
+            <textarea id="import-textarea" class="form-textarea w-full" rows="15" placeholder="Paste your song here..."></textarea>
+            <div class="flex justify-end gap-4">
+                <button id="import-cancel-btn" class="btn btn-secondary">Cancel</button>
+                <button id="import-confirm-btn" class="btn btn-primary">Import</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             initializeApp();
@@ -204,6 +222,13 @@
             const addFretBtn = document.getElementById('add-fret-btn');
             const cancelFretBtn = document.getElementById('cancel-fret-btn');
             const soundingKeyDisplay = document.getElementById('soundingKeyDisplay');
+
+            // --- NEW: Import Modal Elements ---
+            const importBtn = document.getElementById('importBtn');
+            const importModal = document.getElementById('import-modal');
+            const importTextarea = document.getElementById('import-textarea');
+            const importConfirmBtn = document.getElementById('import-confirm-btn');
+            const importCancelBtn = document.getElementById('import-cancel-btn');
             
             const TUNINGS = { 
                 E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, 
@@ -277,6 +302,75 @@
                 });
             }
 
+            // --- NEW: Song Parser Logic ---
+            function parsePastedSong(text) {
+                const lines = text.split('\n');
+                const newBlocks = [];
+                let currentBlock = null;
+
+                const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|solo|outro|tag)[\s\d:]*)\s*$/i;
+                const tabLineRegex = /^\s*([a-zA-Z]\||[\|gteADGBCF]).*[\d\-xphb/\\~]/;
+                
+                const pushBlock = () => {
+                    if (currentBlock && currentBlock.content.trim()) {
+                        currentBlock.content = currentBlock.content.trim();
+                        newBlocks.push(currentBlock);
+                    }
+                };
+                
+                const createNewBlock = (label, type) => {
+                    pushBlock();
+                    currentBlock = {
+                        id: `block_${Date.now()}_${newBlocks.length}`,
+                        label: label || 'Section',
+                        type: type,
+                        content: '',
+                        height: 120
+                    };
+                    if (type === 'tab') {
+                        currentBlock.data = { notes: [] };
+                        currentBlock.strings = 6;
+                        currentBlock.editMode = false;
+                    }
+                };
+
+                for (const line of lines) {
+                    const headerMatch = line.match(headerRegex);
+                    if (headerMatch) {
+                        const label = (headerMatch[1] || headerMatch[2]).trim();
+                        createNewBlock(label, 'lyrics'); // Default to lyrics, might change later
+                    } else {
+                        if (!currentBlock) {
+                            createNewBlock('Verse 1', 'lyrics');
+                        }
+                        
+                        // Heuristic: If we are in a lyrics block and see a tab line, switch the block type.
+                        if (currentBlock.type === 'lyrics' && line.match(tabLineRegex)) {
+                            // If the block already has lyrics, push it and start a new tab block.
+                            if (currentBlock.content.trim()) {
+                                createNewBlock(currentBlock.label + ' (Tab)', 'tab');
+                            } else { // Otherwise, just convert the current empty block to a tab block.
+                                currentBlock.type = 'tab';
+                                currentBlock.data = { notes: [] };
+                                currentBlock.strings = 6;
+                                currentBlock.editMode = false;
+                            }
+                        }
+                        
+                        currentBlock.content += line + '\n';
+                    }
+                }
+
+                pushBlock();
+                if (newBlocks.length === 0 && text.trim()) {
+                    createNewBlock('Verse 1', 'lyrics');
+                    currentBlock.content = text;
+                    pushBlock();
+                }
+                
+                return newBlocks;
+            }
+
             function updateSoundingKey() {
                 const capoFret = songData.capo || 0;
                 let firstChord = null;
@@ -345,7 +439,9 @@
                             previewHtml += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`;
                         });
                     } else if (blockToRender.type === 'tab') {
-                        previewHtml += `<div class="tab-preview">${renderTransposedTab(blockToRender)}</div>`;
+                        // For tabs, we'll just show the raw content in the preview since parsing it into the interactive fretboard is complex.
+                        // The interactive version is in the editor block itself.
+                        previewHtml += `<div class="tab-preview">${blockToRender.content || 'Tab section will be interactive in the editor.'}</div>`;
                     } else if (blockToRender.type === 'drum_tab') {
                         previewHtml += `<div class="tab-preview">${blockToRender.content || ''}</div>`;
                     }
@@ -505,6 +601,8 @@
                     chordQueueDiv.appendChild(pill);
                 });
             }
+
+            // --- EVENT LISTENERS ---
             
             [tuningSelector, capoFretInput].forEach(el => el.addEventListener('input', () => {
                 songData.tuning = tuningSelector.value;
@@ -521,6 +619,47 @@
                     initializeDemoSong();
                 }
             });
+
+            // --- NEW: Import Modal Event Listeners ---
+            importBtn.addEventListener('click', () => {
+                importTextarea.value = '';
+                importModal.classList.remove('hidden');
+            });
+            importCancelBtn.addEventListener('click', () => {
+                importModal.classList.add('hidden');
+            });
+            importConfirmBtn.addEventListener('click', () => {
+                const pastedText = importTextarea.value;
+                if (!pastedText.trim()) {
+                    alert('Please paste some song text to import.');
+                    return;
+                }
+                
+                const newBlocks = parsePastedSong(pastedText);
+
+                if (newBlocks.length > 0) {
+                    songData.song_blocks = newBlocks;
+                    // Reset song metadata
+                    songData.title = 'Imported Song';
+                    songData.artist = '';
+                    songData.tuning = 'E_STANDARD';
+                    songData.capo = 0;
+                    songData.transpose = 0;
+                    
+                    titleInput.value = songData.title;
+                    artistInput.value = songData.artist;
+
+                    updateMusicalSettingsUI();
+                    renderSongBlocks();
+                    updateSoundingKey();
+                    setStatus('Song imported successfully!');
+                } else {
+                    setStatus('Could not find any content to import.', true);
+                }
+
+                importModal.classList.add('hidden');
+            });
+
 
             clearQueueBtn.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; renderChordQueue(); });
             songBlocksContainer.addEventListener('focusin', e => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
