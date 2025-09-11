@@ -1,112 +1,227 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - ProAnthem</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
-        .form-input, .form-select { background-color: #1f2937; border: 1px solid #4b5563; }
-        .btn-primary { background-color: #4f46e5; } .btn-primary:hover { background-color: #4338ca; }
-        .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
-        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover { background-color: #6b7280; }
-    </style>
-</head>
-<body class="flex flex-col min-h-screen">
+// admin.js
 
-    <header class="container mx-auto p-6 flex justify-between items-center">
-        <a href="/proanthem_index.html" class="flex items-center space-x-4">
-            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
-            <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
-        </a>
-        <div id="nav-auth-section">
-             <!-- Populated by auth script -->
-        </div>
-    </header>
+// --- STATE MANAGEMENT ---
+// Store data globally to avoid re-fetching unless necessary
+let allUsers = [];
+let allBands = [];
+let allSongs = [];
 
-    <main class="container mx-auto px-6 py-12 flex-grow">
-        <div id="admin-content" style="display: none;">
-            <h1 class="text-4xl font-bold text-white">Admin Panel</h1>
-            <p class="text-lg text-gray-400 mt-2">Manage all ProAnthem users, bands, and content.</p>
-            
-            <div class="mt-8 bg-gray-900 p-6 rounded-lg shadow-md">
-                 <h2 class="text-2xl font-bold text-white mb-4">Super Admin Tools</h2>
-                 <div class="flex gap-4">
-                    <button onclick="openCopySongModal()" class="btn btn-secondary">Copy a Song</button>
-                 </div>
-            </div>
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Security Check: Ensure the user is a logged-in site admin
+    if (!checkAccess()) {
+        document.getElementById('access-denied').style.display = 'block';
+        return;
+    }
 
-            <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold text-white mb-4">User Management</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-white">
-                        <thead class="bg-gray-800">
-                            <tr>
-                                <th class="p-3 text-left font-semibold">Email</th>
-                                <th class="p-3 text-left font-semibold">Current Band</th>
-                                <th class="p-3 text-left font-semibold">Role</th>
-                                <th class="p-3 text-left font-semibold">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-table-body" class="bg-gray-800/50">
-                            <!-- Rows will be populated by JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+    const user = getUserPayload();
+    if (user.role !== 'site_admin') {
+        document.getElementById('access-denied').style.display = 'block';
+        return;
+    }
 
-        <div id="access-denied" class="text-center py-20" style="display: none;">
-            <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
-            <p class="mt-4 text-lg text-gray-300">You must be an administrator to view this page.</p>
-            <a href="/ProjectAnthem.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Return to the Tool</a>
-        </div>
-    </main>
+    // If security checks pass, show the admin content
+    document.getElementById('admin-content').style.display = 'block';
+
+    // 2. Attach Event Listeners
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    document.getElementById('create-band-form').addEventListener('submit', handleCreateBand);
+    document.getElementById('confirm-reassign-btn').addEventListener('click', handleConfirmReassignment);
+    document.getElementById('confirm-copy-btn').addEventListener('click', handleConfirmCopy);
     
-    <!-- Modals for new actions -->
-    <div id="reassign-user-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
-        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-lg w-full text-white space-y-4">
-            <h2 class="text-2xl font-bold">Reassign User to a Band</h2>
-            <p>This will move <strong id="reassign-user-email"></strong> to the selected band.</p>
-            <div>
-                <label for="reassign-band-select" class="block text-sm font-medium">Select New Band</label>
-                <select id="reassign-band-select" class="form-select mt-1 w-full"></select>
-            </div>
-            <div class="flex justify-end gap-4">
-                <button onclick="closeModal('reassign-user-modal')" class="btn btn-secondary">Cancel</button>
-                <button id="confirm-reassign-btn" class="btn btn-primary">Confirm Reassignment</button>
-            </div>
-        </div>
-    </div>
+    // Add event listener to the table body for delegation
+    document.getElementById('users-table-body').addEventListener('click', handleUserActions);
 
-     <div id="copy-song-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
-        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-lg w-full text-white space-y-4">
-            <h2 class="text-2xl font-bold">Copy Song to another Band</h2>
-            <p>This creates a new, independent copy of a song and assigns it to a different band.</p>
-             <div>
-                <label for="copy-song-select" class="block text-sm font-medium">Select Song to Copy</label>
-                <select id="copy-song-select" class="form-select mt-1 w-full"></select>
-            </div>
-            <div>
-                <label for="copy-band-select" class="block text-sm font-medium">Select Target Band</label>
-                <select id="copy-band-select" class="form-select mt-1 w-full"></select>
-            </div>
-            <div class="flex justify-end gap-4">
-                <button onclick="closeModal('copy-song-modal')" class="btn btn-secondary">Cancel</button>
-                <button id="confirm-copy-btn" class="btn btn-primary">Copy Song</button>
-            </div>
-        </div>
-    </div>
+    // 3. Load Initial Data
+    initializeAdminPanel();
+});
+
+
+// --- DATA FETCHING ---
+async function initializeAdminPanel() {
+    try {
+        // Fetch all data in parallel for efficiency
+        [allUsers, allBands, allSongs] = await Promise.all([
+            apiRequest('site-admin/users'),
+            apiRequest('site-admin/bands'),
+            apiRequest('site-admin/songs')
+        ]);
+        
+        populateUsersTable();
+        
+    } catch (error) {
+        console.error("Failed to initialize admin panel:", error);
+        alert(`Error: ${error.message}`);
+    }
+}
+
+// --- RENDERING FUNCTIONS ---
+function populateUsersTable() {
+    const tableBody = document.getElementById('users-table-body');
+    tableBody.innerHTML = ''; // Clear existing rows
+
+    if (allUsers.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="4" class="p-3 text-center text-gray-400">No users found.</td></tr>';
+        return;
+    }
+
+    allUsers.forEach(user => {
+        const band = allBands.find(b => b.id === user.band_id);
+        const row = document.createElement('tr');
+        row.className = 'border-b border-gray-700';
+        row.innerHTML = `
+            <td class="p-3">${user.email}</td>
+            <td class="p-3">${band ? band.band_name : 'N/A'}</td>
+            <td class="p-3">${user.role}</td>
+            <td class="p-3">
+                <button 
+                    class="btn btn-secondary btn-sm"
+                    data-action="reassign"
+                    data-userid="${user.id}"
+                    data-email="${user.email}"
+                >Reassign</button>
+            </td>
+        `;
+        tableBody.appendChild(row);
+    });
+}
+
+function populateSelectDropdown(selectElement, items, valueField, textField) {
+    selectElement.innerHTML = '';
+    items.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item[valueField];
+        option.textContent = item[textField];
+        selectElement.appendChild(option);
+    });
+}
+
+// --- MODAL MANAGEMENT ---
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+}
+
+// Make closeModal globally accessible for the onclick attributes in the HTML
+window.closeModal = closeModal;
+
+// --- EVENT HANDLERS ---
+function handleUserActions(event) {
+    const button = event.target.closest('button');
+    if (!button) return;
+
+    const action = button.dataset.action;
+    if (action === 'reassign') {
+        const userId = button.dataset.userid;
+        const userEmail = button.dataset.email;
+        openReassignUserModal(userId, userEmail);
+    }
+}
+
+function openReassignUserModal(userId, userEmail) {
+    document.getElementById('reassign-user-email').textContent = userEmail;
+    document.getElementById('confirm-reassign-btn').dataset.userId = userId;
     
-    <footer class="text-center py-6 text-gray-500">
-        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
-    </footer>
+    const bandSelect = document.getElementById('reassign-band-select');
+    populateSelectDropdown(bandSelect, allBands, 'id', 'band_name');
+    
+    openModal('reassign-user-modal');
+}
 
-    <script src="/auth_proanthem.js"></script>
-    <script src="/admin.js"></script>
-</body>
-</html>
+function openCopySongModal() {
+    const songSelect = document.getElementById('copy-song-select');
+    populateSelectDropdown(songSelect, allSongs, 'id', 'title');
+
+    const bandSelect = document.getElementById('copy-band-select');
+    populateSelectDropdown(bandSelect, allBands, 'id', 'band_name');
+
+    openModal('copy-song-modal');
+}
+
+async function handleCreateBand(event) {
+    event.preventDefault();
+    const statusEl = document.getElementById('create-band-status');
+    const submitBtn = document.getElementById('create-band-btn');
+    const bandNameInput = document.getElementById('band-name');
+    const adminEmailInput = document.getElementById('admin-email');
+
+    const bandName = bandNameInput.value.trim();
+    const adminEmail = adminEmailInput.value.trim();
+
+    if (!bandName || !adminEmail) {
+        statusEl.textContent = 'All fields are required.';
+        statusEl.style.color = '#f87171';
+        return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    statusEl.textContent = '';
+
+    try {
+        await apiRequest('site-admin/create-band', { bandName, adminEmail }, 'POST');
+        statusEl.textContent = `Successfully created band '${bandName}' and sent invite to ${adminEmail}.`;
+        statusEl.style.color = '#4ade80';
+        bandNameInput.value = '';
+        adminEmailInput.value = '';
+        initializeAdminPanel(); // Refresh all data
+    } catch (error) {
+        statusEl.textContent = error.message;
+        statusEl.style.color = '#f87171';
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Band & Send Invite';
+    }
+}
+
+async function handleConfirmReassignment() {
+    const button = document.getElementById('confirm-reassign-btn');
+    const userId = button.dataset.userId;
+    const bandId = document.getElementById('reassign-band-select').value;
+    
+    button.disabled = true;
+    button.textContent = 'Reassigning...';
+
+    try {
+        await apiRequest('site-admin/reassign-user', { userId, newBandId: bandId }, 'POST');
+        closeModal('reassign-user-modal');
+        await initializeAdminPanel(); // Refresh the table
+        alert('User reassigned successfully!');
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Confirm Reassignment';
+    }
+}
+
+async function handleConfirmCopy() {
+    const button = document.getElementById('confirm-copy-btn');
+    const songId = document.getElementById('copy-song-select').value;
+    const targetBandId = document.getElementById('copy-band-select').value;
+
+    button.disabled = true;
+    button.textContent = 'Copying...';
+
+    try {
+        await apiRequest('site-admin/copy-song', { songId, targetBandId }, 'POST');
+        closeModal('copy-song-modal');
+        alert('Song copied successfully!');
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Copy Song';
+    }
+}
