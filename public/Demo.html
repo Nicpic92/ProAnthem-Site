@@ -360,20 +360,20 @@
                     let mergedLine = lyricLine;
                     for (let i = chords.length - 1; i >= 0; i--) {
                         const chord = chords[i];
-                        
                         let insertionIndex = -1;
-                        // Find the first non-space character at or after the chord's position
-                        for(let j = chord.index; j < mergedLine.length; j++) {
-                            if (mergedLine[j] !== ' ') {
+                        
+                        // Find the start of the first word (non-space char preceded by a space or start of line)
+                        // at or after the chord's horizontal position
+                        for (let j = chord.index; j < mergedLine.length; j++) {
+                            if (mergedLine[j] !== ' ' && (j === 0 || mergedLine[j - 1] === ' ')) {
                                 insertionIndex = j;
                                 break;
                             }
                         }
 
                         if (insertionIndex !== -1) {
-                             mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
+                            mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
                         } else {
-                            // If no word is found, just append it to the end with a space
                             mergedLine += ` [${chord.text}]`;
                         }
                     }
