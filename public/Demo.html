@@ -299,16 +299,14 @@
                 });
             }
 
-            // --- FINAL: Robust Multi-Format Song Parser ---
+            // --- CORRECTED FINAL PARSER ---
             function parsePastedSong(text) {
                 let metadata = { capo: 0, tuning: 'E_STANDARD' };
-                let lines = text.split('\n').map(l => l.replace(/\r/g, '')); // Normalize line endings
-                
-                // 1. Pre-process to extract metadata and remove junk lines
+                let lines = text.split('\n').map(l => l.replace(/\r/g, ''));
+
                 lines = lines.filter(line => {
                     const capoMatch = line.match(/capo\s*:?\s*(\d+)/i);
                     if (capoMatch) { metadata.capo = parseInt(capoMatch[1], 10); return false; }
-
                     if (line.match(/tuning/i)) {
                         const l = line.toLowerCase();
                         if (l.includes('eb') || l.includes('e flat')) metadata.tuning = 'EB_STANDARD';
@@ -318,16 +316,14 @@
                         else metadata.tuning = 'E_STANDARD';
                         return false;
                     }
-                    if (line.match(/^Page \d+\/\d+$/i) || line.match(/ultimate-guitar\.com/i)) {
-                        return false; // Remove junk lines
-                    }
+                    if (line.match(/^Page \d+\/\d+$/i) || line.match(/ultimate-guitar\.com/i)) return false;
                     return true;
                 });
 
                 const newBlocks = [];
                 let currentBlock = null;
                 const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
-                const tabLineRegex = /^\s*([a-zA-Z]\||[\|gteADGBCF]).*[\d\-xphb/\\~]/;
+                const tabLineRegex = /\|.*-|-.*\|/; // Stricter: must contain a pipe and a dash
                 const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
                 const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
 
@@ -343,19 +339,16 @@
                     const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase().replace('prechorus', 'Pre-Chorus');
                     currentBlock = {
                         id: `block_${Date.now()}_${newBlocks.length}`,
-                        label: capitalizedLabel || 'Section',
-                        type: type, content: '', height: 120
+                        label: capitalizedLabel || 'Section', type: type, content: '', height: 120
                     };
                 };
 
-                // This function takes a line of lyrics and puts brackets around any chord-like words.
                 function bracketInlineChords(line) {
-                    if (line.includes('[') || line.trim() === '') return line; // Already formatted or empty
+                    if (line.includes('[') || line.trim() === '') return line;
                     const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g');
                     return line.replace(chordTokenRegex, '[$1]');
                 }
 
-                // This is the key function to merge a chord line and a lyric line into a single line.
                 function mergeChordLyricLines(chordLine, lyricLine) {
                     let chords = [];
                     const chordFinderRegex = new RegExp(chordRegexSource, 'g');
@@ -365,20 +358,14 @@
                     }
                     
                     let mergedLine = lyricLine;
-                    // Insert chords from back to front to avoid shifting indices.
                     for (let i = chords.length - 1; i >= 0; i--) {
                         const chord = chords[i];
                         let insertionIndex = Math.min(chord.index, mergedLine.length);
-                        // If the insertion point isn't the start and the previous character isn't a space, add one.
-                        if (insertionIndex > 0 && mergedLine[insertionIndex-1] !== ' ') {
-                            mergedLine = mergedLine.slice(0, insertionIndex) + ' ' + mergedLine.slice(insertionIndex);
-                        }
                         mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
                     }
-                    // Clean up by removing space after a bracket and ensuring a space if a word follows immediately.
-                    return mergedLine.replace(/\[([^\]]+)\]\s*/g, '[$1]').replace(/\[([^\]]+)\](\S)/g, '[$1] $2');
+                    return mergedLine.replace(/(\s*\[)/g, ' [').replace(/^\[/, '[').trim();
                 }
-
+                
                 let sectionLines = [];
                 for (const line of lines) {
                     const headerMatch = line.match(headerRegex);
@@ -390,7 +377,6 @@
                     } else if (line.trim() !== '') {
                         sectionLines.push(line);
                     } else if (sectionLines.length > 0) {
-                        // An empty line usually signifies the end of a stanza or block.
                         if(sectionLines.length > 0) processSectionLines(sectionLines);
                         sectionLines = [];
                     }
@@ -401,7 +387,7 @@
                 function processSectionLines(blockLines) {
                     if (!currentBlock) createNewBlock('Verse 1', 'lyrics');
                     
-                    if (blockLines.some(l => l.match(tabLineRegex))) {
+                    if (blockLines.some(l => tabLineRegex.test(l))) {
                         currentBlock.type = 'tab';
                         currentBlock.content += blockLines.join('\n') + '\n\n';
                         return;
@@ -413,17 +399,14 @@
                         const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null;
 
                         if (chordLineRegex.test(currentLine) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine)) {
-                            // This is a two-line format: chord line followed by a lyric line. Merge them.
                             processedLines.push(mergeChordLyricLines(currentLine, nextLine));
-                            i++; // Important: skip the next line as it's been processed.
+                            i++;
                         } else {
-                            // This is a one-line format (with or without chords) or just lyrics.
                             processedLines.push(bracketInlineChords(currentLine));
                         }
                     }
                     currentBlock.content += processedLines.join('\n') + '\n\n';
                 }
-
                 return { blocks: newBlocks, metadata: metadata };
             }
 
