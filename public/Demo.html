@@ -323,7 +323,7 @@
                 const newBlocks = [];
                 let currentBlock = null;
                 const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
-                const tabLineRegex = /\|.*-|-.*\|/; // Stricter: must contain a pipe and a dash
+                const tabLineRegex = /\|.*-|-.*\|/;
                 const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
                 const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
 
@@ -360,10 +360,24 @@
                     let mergedLine = lyricLine;
                     for (let i = chords.length - 1; i >= 0; i--) {
                         const chord = chords[i];
-                        let insertionIndex = Math.min(chord.index, mergedLine.length);
-                        mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
+                        
+                        let insertionIndex = -1;
+                        // Find the first non-space character at or after the chord's position
+                        for(let j = chord.index; j < mergedLine.length; j++) {
+                            if (mergedLine[j] !== ' ') {
+                                insertionIndex = j;
+                                break;
+                            }
+                        }
+
+                        if (insertionIndex !== -1) {
+                             mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
+                        } else {
+                            // If no word is found, just append it to the end with a space
+                            mergedLine += ` [${chord.text}]`;
+                        }
                     }
-                    return mergedLine.replace(/(\s*\[)/g, ' [').replace(/^\[/, '[').trim();
+                    return mergedLine;
                 }
                 
                 let sectionLines = [];
