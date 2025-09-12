@@ -425,130 +425,153 @@
             }
 
             // ADDED: Parser function for imported songs
-            function parsePastedSong(text) {
-                let metadata = { capo: 0, tuning: 'E_STANDARD' };
-                let lines = text.split('\n').map(l => l.replace(/\r/g, ''));
+// REPLACE THE EXISTING parsePastedSong FUNCTION WITH THIS ONE
 
-                lines = lines.filter(line => {
-                    const capoMatch = line.match(/capo\s*:?\s*(\d+)/i);
-                    if (capoMatch) { metadata.capo = parseInt(capoMatch[1], 10); return false; }
-                    if (line.match(/tuning/i)) {
-                        const l = line.toLowerCase();
-                        if (l.includes('eb') || l.includes('e flat')) metadata.tuning = 'EB_STANDARD';
-                        else if (l.includes('drop d')) metadata.tuning = 'DROP_D';
-                        else if (l.includes('d standard')) metadata.tuning = 'D_STANDARD';
-                        else if (l.includes('drop c')) metadata.tuning = 'DROP_C';
-                        else metadata.tuning = 'E_STANDARD';
-                        return false;
-                    }
-                    if (line.match(/^Page \d+\/\d+$/i) || line.match(/ultimate-guitar\.com/i)) return false;
-                    return true;
-                });
+function parsePastedSong(text) {
+    let metadata = { capo: 0, tuning: 'E_STANDARD' };
+    let lines = text.split('\n').map(l => l.replace(/\r/g, ''));
 
-                const newBlocks = [];
-                let currentBlock = null;
-                const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
-                const tabLineRegex = /\|.*-|-.*\|/;
-                const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
-                const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
+    lines = lines.filter(line => {
+        const capoMatch = line.match(/capo\s*:?\s*(\d+)/i);
+        if (capoMatch) { metadata.capo = parseInt(capoMatch[1], 10); return false; }
+        if (line.match(/tuning/i)) {
+            const l = line.toLowerCase();
+            if (l.includes('eb') || l.includes('e flat')) metadata.tuning = 'EB_STANDARD';
+            else if (l.includes('drop d')) metadata.tuning = 'DROP_D';
+            else if (l.includes('d standard')) metadata.tuning = 'D_STANDARD';
+            else if (l.includes('drop c')) metadata.tuning = 'DROP_C';
+            else metadata.tuning = 'E_STANDARD';
+            return false;
+        }
+        if (line.match(/^Page \d+\/\d+$/i) || line.match(/ultimate-guitar\.com/i)) return false;
+        return true;
+    });
 
-                const pushBlock = () => {
-                    if (currentBlock) {
-                        currentBlock.content = currentBlock.content.trim();
-                        if(currentBlock.content) newBlocks.push(currentBlock);
-                    }
-                };
-                
-                const createNewBlock = (label, type) => {
-                    pushBlock();
-                    const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase().replace('prechorus', 'Pre-Chorus');
-                    currentBlock = {
-                        id: `block_${Date.now()}_${newBlocks.length}`,
-                        label: capitalizedLabel || 'Section', type: type, content: '', height: 120
-                    };
-                };
+    const newBlocks = [];
+    let currentBlock = null;
+    const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
+    const tabLineRegex = /\|.*-|-.*\|/;
+    const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
+    const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
 
-                function bracketInlineChords(line) {
-                    if (line.includes('[') || line.trim() === '') return line;
-                    const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g');
-                    return line.replace(chordTokenRegex, '[$1]');
-                }
+    const pushBlock = () => {
+        if (currentBlock) {
+            currentBlock.content = currentBlock.content.trim();
+            if(currentBlock.content) newBlocks.push(currentBlock);
+        }
+    };
+    
+    const createNewBlock = (label, type) => {
+        pushBlock();
+        const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase().replace('prechorus', 'Pre-Chorus');
+        currentBlock = {
+            id: `block_${Date.now()}_${newBlocks.length}`,
+            label: capitalizedLabel || 'Section', type: type, content: '', height: 120
+        };
+    };
 
-                function mergeChordLyricLines(chordLine, lyricLine) {
-                    let chords = [];
-                    const chordFinderRegex = new RegExp(chordRegexSource, 'g');
-                    let match;
-                    while ((match = chordFinderRegex.exec(chordLine)) !== null) {
-                        chords.push({ text: match[0], index: match.index });
-                    }
-                    
-                    let mergedLine = lyricLine;
-                    for (let i = chords.length - 1; i >= 0; i--) {
-                        const chord = chords[i];
-                        let insertionIndex = -1;
-                        
-                        const wordBoundaryRegex = /\b\w/g; // Matches the start of a word
-                        let wordMatch;
-                        
-                        while ((wordMatch = wordBoundaryRegex.exec(mergedLine)) !== null) {
-                            if (wordMatch.index >= chord.index) {
-                                insertionIndex = wordMatch.index;
-                                break;
-                            }
-                        }
+    function bracketInlineChords(line) {
+        if (line.includes('[') || line.trim() === '') return line;
+        const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g');
+        return line.replace(chordTokenRegex, '[$1]');
+    }
 
-                        if (insertionIndex !== -1) {
-                            mergedLine = mergedLine.slice(0, insertionIndex) + `[${chord.text}]` + mergedLine.slice(insertionIndex);
-                        } else {
-                            mergedLine += ` [${chord.text}]`;
-                        }
-                    }
-                    return mergedLine;
-                }
-                
-                let sectionLines = [];
-                for (const line of lines) {
-                    const headerMatch = line.match(headerRegex);
-                    if (headerMatch) {
-                        if(sectionLines.length > 0) processSectionLines(sectionLines);
-                        sectionLines = [];
-                        const label = (headerMatch[1] || headerMatch[2] || 'Section').trim();
-                        createNewBlock(label, 'lyrics');
-                    } else if (line.trim() !== '') {
-                        sectionLines.push(line);
-                    } else if (sectionLines.length > 0) {
-                        if(sectionLines.length > 0) processSectionLines(sectionLines);
-                        sectionLines = [];
+    // --- REPLACEMENT FUNCTION WITH "CLOSEST WORD" LOGIC ---
+    function mergeChordLyricLines(chordLine, lyricLine) {
+        let chords = [];
+        const chordFinderRegex = new RegExp(chordRegexSource, 'g');
+        let match;
+        while ((match = chordFinderRegex.exec(chordLine)) !== null) {
+            chords.push({ text: `[${match[0]}]`, index: match.index, assigned: false });
+        }
+
+        let words = [];
+        const wordFinderRegex = /\S+/g;
+        while ((match = wordFinderRegex.exec(lyricLine)) !== null) {
+            words.push({ text: match[0], index: match.index });
+        }
+
+        if (chords.length === 0) return lyricLine;
+        if (words.length === 0) return `${lyricLine} ${chords.map(c => c.text).join(' ')}`;
+
+        let insertions = [];
+        for (const chord of chords) {
+            let bestWord = null;
+            let minDistance = Infinity;
+
+            for (const word of words) {
+                const distance = Math.abs(word.index - chord.index);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestWord = word;
+                } else if (distance === minDistance) {
+                    // Prefer the word that comes after the chord in case of a tie
+                    if (word.index > chord.index && bestWord.index < chord.index) {
+                        bestWord = word;
                     }
                 }
-                if(sectionLines.length > 0) processSectionLines(sectionLines);
-                pushBlock();
-
-                function processSectionLines(blockLines) {
-                    if (!currentBlock) createNewBlock('Verse 1', 'lyrics');
-                    
-                    if (blockLines.some(l => tabLineRegex.test(l))) {
-                        currentBlock.type = 'tab';
-                        currentBlock.content += blockLines.join('\n') + '\n\n';
-                        return;
-                    }
-                    
-                    let processedLines = [];
-                    for (let i = 0; i < blockLines.length; i++) {
-                        const currentLine = blockLines[i];
-                        const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null;
-
-                        if (chordLineRegex.test(currentLine) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine)) {
-                            processedLines.push(mergeChordLyricLines(currentLine, nextLine));
-                            i++;
-                        } else {
-                            processedLines.push(bracketInlineChords(currentLine));
-                        }
-                    }
-                    currentBlock.content += processedLines.join('\n') + '\n\n';
-                }
-                return { blocks: newBlocks, metadata: metadata };
             }
+            if (bestWord) {
+                insertions.push({ chordText: chord.text, insertionIndex: bestWord.index });
+                // "Remove" the word so it can't be chosen again
+                words = words.filter(w => w !== bestWord);
+            }
+        }
+        
+        // Sort insertions by index in descending order to not mess up indices
+        insertions.sort((a, b) => b.insertionIndex - a.insertionIndex);
+        
+        let mergedLine = lyricLine;
+        for (const insertion of insertions) {
+             mergedLine = mergedLine.slice(0, insertion.insertionIndex) + insertion.chordText + ' ' + mergedLine.slice(insertion.insertionIndex);
+        }
+        
+        return mergedLine;
+    }
+    
+    let sectionLines = [];
+    for (const line of lines) {
+        const headerMatch = line.match(headerRegex);
+        if (headerMatch) {
+            if(sectionLines.length > 0) processSectionLines(sectionLines);
+            sectionLines = [];
+            const label = (headerMatch[1] || headerMatch[2] || 'Section').trim();
+            createNewBlock(label, 'lyrics');
+        } else if (line.trim() !== '') {
+            sectionLines.push(line);
+        } else if (sectionLines.length > 0) {
+            if(sectionLines.length > 0) processSectionLines(sectionLines);
+            sectionLines = [];
+        }
+    }
+    if(sectionLines.length > 0) processSectionLines(sectionLines);
+    pushBlock();
+
+    function processSectionLines(blockLines) {
+        if (!currentBlock) createNewBlock('Verse 1', 'lyrics');
+        
+        if (blockLines.some(l => tabLineRegex.test(l))) {
+            currentBlock.type = 'tab';
+            currentBlock.content += blockLines.join('\n') + '\n\n';
+            return;
+        }
+        
+        let processedLines = [];
+        for (let i = 0; i < blockLines.length; i++) {
+            const currentLine = blockLines[i];
+            const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null;
+
+            if (chordLineRegex.test(currentLine) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine)) {
+                processedLines.push(mergeChordLyricLines(currentLine, nextLine));
+                i++;
+            } else {
+                processedLines.push(bracketInlineChords(currentLine));
+            }
+        }
+        currentBlock.content += processedLines.join('\n') + '\n';
+    }
+    return { blocks: newBlocks, metadata: metadata };
+}
 
             function updateSoundingKey() {
                 const capoFret = songData.capo || 0;
