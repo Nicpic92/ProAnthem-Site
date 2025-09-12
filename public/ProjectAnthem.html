@@ -1183,33 +1183,28 @@ function parseLineForRender(rawLine) {
         return { chordLine: ' ', lyricLine: ' ' };
     }
 
-    // This new logic correctly handles inline chords for display purposes
     while ((match = regex.exec(rawLine)) !== null) {
-        // 1. Grab the lyrics that appeared *before* this chord match
         const lyricSegment = rawLine.substring(lastIndex, match.index);
         lyricLine += lyricSegment;
         chordLine += ' '.repeat(lyricSegment.length);
 
-        // 2. Process the chord itself
         const chordName = match[1].slice(1, -1);
         chordLine += chordName;
         lyricLine += ' '.repeat(chordName.length);
 
-        // 3. Update the lastIndex to the position after the current chord
         lastIndex = match.index + match[1].length;
     }
 
-    // Add any remaining lyrics that are at the end of the line (after the last chord)
     const remainingLyrics = rawLine.substring(lastIndex);
     lyricLine += remainingLyrics;
     chordLine += ' '.repeat(remainingLyrics.length);
     
-    // Use a non-breaking space if a line is empty to maintain its height
     return { 
         chordLine: chordLine.trimEnd() || '&nbsp;', 
         lyricLine: lyricLine.trimEnd() || '&nbsp;' 
     };
-}            function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
+}          
+            function populateTuningSelector() { for (const key in TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = TUNINGS[key].name; tuningSelector.appendChild(option); } }
             async function loadSheetList(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; songSelector.appendChild(o); }); if (selectId) songSelector.value = selectId; } catch (e) { setStatus('Failed to load songs.', true); } }
             async function handleDelete() { if (!songData.id) { setStatus("Cannot delete an unsaved song.", true); return; } if (confirm(`Are you sure you want to delete "${songData.title}"?`)) { try { setStatus('Deleting...'); await api.deleteSheet(songData.id); setStatus('Song deleted.'); await loadSheetList(); await initializeNewSong(); } catch (e) { setStatus(`Failed to delete: ${e.message}`, true); } } }
             function transposeChord(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = sharpScale.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = sharpScale.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return sharpScale[newIndex] + match[2]; }
