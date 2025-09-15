@@ -87,8 +87,11 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 function checkAccess() {
     const user = getUserPayload();
     if (!user) {
-        // If no user, deny access and redirect to login
-        window.location.href = '/proanthem_index.html';
+        // If no user, deny access and redirect to login, unless on a public page
+        const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html'];
+        if (!publicPages.includes(window.location.pathname)) {
+            window.location.href = '/proanthem_index.html';
+        }
         return false;
     }
     
@@ -109,7 +112,6 @@ function checkAccess() {
     if (hasAccess) {
         accessDenied.classList.add('hidden');
         content.classList.remove('hidden');
-        // also set style to block to override potential inline styles
         content.style.display = 'block'; 
         return true;
     } else {
@@ -131,7 +133,7 @@ function checkAccess() {
 async function handleSignupForPricing(event) {
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
-    signupError.textContent = '';
+    signupError.textContent = 'Signing up...';
     const form = event.target;
     const params = new URLSearchParams(window.location.search);
     const inviteToken = params.get('invite_token');
@@ -148,6 +150,7 @@ async function handleSignupForPricing(event) {
     try {
         await apiRequest('signup', payload, 'POST');
         const credentials = { email: payload.email, password: payload.password };
+        // Determine where to redirect after successful login
         const redirectTo = inviteToken ? '/ProjectAnthem.html' : '/pricing.html';
         await performLogin(credentials, redirectTo);
     } catch(error) {
@@ -158,7 +161,7 @@ async function handleSignupForPricing(event) {
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
-    loginError.textContent = '';
+    loginError.textContent = 'Logging in...';
     const form = event.target;
     const payload = {
         email: form.querySelector('#login-email').value,
@@ -176,11 +179,14 @@ async function performLogin(credentials, redirectTo = null) {
         const result = await apiRequest('login', credentials, 'POST');
         if (result.token) {
             localStorage.setItem('user_token', result.token);
+            
+            // If a specific redirect is provided (like after signup), use it.
             if (redirectTo) {
                 window.location.href = redirectTo;
                 return;
             }
 
+            // Otherwise, determine the best place to go based on subscription.
             const user = getUserPayload();
             const specialRoles = ['admin', 'band_admin', 'band_member'];
             const validStatuses = ['active', 'trialing', 'admin_granted'];
