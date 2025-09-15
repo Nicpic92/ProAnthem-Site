@@ -19,7 +19,6 @@
         <p class="text-sm">You have access to all features. Your work will not be saved. Click "Save Song" to sign up and keep your work.</p>
     </div>
 
-    <!-- This structure now perfectly mirrors ProjectAnthem.html -->
     <div id="tool-content" class="max-w-6xl mx-auto">
         <header class="border-b border-gray-700 pb-4 mb-6 flex justify-between items-center">
              <a href="/proanthem_index.html" class="flex items-center space-x-4">
@@ -39,7 +38,7 @@
                         <button id="saveBtn" class="btn btn-primary w-full">Save Song & Sign Up</button>
                         <button id="importBtn" class="btn btn-secondary w-full">Import Song</button>
                         <button id="setlistBtn" class="btn btn-secondary w-full">Setlists (Demo)</button>
-                        <a href="/pricing.html" class="btn btn-secondary w-full text-center block">Manage Subscription</a>
+                        <a href="/pricing.html" class="btn btn-secondary w-full text-center block">View Plans</a>
                         <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
                         <button id="resetDemoBtn" class="btn btn-danger w-full mt-4">Reset Demo</button>
                         <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
@@ -56,7 +55,6 @@
                         </div>
                         <div class="space-y-3 pt-4 border-t border-gray-700">
                             <h3 class="font-semibold text-lg">Musical Settings</h3>
-                            <!-- Identical to ProjectAnthem.html -->
                             <div class="space-y-2 text-right">
                                 <div>
                                     <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
@@ -89,7 +87,7 @@
                 
                 <div id="audioSection" class="p-4 bg-gray-900 rounded-md space-y-3">
                     <h3 class="text-lg font-semibold">Voice Memo</h3>
-                    <p class="text-sm text-gray-400">Recording is a premium feature. Sign up to enable audio memos.</p>
+                     <p class="text-sm text-gray-400">Recording is a premium feature. Sign up to enable audio memos.</p>
                     <div id="audioPlayerContainer" class="hidden">
                         <audio id="audioPlayer" controls class="w-full"></audio>
                         <button id="deleteAudioBtn" class="btn btn-danger btn-sm mt-2">Delete Recording</button>
@@ -122,8 +120,7 @@
             </div>
         </main>
     </div>
-
-    <!-- All modals are now included, identical to ProjectAnthem.html -->
+    
     <div id="setlistModal" class="modal-overlay hidden">
         <div class="modal-content space-y-4">
             <div class="flex justify-between items-center"><h2 class="text-2xl font-bold">Setlist Manager (Demo)</h2><button id="closeSetlistModalBtn" class="text-2xl">&times;</button></div>
@@ -138,19 +135,31 @@
                     <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
                 </div>
             </div>
-            <!-- ... rest of setlist modal content is identical ... -->
         </div>
     </div>
     
     <div id="import-modal" class="modal-overlay hidden">
-       <!-- ... identical to ProjectAnthem.html ... -->
+        <div class="modal-content space-y-4">
+            <h2 class="text-2xl font-bold">Import Song</h2>
+            <textarea id="import-textarea" class="form-textarea w-full" rows="15"></textarea>
+            <div class="flex justify-end gap-4">
+                <button id="import-cancel-btn" class="btn btn-secondary">Cancel</button>
+                <button id="import-confirm-btn" class="btn btn-primary">Import</button>
+            </div>
+        </div>
     </div>
     
     <div id="fret-selection-modal" class="hidden fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4 space-y-2">
-       <!-- ... identical to ProjectAnthem.html ... -->
+        <label for="fret-number-selector" class="text-sm text-gray-300">Select Fret:</label>
+        <select id="fret-number-selector" class="form-select text-sm w-full"></select>
+        <div class="flex justify-end gap-2">
+            <button id="cancel-fret-btn" class="btn btn-secondary btn-sm">Cancel</button>
+            <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
+        </div>
     </div>
 
-    <script src="/js/auth.js"></script>
+    <!-- *** THIS IS THE CORRECTED SECTION *** -->
+    <script type="module" src="/js/auth.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script type="module" src="/js/app.js"></script>
