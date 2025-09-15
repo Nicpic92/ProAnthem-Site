@@ -1,6 +1,5 @@
 // --- START OF FILE public/js/auth.js ---
 
-// This file handles user sessions, access control, and login/signup forms.
 import { login, signup } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -48,6 +47,7 @@ function updateNav() {
          buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
         
+        // Add event listener programmatically
         document.getElementById('logout-button')?.addEventListener('click', logout);
 
     } else {
@@ -59,11 +59,18 @@ function updateNav() {
     }
 }
 
-// --- Subscription & Access Control ---
 export function checkAccess() {
+    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
+    const currentPath = window.location.pathname;
+
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
+        return true; 
+    }
+
     const user = getUserPayload();
     if (!user) {
-        return false; // User is not logged in, access denied.
+        window.location.href = '/proanthem_index.html';
+        return false;
     }
     
     const specialRoles = ['admin', 'band_admin', 'band_member'];
@@ -71,12 +78,32 @@ export function checkAccess() {
     
     const hasSpecialRole = specialRoles.includes(user.role);
     const hasValidSubscription = validStatuses.includes(user.subscription_status);
+    const hasAccess = hasSpecialRole || hasValidSubscription;
     
-    // Return true if they have a special role OR a valid subscription, otherwise false.
-    return hasSpecialRole || hasValidSubscription;
+    const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
+    const accessDenied = document.getElementById('access-denied');
+    
+    if (!content || !accessDenied) return true;
+
+    if (hasAccess) {
+        accessDenied.classList.add('hidden');
+        content.classList.remove('hidden');
+        content.style.display = 'block'; 
+        return true;
+    } else {
+        accessDenied.classList.remove('hidden');
+        content.classList.add('hidden');
+        content.style.display = 'none';
+        
+        const accessDeniedLink = accessDenied.querySelector('a');
+        if (accessDeniedLink) {
+            accessDeniedLink.textContent = 'Manage Subscription';
+            accessDeniedLink.href = '/pricing.html';
+        }
+        return false;
+    }
 }
 
-// --- Form Handlers ---
 async function handleSignupForPricing(event) {
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
