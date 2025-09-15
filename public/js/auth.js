@@ -60,9 +60,13 @@ function updateNav() {
 }
 
 export function checkAccess() {
+    // --- FIX: The publicPages array should be all lowercase for consistent checking ---
     const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
-    const currentPath = window.location.pathname;
+    
+    // --- FIX: Convert the current path to lowercase to ensure a case-insensitive match ---
+    const currentPath = window.location.pathname.toLowerCase();
 
+    // --- FIX: The startsWith check also needs to be case-insensitive ---
     if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
         return true; 
     }
