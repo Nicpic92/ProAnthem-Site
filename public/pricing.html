@@ -129,6 +129,7 @@
                 signupView.style.display = 'block';
                 pricingView.style.display = 'none';
                 const signupForm = document.getElementById('signup-form');
+                // The global handleSignupForPricing in auth.js is generic. We override it here.
                 if (signupForm) signupForm.addEventListener('submit', handleLocalSignup);
             } else {
                  signupView.style.display = 'none';
@@ -151,17 +152,6 @@
             const params = new URLSearchParams(window.location.search);
             const inviteToken = params.get('invite_token');
 
-            // Check for the pending song in localStorage
-            const pendingSongJSON = localStorage.getItem('pendingSong');
-            let pendingSong = null;
-            if (pendingSongJSON) {
-                try {
-                    pendingSong = JSON.parse(pendingSongJSON);
-                } catch (e) {
-                    console.error("Could not parse pending song from localStorage", e);
-                }
-            }
-
             const payload = {
                 firstName: form.querySelector('#signup-firstname').value,
                 lastName: form.querySelector('#signup-lastname').value,
@@ -169,22 +159,29 @@
                 password: form.querySelector('#signup-password').value,
                 artistBandName: inviteToken ? "Invited Member" : form.querySelector('#signup-artist-name').value,
                 inviteToken: inviteToken || null,
-                pendingSong: pendingSong // Add the song to the payload
             };
 
+            // Check for the pending song in localStorage and add it to the payload
+            const pendingSongJSON = localStorage.getItem('pendingSong');
+            if (pendingSongJSON) {
+                try {
+                    payload.pendingSong = JSON.parse(pendingSongJSON);
+                } catch (e) {
+                    console.error("Could not parse pending song from localStorage", e);
+                }
+            }
+
             try {
-                // The global apiRequest function is in auth.js
                 await apiRequest('signup', payload, 'POST');
                 
                 // Clear the pending song from localStorage after successful signup
-                if (pendingSong) {
+                if (pendingSongJSON) {
                     localStorage.removeItem('pendingSong');
                 }
                 
                 const credentials = { email: payload.email, password: payload.password };
                 // After signing up with a song, go directly to the tool
-                const redirectTo = inviteToken || pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
-                // The global performLogin function is in auth.js
+                const redirectTo = inviteToken || payload.pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
                 await performLogin(credentials, redirectTo);
 
             } catch(error) {
