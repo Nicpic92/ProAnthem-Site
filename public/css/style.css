@@ -1,0 +1,66 @@
+/* --- START OF FILE public/css/style.css --- */
+
+body { font-family: Inter, system-ui, sans-serif; background-color: #242424; color: rgba(255, 255, 255, 0.87); }
+.form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; resize: none; }
+.live-preview { font-family: 'Courier New', Courier, monospace; line-height: 1.6; white-space: pre; background-color: #1e1e1e; padding: 1rem; border-radius: 6px; border: 1px solid #4a4a4a; }
+.live-preview-chords { color: #f2c94c; }
+.tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; color: #a5b4fc; }
+.btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
+.btn:disabled { background-color: #4b5563; opacity: 0.5; cursor: not-allowed; }
+.btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
+.btn-primary { background-color: #535bf2; color: white; } .btn-primary:hover:not(:disabled) { background-color: #646cff; }
+.btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover:not(:disabled) { background-color: #6b7280; }
+.btn-danger { background-color: #b91c1c; color: white; } .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
+.hidden { display: none; }
+.song-block { background-color: #2d3748; border: 1px solid #4a5568; border-radius: 8px; margin-bottom: 1rem; }
+.block-header { background-color: #4a5568; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: grab; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+.block-header:active { cursor: grabbing; }
+.block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
+.fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
+.fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
+.fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
+.fretboard-note:active { cursor: grabbing; }
+.fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
+.fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
+.queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
+.queue-pill.next { background-color: #535bf2; font-weight: bold; }
+.form-textarea.placement-mode { cursor: crosshair; }
+.drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
+.resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
+.resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
+.btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
+.modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
+.sortable-ghost { opacity: 0.4; background: #4a5568; }
+.sounding-key-box {
+    display: inline-block;
+    background-color: #1f2937;
+    border: 1px solid #4b5563;
+    border-radius: 6px;
+    padding: 0.5rem 1.5rem;
+    font-size: 1.25rem; /* text-xl */
+    font-weight: 700; /* font-bold */
+    color: #a5b4fc; /* indigo-300 */
+    min-width: 80px;
+    text-align: center;
+}
+aside#sidebar > div {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+aside#sidebar > div::-webkit-scrollbar {
+    display: none;
+}
+
+/* Styles specifically for the dark marketing/admin pages */
+body.marketing,
+html.marketing { 
+    background-color: #111827; 
+    color: #f3f4f6; 
+}
+.marketing .form-input, .marketing .form-select { background-color: #1f2937; border: 1px solid #4b5563; }
+.marketing .btn-primary { background-color: #4f46e5; } .marketing .btn-primary:hover { background-color: #4338ca; }
+.marketing .btn-secondary { background-color: #4b5563; color: white; } .marketing .btn-secondary:hover { background-color: #6b7280; }
+
+
+/* --- END OF FILE public/css/style.css --- */
