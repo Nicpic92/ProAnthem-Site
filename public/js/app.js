@@ -9,8 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // In demo mode, we just run the initializer directly
         initializeApp();
     } else {
-        // In the live app, we must check for access first
-        // The checkAccess function is in auth.js and will handle redirects if needed
+        // *** THIS IS THE MODIFIED SECTION ***
+        // In the live app, we must check for access first.
+        // checkAccess() will handle all redirects if access is denied.
+        // We only initialize the app if checkAccess() returns true.
         if (checkAccess()) {
             const user = getUserPayload();
             if (user && user.force_reset) {
@@ -423,21 +425,16 @@ function initializeApp() {
     async function loadSong(id) { if (!id || id === 'new') { initializeNewSong(true); return; } setStatus('Loading song...'); try { const data = await api.getSheet(id); songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [], tuning: data.tuning ?? 'E_STANDARD', capo: data.capo ?? 0, transpose: data.transpose ?? 0 }; titleInput.value = songData.title; artistInput.value = songData.artist; const audioPlayerContainer = document.getElementById('audioPlayerContainer'); const audioPlayer = document.getElementById('audioPlayer'); if (songData.audio_url) { audioPlayerContainer.classList.remove('hidden'); audioPlayer.src = songData.audio_url; } else { audioPlayerContainer.classList.add('hidden'); audioPlayer.src = ''; } updateMusicalSettingsUI(); renderSongBlocks(); setStatus('Song loaded.'); updateSoundingKey(); } catch (error) { setStatus(`Error loading song: ${error.message}`, true); initializeNewSong(true); } }
     async function initializeNewSong(forceNew = false) { const createBlankSong = () => { songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }], tuning: 'E_STANDARD', capo: 0, transpose: 0 }; titleInput.value = ''; artistInput.value = ''; if (songSelector) songSelector.value = 'new'; const audioPlayerContainer = document.getElementById('audioPlayerContainer'); if (audioPlayerContainer) audioPlayerContainer.classList.add('hidden'); const audioPlayer = document.getElementById('audioPlayer'); if (audioPlayer) audioPlayer.src = ''; updateMusicalSettingsUI(); renderSongBlocks(); updateSoundingKey(); }; if (forceNew) { createBlankSong(); return; } try { const songs = await api.getSheets(); if (songs && songs.length > 0) { await loadSong(songs[0].id); if (songSelector) songSelector.value = songs[0].id; } else { createBlankSong(); } } catch(e) { createBlankSong(); setStatus('Could not load songs. Starting new.', true); } }
     
-    // *** THIS IS THE MODIFIED SECTION ***
     async function handleSave() {
         // In demo mode, save the song to localStorage and redirect to signup
         if (isDemoMode) {
-            // Update songData from inputs one last time
             songData.title = titleInput.value || 'My Demo Song';
             songData.artist = artistInput.value || 'An Artist';
-            
-            // The user must write something to save.
-            const hasContent = songData.song_blocks.some(b => b.content && b.content.trim() !== '');
-            if (!hasContent) {
-                alert("Please add some lyrics or chords before saving!");
+            const hasContent = songData.song_blocks.some(b => (b.content && b.content.trim() !== '') || (b.data && b.data.notes && b.data.notes.length > 0));
+            if (!hasContent && !songData.title) {
+                alert("Please add a title or some content before saving!");
                 return;
             }
-
             alert("Let's save your work! We'll take you to the signup page. Your song will be waiting for you in your new account.");
             localStorage.setItem('pendingSong', JSON.stringify(songData));
             window.location.href = '/pricing.html';
