@@ -26,6 +26,20 @@ body.marketing {
 .marketing #auth-modal .text-white { color: #ffffff; } /* Keep modal text white */
 .marketing .form-input { color: #111827; background-color: #ffffff; } /* Light mode form inputs */
 
+/* --- FIX: Add specific overrides for the pricing cards on the marketing theme --- */
+.marketing .bg-gray-800 {
+    color: #f3f4f6; /* Set text to a light gray for readability on dark card */
+}
+.marketing .bg-gray-800 .text-gray-400 {
+    color: #9ca3af; /* A slightly dimmer gray for subtitles */
+}
+.marketing .bg-gray-800 .text-gray-300 {
+    color: #d1d5db; /* A bright gray for feature text */
+}
+.marketing .bg-gray-800 .font-bold {
+    color: #ffffff; /* Make bold text (like titles and prices) pure white */
+}
+
 /* --- UNIFIED BUTTON STYLES (Work on both themes) --- */
 .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
 .btn:disabled { background-color: #4b5563; opacity: 0.5; cursor: not-allowed; }
@@ -51,7 +65,7 @@ body.marketing {
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .tab-button.active { border-bottom-color: #dc2626; }
 
-/* --- FIX: Added missing fretboard and component styles --- */
+/* --- Fretboard and component styles --- */
 .block-header:active { cursor: grabbing; }
 .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
 .fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
@@ -86,5 +100,3 @@ aside#sidebar > div {
 aside#sidebar > div::-webkit-scrollbar {
     display: none;
 }
-
-/* --- END OF FILE public/css/style.css --- */
