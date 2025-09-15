@@ -27,7 +27,7 @@ export function getUserPayload() {
     }
 }
 
-export function logout() {
+function logout() {
     localStorage.removeItem('user_token');
     window.location.href = '/proanthem_index.html';
 }
@@ -45,6 +45,7 @@ function updateNav() {
         if (user.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="btn btn-primary mr-4">Admin Panel</a>` + buttonHtml;
         }
+         // The onclick attribute here is the source of the error.
          buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
@@ -194,5 +195,9 @@ function openModal(view) {
         }
     }
 }
+
+// *** THIS IS THE NEW LINE THAT FIXES THE ERROR ***
+// Make the logout function available globally so onclick="logout()" works.
+window.logout = logout;
 
 // --- END OF FILE public/js/auth.js ---
