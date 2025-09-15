@@ -1,3 +1,5 @@
+<!-- START OF FILE public/pricing.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,24 +11,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
     <style>
-        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
-        .feature-check { min-width: 1.25rem; }
-        /* --- FIX: Added styles for the signup form inputs on this page --- */
+        /* This style is for page-specific overrides if needed */
         .form-input {
-            background-color: #1f2937; /* dark gray */
-            border: 1px solid #4b5563; /* medium gray */
-            color: #ffffff; /* white text */
-            border-radius: 0.375rem; /* rounded-md */
-            padding: 0.75rem 1rem; /* px-4 py-3 */
+            background-color: #1f2937;
+            border: 1px solid #4b5563;
+            color: #ffffff;
+            border-radius: 0.375rem;
+            padding: 0.75rem 1rem;
             width: 100%;
         }
         .form-input::placeholder {
-            color: #9ca3af; /* gray-400 */
+            color: #9ca3af;
         }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="marketing flex flex-col min-h-screen">
 
     <header class="container mx-auto p-6 flex justify-between items-center">
         <a href="/proanthem_index.html" class="flex items-center space-x-4">
@@ -72,8 +73,8 @@
                     <h2 class="text-3xl font-bold text-white">Solo</h2>
                     <p class="text-gray-400 mt-2">For the individual songwriter and performer.</p>
                     <div class="my-6">
-                        <span class="text-5xl font-bold text-white">$3.50</span>
-                        <span class="text-gray-400">/ week</span>
+                        <span class="text-5xl font-bold text-white">$10</span>
+                        <span class="text-gray-400">/ month</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs & Setlists</li>
@@ -88,8 +89,8 @@
                     <h2 class="text-3xl font-bold text-white">Band</h2>
                     <p class="text-gray-400 mt-2">Unlock collaboration for your entire team.</p>
                      <div class="my-6">
-                        <span class="text-5xl font-bold text-white">$8.00</span>
-                        <span class="text-gray-400">/ week</span>
+                        <span class="text-5xl font-bold text-white">$25</span>
+                        <span class="text-gray-400">/ month</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
                         <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
@@ -114,23 +115,24 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <script src="/auth_proanthem.js"></script>
+    <script src="/js/auth.js"></script>
     <script>
-        const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');// You will replace this in the final step
+        const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');
         const statusMessage = document.getElementById('status-message');
 
         document.addEventListener('DOMContentLoaded', () => {
             const user = getUserPayload();
-            // If user is not logged in, show the signup form.
+            const signupView = document.getElementById('signup-view');
+            const pricingView = document.getElementById('pricing-view');
+            
             if (!user) {
-                document.getElementById('signup-view').style.display = 'block';
-                document.getElementById('pricing-view').style.display = 'none';
+                signupView.style.display = 'block';
+                pricingView.style.display = 'none';
                 const signupForm = document.getElementById('signup-form');
-                if (signupForm) signupForm.addEventListener('submit', handleSignupForPricing);
+                if (signupForm) signupForm.addEventListener('submit', handleLocalSignup);
             } else {
-                 // If user is logged in, show the pricing plans.
-                 document.getElementById('signup-view').style.display = 'none';
-                 document.getElementById('pricing-view').style.display = 'block';
+                 signupView.style.display = 'none';
+                 pricingView.style.display = 'block';
             }
             
             const params = new URLSearchParams(window.location.search);
@@ -140,22 +142,51 @@
             }
         });
         
-        async function handleSignupForPricing(event) {
+        // This is a new function specific to this page to handle the pendingSong
+        async function handleLocalSignup(event) {
             event.preventDefault();
             const signupError = document.getElementById('signup-error');
+            signupError.textContent = 'Signing up...';
             const form = event.target;
+            const params = new URLSearchParams(window.location.search);
+            const inviteToken = params.get('invite_token');
+
+            // Check for the pending song in localStorage
+            const pendingSongJSON = localStorage.getItem('pendingSong');
+            let pendingSong = null;
+            if (pendingSongJSON) {
+                try {
+                    pendingSong = JSON.parse(pendingSongJSON);
+                } catch (e) {
+                    console.error("Could not parse pending song from localStorage", e);
+                }
+            }
+
             const payload = {
                 firstName: form.querySelector('#signup-firstname').value,
                 lastName: form.querySelector('#signup-lastname').value,
-                artistBandName: form.querySelector('#signup-artist-name').value,
                 email: form.querySelector('#signup-email').value,
-                password: form.querySelector('#signup-password').value
+                password: form.querySelector('#signup-password').value,
+                artistBandName: inviteToken ? "Invited Member" : form.querySelector('#signup-artist-name').value,
+                inviteToken: inviteToken || null,
+                pendingSong: pendingSong // Add the song to the payload
             };
+
             try {
-                // First, create the user account
+                // The global apiRequest function is in auth.js
                 await apiRequest('signup', payload, 'POST');
-                // Then, log them in to get a token. performLogin will then refresh the page.
-                await performLogin({ email: payload.email, password: payload.password });
+                
+                // Clear the pending song from localStorage after successful signup
+                if (pendingSong) {
+                    localStorage.removeItem('pendingSong');
+                }
+                
+                const credentials = { email: payload.email, password: payload.password };
+                // After signing up with a song, go directly to the tool
+                const redirectTo = inviteToken || pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
+                // The global performLogin function is in auth.js
+                await performLogin(credentials, redirectTo);
+
             } catch(error) {
                 signupError.textContent = error.message;
             }
@@ -184,3 +215,5 @@
     </script>
 </body>
 </html>
+
+<!-- END OF FILE public/pricing.html -->
