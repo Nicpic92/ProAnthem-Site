@@ -44,7 +44,7 @@ function updateNav() {
         if (user.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="btn btn-primary mr-4">Admin Panel</a>` + buttonHtml;
         }
-         buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
+         buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
         navAuthSection.innerHTML = `<button id="login-modal-button" class="btn btn-secondary">Log In</button>`;
@@ -81,20 +81,10 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 // --- Subscription & Access Control ---
 function checkAccess() {
     // *** THIS IS THE CORRECTED SECTION ***
-    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
-    const currentPath = window.location.pathname;
-
-    // If we are on a public page, access is always granted. Do not run any checks.
-    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
-        return true; 
-    }
-
-    // --- If we are NOT on a public page, proceed with the checks ---
+    // This function is now passive. It ONLY returns true or false. It NEVER redirects.
     const user = getUserPayload();
     if (!user) {
-        // If no user and not on a public page, redirect to login.
-        window.location.href = '/proanthem_index.html';
-        return false;
+        return false; // No user, no access.
     }
     
     const specialRoles = ['admin', 'band_admin', 'band_member'];
@@ -102,30 +92,8 @@ function checkAccess() {
     
     const hasSpecialRole = specialRoles.includes(user.role);
     const hasValidSubscription = validStatuses.includes(user.subscription_status);
-    const hasAccess = hasSpecialRole || hasValidSubscription;
     
-    const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
-    const accessDenied = document.getElementById('access-denied');
-    
-    if (!content || !accessDenied) return true;
-
-    if (hasAccess) {
-        accessDenied.classList.add('hidden');
-        content.classList.remove('hidden');
-        content.style.display = 'block'; 
-        return true;
-    } else {
-        accessDenied.classList.remove('hidden');
-        content.classList.add('hidden');
-        content.style.display = 'none';
-        
-        const accessDeniedLink = accessDenied.querySelector('a');
-        if (accessDeniedLink) {
-            accessDeniedLink.textContent = 'Manage Subscription';
-            accessDeniedLink.href = '/pricing.html';
-        }
-        return false;
-    }
+    return hasSpecialRole || hasValidSubscription;
 }
 
 // --- Form Handlers ---
@@ -193,15 +161,12 @@ async function performLogin(credentials, redirectTo = null) {
                 return;
             }
 
-            const user = getUserPayload();
-            const specialRoles = ['admin', 'band_admin', 'band_member'];
-            const validStatuses = ['active', 'trialing', 'admin_granted'];
-            
-            const hasSpecialRole = user && specialRoles.includes(user.role);
-            const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
-            const hasAccess = hasSpecialRole || hasValidSubscription;
-            
-            window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+            // After login, check access to determine where to go.
+            if (checkAccess()) {
+                window.location.href = '/ProjectAnthem.html';
+            } else {
+                window.location.href = '/pricing.html';
+            }
         } else {
             throw new Error("Login failed: No token returned.");
         }
