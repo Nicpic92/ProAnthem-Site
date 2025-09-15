@@ -5,7 +5,6 @@ import * as api from './api.js';
 import * as UI from './modules/ui.js';
 import * as Fretboard from './modules/fretboard.js';
 
-// --- FIX: Make the demo mode check robust enough for pretty URLs ---
 const path = window.location.pathname.toLowerCase();
 const isDemoMode = path.endsWith('/demo') || path.endsWith('/demo.html');
 
@@ -58,7 +57,7 @@ async function handlePasswordReset(event) {
         alert('Password updated successfully! You can now use the tool.');
         document.getElementById('password-reset-modal').classList.add('hidden');
         initializeAppForLiveApp();
-    } catch (error). {
+    } catch (error) { // --- FIX: Removed the incorrect period here ---
         errorEl.textContent = error.message;
     }
 }
@@ -94,9 +93,7 @@ function ProAnthemApp(isDemo = false) {
         resetDemoBtn: document.getElementById('resetDemoBtn')
     };
 }
-
 // ... the rest of the file is correct and remains unchanged ...
-// (The ProAnthemApp prototype methods)
 ProAnthemApp.prototype.init = function() {
     UI.populateTuningSelector(this.el.tuningSelector, this.CONSTANTS.TUNINGS);
     this.attachEventListeners();
