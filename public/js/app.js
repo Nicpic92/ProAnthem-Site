@@ -5,21 +5,19 @@ import * as api from './api.js';
 import * as UI from './modules/ui.js';
 import * as Fretboard from './modules/fretboard.js';
 
-const isDemoMode = window.location.pathname.includes('Demo.html');
+// --- FIX: Make the demo mode check robust enough for pretty URLs ---
+const path = window.location.pathname.toLowerCase();
+const isDemoMode = path.endsWith('/demo') || path.endsWith('/demo.html');
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- FIX: The checkAccess() function should run for ALL pages using this script. ---
-    // The function itself knows which pages are public.
     const hasAccess = checkAccess();
     if (!hasAccess) {
-        // If access is denied, stop executing immediately.
         return; 
     }
 
     if (isDemoMode) {
         initializeAppForDemo();
     } else {
-        // For the live app, we also check for forced password resets.
         const user = getUserPayload();
         if (user && user.force_reset) {
             document.getElementById('password-reset-modal').classList.remove('hidden');
@@ -60,7 +58,7 @@ async function handlePasswordReset(event) {
         alert('Password updated successfully! You can now use the tool.');
         document.getElementById('password-reset-modal').classList.add('hidden');
         initializeAppForLiveApp();
-    } catch (error) {
+    } catch (error). {
         errorEl.textContent = error.message;
     }
 }
