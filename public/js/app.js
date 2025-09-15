@@ -75,7 +75,6 @@ function initializeApp() {
     const FRETBOARD_CONFIG = { frets: 24, width: 8000, nutWidth: 15, fretSpacing: 80, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 };
     const sharpScale = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
     
-    // apiRequest is now defined in auth.js, which is loaded globally.
     const api = {
         getSheets: () => apiRequest('lyric-sheets'),
         getSheet: (id) => apiRequest(`lyric-sheets/${id}`),
@@ -423,9 +422,52 @@ function initializeApp() {
     function updateBlockData(blockId, field, value, height) { const block = songData.song_blocks.find(b => b.id === blockId); if (block) { if (field) block[field] = value; if (height) block.height = height; if(field === 'content') renderPreview(); } }
     async function loadSong(id) { if (!id || id === 'new') { initializeNewSong(true); return; } setStatus('Loading song...'); try { const data = await api.getSheet(id); songData = { id: data.id, title: data.title || '', artist: data.artist || '', audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [], tuning: data.tuning ?? 'E_STANDARD', capo: data.capo ?? 0, transpose: data.transpose ?? 0 }; titleInput.value = songData.title; artistInput.value = songData.artist; const audioPlayerContainer = document.getElementById('audioPlayerContainer'); const audioPlayer = document.getElementById('audioPlayer'); if (songData.audio_url) { audioPlayerContainer.classList.remove('hidden'); audioPlayer.src = songData.audio_url; } else { audioPlayerContainer.classList.add('hidden'); audioPlayer.src = ''; } updateMusicalSettingsUI(); renderSongBlocks(); setStatus('Song loaded.'); updateSoundingKey(); } catch (error) { setStatus(`Error loading song: ${error.message}`, true); initializeNewSong(true); } }
     async function initializeNewSong(forceNew = false) { const createBlankSong = () => { songData = { id: null, title: '', artist: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }], tuning: 'E_STANDARD', capo: 0, transpose: 0 }; titleInput.value = ''; artistInput.value = ''; if (songSelector) songSelector.value = 'new'; const audioPlayerContainer = document.getElementById('audioPlayerContainer'); if (audioPlayerContainer) audioPlayerContainer.classList.add('hidden'); const audioPlayer = document.getElementById('audioPlayer'); if (audioPlayer) audioPlayer.src = ''; updateMusicalSettingsUI(); renderSongBlocks(); updateSoundingKey(); }; if (forceNew) { createBlankSong(); return; } try { const songs = await api.getSheets(); if (songs && songs.length > 0) { await loadSong(songs[0].id); if (songSelector) songSelector.value = songs[0].id; } else { createBlankSong(); } } catch(e) { createBlankSong(); setStatus('Could not load songs. Starting new.', true); } }
-    async function handleSave() { if (isDemoMode) { setStatus('Saving is disabled in the demo.', true); return; } saveBtn.disabled = true; setStatus('Saving...'); try { songData.title = titleInput.value || 'Untitled'; songData.artist = artistInput.value || 'Unknown Artist'; const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData); songData.id = savedSong.id; setStatus('Saved successfully!'); if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { await loadSheetList(savedSong.id); } else { songSelector.querySelector(`option[value="${savedSong.id}"]`).textContent = songData.title; songSelector.value = savedSong.id; } } catch (error) { setStatus(`Save failed: ${error.message}`, true); } finally { saveBtn.disabled = false; } }
+    
+    // *** THIS IS THE MODIFIED SECTION ***
+    async function handleSave() {
+        // In demo mode, save the song to localStorage and redirect to signup
+        if (isDemoMode) {
+            // Update songData from inputs one last time
+            songData.title = titleInput.value || 'My Demo Song';
+            songData.artist = artistInput.value || 'An Artist';
+            
+            // The user must write something to save.
+            const hasContent = songData.song_blocks.some(b => b.content && b.content.trim() !== '');
+            if (!hasContent) {
+                alert("Please add some lyrics or chords before saving!");
+                return;
+            }
+
+            alert("Let's save your work! We'll take you to the signup page. Your song will be waiting for you in your new account.");
+            localStorage.setItem('pendingSong', JSON.stringify(songData));
+            window.location.href = '/pricing.html';
+            return;
+        }
+
+        // --- Live App Save Logic (unchanged) ---
+        saveBtn.disabled = true; 
+        setStatus('Saving...'); 
+        try { 
+            songData.title = titleInput.value || 'Untitled'; 
+            songData.artist = artistInput.value || 'Unknown Artist'; 
+            const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData); 
+            songData.id = savedSong.id; 
+            setStatus('Saved successfully!'); 
+            if (!songSelector.querySelector(`option[value="${savedSong.id}"]`)) { 
+                await loadSheetList(savedSong.id); 
+            } else { 
+                songSelector.querySelector(`option[value="${savedSong.id}"]`).textContent = songData.title; 
+                songSelector.value = savedSong.id; 
+            } 
+        } catch (error) { 
+            setStatus(`Save failed: ${error.message}`, true); 
+        } finally { 
+            saveBtn.disabled = false; 
+        } 
+    }
+    
     function initializeSortable() { if (songBlocksContainer.sortableInstance) songBlocksContainer.sortableInstance.destroy(); songBlocksContainer.sortableInstance = new Sortable(songBlocksContainer, { animation: 150, handle: '.block-header', onEnd: (evt) => { const [movedItem] = songData.song_blocks.splice(evt.oldIndex, 1); songData.song_blocks.splice(evt.newIndex, 0, movedItem); renderPreview(); } }); }
-    function setStatus(message, isError = false) { statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => statusMessage.textContent = '', 3000); }
+    function setStatus(message, isError = false) { if (!statusMessage) return; statusMessage.textContent = message; statusMessage.style.color = isError ? '#ef4444' : '#9ca3af'; if (message) setTimeout(() => { if (statusMessage) statusMessage.textContent = ''; }, 3000); }
     
     function parseLineForRender(rawLine) {
         if (!rawLine || !rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' };
