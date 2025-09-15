@@ -68,7 +68,7 @@
                          <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Interactive Guitar Tab Editor</li>
                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Professional PDF Export</li>
                     </ul>
-                    <button onclick="startCheckout('solo')" class="btn btn-secondary mt-8 w-full font-bold py-3">Start 3-Day Solo Trial</button>
+                    <button id="checkout-solo" class="btn btn-secondary mt-8 w-full font-bold py-3">Start 3-Day Solo Trial</button>
                 </div>
 
                  <div class="bg-gray-800 p-8 rounded-xl border-2 border-indigo-500 flex flex-col">
@@ -84,14 +84,14 @@
                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Real-time Song Syncing</li>
                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Shared Band Setlists</li>
                     </ul>
-                    <button onclick="startCheckout('band')" class="btn btn-primary mt-8 w-full font-bold py-3">Start 3-Day Band Trial</button>
+                    <button id="checkout-band" class="btn btn-primary mt-8 w-full font-bold py-3">Start 3-Day Band Trial</button>
                 </div>
             </div>
             
             <div id="manage-billing-section" class="text-center mt-16">
                 <h3 class="text-2xl font-bold">Already a member?</h3>
                 <p class="text-gray-400 mt-2">You can update your payment method, cancel, or change your plan at any time.</p>
-                <button onclick="manageBilling()" class="btn btn-secondary">Open Customer Portal</button>
+                <button id="manage-billing" class="btn btn-secondary">Open Customer Portal</button>
             </div>
             <div id="status-message" class="mt-8 text-center text-lg"></div>
         </div>
@@ -101,14 +101,19 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <!-- *** THIS IS THE CORRECTED SECTION *** -->
+    <!-- This first script still loads auth.js to handle the nav bar -->
     <script type="module" src="/js/auth.js"></script>
-    <script>
+
+    <!-- *** FIX: Converted the inline script to a module and added imports *** -->
+    <script type="module">
+        import { getUserPayload } from './js/auth.js';
+        import { apiRequest } from './js/api.js';
+
         const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');
         const statusMessage = document.getElementById('status-message');
 
         document.addEventListener('DOMContentLoaded', () => {
-            const user = getUserPayload(); // from auth.js
+            const user = getUserPayload();
             const signupView = document.getElementById('signup-view');
             const pricingView = document.getElementById('pricing-view');
             
@@ -125,11 +130,17 @@
                 statusMessage.textContent = 'Checkout canceled. Your trial has not started. Please choose a plan to continue.';
                 statusMessage.classList.add('text-yellow-400');
             }
+
+            // Add event listeners programmatically
+            document.getElementById('checkout-solo').addEventListener('click', () => startCheckout('solo'));
+            document.getElementById('checkout-band').addEventListener('click', () => startCheckout('band'));
+            document.getElementById('manage-billing').addEventListener('click', manageBilling);
         });
         
         async function startCheckout(plan) {
             try {
-                const { id: sessionId } = await apiRequest('stripe/create-checkout-session', { plan }, 'POST'); // from auth.js
+                // apiRequest is now available because we imported it
+                const { id: sessionId } = await apiRequest('stripe/create-checkout-session', { plan }, 'POST');
                 const { error } = await stripe.redirectToCheckout({ sessionId });
                 if (error) {
                     alert(error.message);
@@ -141,7 +152,8 @@
         
         async function manageBilling() {
             try {
-                const { url } = await apiRequest('stripe/create-customer-portal', {}, 'POST'); // from auth.js
+                // apiRequest is now available because we imported it
+                const { url } = await apiRequest('stripe/create-customer-portal', {}, 'POST');
                 window.location.href = url;
             } catch(error) {
                  alert('Error opening customer portal: ' + error.message);
@@ -150,5 +162,3 @@
     </script>
 </body>
 </html>
-
-<!-- END OF FILE public/pricing.html -->
