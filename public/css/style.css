@@ -1,46 +1,63 @@
 /* --- START OF FILE public/css/style.css --- */
 
+/* Foundational Styles */
 body { font-family: Inter, system-ui, sans-serif; background-color: #242424; color: rgba(255, 255, 255, 0.87); }
-.form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #555; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; resize: none; }
-.live-preview { font-family: 'Courier New', Courier, monospace; line-height: 1.6; white-space: pre; background-color: #1e1e1e; padding: 1rem; border-radius: 6px; border: 1px solid #4a4a4a; }
-.live-preview-chords { color: #f2c94c; }
-.tab-preview { margin-top: 1rem; border-top: 1px dashed #4a4a4a; padding-top: 1rem; color: #a5b4fc; }
+.form-input, .form-select, .form-textarea { background: #2f2f2f; border: 1px solid #4b5563; border-radius: 6px; padding: 0.5rem 1rem; color: white; width: 100%; resize: none; }
+.form-input:focus, .form-select:focus, .form-textarea:focus { border-color: #3b82f6; ring: 1; ring-color: #3b82f6; } /* A slightly brighter blue for focus */
+
+/* Buttons */
 .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
 .btn:disabled { background-color: #4b5563; opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
-.btn-primary { background-color: #535bf2; color: white; } .btn-primary:hover:not(:disabled) { background-color: #646cff; }
-.btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover:not(:disabled) { background-color: #6b7280; }
-.btn-danger { background-color: #b91c1c; color: white; } .btn-danger:hover:not(:disabled) { background-color: #dc2626; }
+
+/* -- NEW COLOR SCHEME -- */
+/* Primary: Replaces purple/indigo with a deep, crimson red for primary actions */
+.btn-primary { background-color: #dc2626; color: white; } /* red-700 */
+.btn-primary:hover:not(:disabled) { background-color: #b91c1c; } /* red-800 */
+
+/* Secondary: A strong slate blue for secondary actions and highlights */
+.btn-secondary { background-color: #475569; color: white; } /* slate-600 */
+.btn-secondary:hover:not(:disabled) { background-color: #334155; } /* slate-700 */
+
+/* Danger: Unchanged, a bright red for destructive actions */
+.btn-danger { background-color: #ef4444; color: white; } /* red-500 */
+.btn-danger:hover:not(:disabled) { background-color: #dc2626; } /* red-700 */
+
+.btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
+
+/* Typography & Links */
+.tab-preview { color: #93c5fd; } /* blue-300 for tabs */
+.live-preview-chords { color: #facc15; } /* amber-400 for chords */
+
+/* Application Components */
 .hidden { display: none; }
-.song-block { background-color: #2d3748; border: 1px solid #4a5568; border-radius: 8px; margin-bottom: 1rem; }
-.block-header { background-color: #4a5568; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: grab; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+.song-block { background-color: #1f2937; border: 1px solid #374151; border-radius: 8px; margin-bottom: 1rem; } /* darker slate */
+.block-header { background-color: #334155; padding: 0.5rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: grab; border-top-left-radius: 7px; border-top-right-radius: 7px; }
 .block-header:active { cursor: grabbing; }
 .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
-.fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
+.queue-pill.next { background-color: #dc2626; font-weight: bold; } /* Primary red for the next chord */
+
+/* Fretboard */
+.fretboard-wrapper { overflow-x: auto; border: 1px solid #4b5563; border-radius: 6px; }
 .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
 .fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
 .fretboard-note:active { cursor: grabbing; }
 .fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
 .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
-.queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
-.queue-pill.next { background-color: #535bf2; font-weight: bold; }
-.form-textarea.placement-mode { cursor: crosshair; }
-.drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
-.resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
-.resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
-.btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
+
+/* Modal and Layout */
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
-.modal-content { background: #2d3748; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
-.sortable-ghost { opacity: 0.4; background: #4a5568; }
+.modal-content { background: #1f2937; padding: 2rem; border-radius: 8px; width: 90%; max-width: 800px; max-height: 90vh; overflow-y: auto;}
+.sortable-ghost { opacity: 0.4; background: #334155; }
 .sounding-key-box {
     display: inline-block;
     background-color: #1f2937;
     border: 1px solid #4b5563;
     border-radius: 6px;
     padding: 0.5rem 1.5rem;
-    font-size: 1.25rem; /* text-xl */
-    font-weight: 700; /* font-bold */
-    color: #a5b4fc; /* indigo-300 */
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #93c5fd; /* blue-300 */
     min-width: 80px;
     text-align: center;
 }
@@ -52,15 +69,25 @@ aside#sidebar > div::-webkit-scrollbar {
     display: none;
 }
 
-/* Styles specifically for the dark marketing/admin pages */
+/* Marketing Pages Specific Styles */
 body.marketing,
 html.marketing { 
     background-color: #111827; 
     color: #f3f4f6; 
 }
 .marketing .form-input, .marketing .form-select { background-color: #1f2937; border: 1px solid #4b5563; }
+/* Override primary button on marketing pages to keep it blue/purple for brand recognition */
 .marketing .btn-primary { background-color: #4f46e5; } .marketing .btn-primary:hover { background-color: #4338ca; }
-.marketing .btn-secondary { background-color: #4b5563; color: white; } .marketing .btn-secondary:hover { background-color: #6b7280; }
-
+.marketing .btn-secondary { background-color: #475569; color: white; } .marketing .btn-secondary:hover { background-color: #334155; }
+/* This makes the gradient on the homepage text use our new colors */
+.marketing .bg-gradient-to-r {
+    --tw-gradient-from: #60a5fa; /* blue-400 */
+    --tw-gradient-to: #e879f9; /* fuchsia-400 */
+}
+/* Tab button active state */
+.tab-button.active {
+    border-bottom-color: #dc2626; /* Primary Red */
+    color: #f3f4f6;
+}
 
 /* --- END OF FILE public/css/style.css --- */
