@@ -1,13 +1,12 @@
 // --- START OF FILE public/js/auth.js ---
 
-import { login, signup } from './api.js';
+import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
+    // This script now only handles the generic login modal form, not page-specific forms.
     const loginForm = document.getElementById('login-form');
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
-    const signupFormPricing = document.querySelector("#signup-view form");
-    if(signupFormPricing) signupFormPricing.addEventListener('submit', handleSignupForPricing);
 });
 
 // --- Core Auth & Session Functions ---
@@ -59,7 +58,6 @@ function updateNav() {
 }
 
 export function checkAccess() {
-    // --- FIX: Add the extension-less paths for all public pages to account for "pretty URLs" ---
     const publicPages = [
         '/', 
         '/proanthem_index.html', '/proanthem_index',
@@ -112,41 +110,6 @@ export function checkAccess() {
     }
 }
 
-async function handleSignupForPricing(event) {
-    event.preventDefault();
-    const signupError = document.getElementById('signup-error');
-    signupError.textContent = 'Signing up...';
-    const form = event.target;
-    const params = new URLSearchParams(window.location.search);
-    const inviteToken = params.get('invite_token');
-
-    const payload = {
-        firstName: form.querySelector('#signup-firstname').value,
-        lastName: form.querySelector('#signup-lastname').value,
-        email: form.querySelector('#signup-email').value,
-        password: form.querySelector('#signup-password').value,
-        artistBandName: inviteToken ? "Invited Member" : form.querySelector('#signup-artist-name').value,
-        inviteToken: inviteToken || null,
-    };
-    
-    const pendingSongJSON = localStorage.getItem('pendingSong');
-    if (pendingSongJSON) {
-        try {
-            payload.pendingSong = JSON.parse(pendingSongJSON);
-        } catch (e) { console.error("Could not parse pending song.") }
-    }
-
-    try {
-        await signup(payload);
-        if (pendingSongJSON) localStorage.removeItem('pendingSong');
-        const credentials = { email: payload.email, password: payload.password };
-        const redirectTo = inviteToken || payload.pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
-        await performLogin(credentials, redirectTo);
-    } catch(error) {
-        signupError.textContent = error.message;
-    }
-}
-
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -163,7 +126,8 @@ async function handleLogin(event) {
     }
 }
 
-async function performLogin(credentials, redirectTo = null) {
+// This function is now EXPORTED so other pages (like pricing.html) can use it.
+export async function performLogin(credentials, redirectTo = null) {
     try {
         const result = await login(credentials);
         if (result.token) {
@@ -173,11 +137,17 @@ async function performLogin(credentials, redirectTo = null) {
                 window.location.href = redirectTo;
                 return;
             }
-
-            // Note: After a successful login, checkAccess() will re-run on the destination page.
-            // We can simplify the logic here.
-            window.location.href = '/ProjectAnthem.html';
             
+            // --- FIX: Restored robust redirect logic ---
+            const user = getUserPayload();
+            const specialRoles = ['admin', 'band_admin', 'band_member'];
+            const validStatuses = ['active', 'trialing', 'admin_granted'];
+            const hasSpecialRole = user && specialRoles.includes(user.role);
+            const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
+            const hasAccess = hasSpecialRole || hasValidSubscription;
+            
+            window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+
         } else {
             throw new Error("Login failed: No token returned.");
         }
@@ -202,5 +172,3 @@ function openModal(view) {
         }
     }
 }
-
-// --- END OF FILE public/js/auth.js ---
