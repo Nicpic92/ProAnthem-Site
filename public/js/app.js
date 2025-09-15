@@ -2,6 +2,8 @@
 
 import { checkAccess, getUserPayload } from './auth.js';
 import * as api from './api.js';
+import * as UI from './modules/ui.js';
+import * as Fretboard from './modules/fretboard.js';
 
 const isDemoMode = window.location.pathname.includes('Demo.html');
 
@@ -89,7 +91,7 @@ function ProAnthemApp(isDemo = false) {
 }
 
 ProAnthemApp.prototype.init = function() {
-    this.populateTuningSelector();
+    UI.populateTuningSelector(this.el.tuningSelector, this.CONSTANTS.TUNINGS);
     this.attachEventListeners();
     if (this.isDemo) {
         this.loadDemoChords();
@@ -97,7 +99,7 @@ ProAnthemApp.prototype.init = function() {
         if (this.el.recordBtn) this.el.recordBtn.disabled = true;
     } else {
         this.loadChords();
-        this.loadSheetList().then(() => this.initializeNewSong(false));
+        UI.loadSheetList(this.el.songSelector, api).then(() => this.initializeNewSong(false));
     }
 };
 
@@ -110,11 +112,11 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.deleteBtn?.addEventListener('click', this.handleDelete.bind(this));
     this.el.addChordBtn?.addEventListener('click', this.handleAddChord.bind(this));
     this.el.newChordInput?.addEventListener('keyup', (e) => e.key === 'Enter' && this.handleAddChord());
-    this.el.clearQueueBtn?.addEventListener('click', () => { this.chordQueue = []; this.chordQueueIndex = 0; this.renderChordQueue(); });
+    this.el.clearQueueBtn?.addEventListener('click', () => { this.chordQueue = []; this.chordQueueIndex = 0; UI.renderChordQueue(this.el.chordQueueDiv, this.el.clearQueueBtn, this.chordQueue, this.chordQueueIndex); });
     this.el.songBlocksContainer?.addEventListener('focusin', (e) => { if (e.target.classList.contains('lyrics-block')) this.lastFocusedLyricsBlock = e.target; });
     this.el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; this.updateBlockData(blockId, 'content', e.target.value); this.updateSoundingKey(); } });
     this.el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { this.activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
-    document.addEventListener('mousemove', (e) => { if (this.activeResize.element) { const height = this.activeResize.startHeight + e.clientY - this.activeResize.startY; this.activeResize.element.style.height = `${Math.max(50, height)}px`; } if (this.isDraggingNote && this.selectedNote.blockId) { const block = this.songData.song_blocks.find(b => b.id === this.selectedNote.blockId); const note = block?.data?.notes[this.selectedNote.noteIndex]; if (note) { const svg = document.getElementById(`fretboard-svg-${this.selectedNote.blockId}`); const clickData = this.getFretFromClick(e, svg); if (clickData) { note.position = clickData.position; note.string = clickData.string; this.drawNotesOnFretboard(this.selectedNote.blockId); } } } });
+    document.addEventListener('mousemove', (e) => { if (this.activeResize.element) { const height = this.activeResize.startHeight + e.clientY - this.activeResize.startY; this.activeResize.element.style.height = `${Math.max(50, height)}px`; } if (this.isDraggingNote && this.selectedNote.blockId) { const block = this.songData.song_blocks.find(b => b.id === this.selectedNote.blockId); const note = block?.data?.notes[this.selectedNote.noteIndex]; if (note) { const svg = document.getElementById(`fretboard-svg-${this.selectedNote.blockId}`); const clickData = Fretboard.getFretFromClick(e, svg, block.strings, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG); if (clickData) { note.position = clickData.position; note.string = clickData.string; this.drawNotesOnFretboard(this.selectedNote.blockId); } } } });
     document.addEventListener('mouseup', () => { if (this.activeResize.element) { const newHeight = this.activeResize.element.offsetHeight; this.updateBlockData(this.activeResize.blockId, null, null, newHeight); this.activeResize = { element: null, startY: 0, startHeight: 0 }; document.body.style.cursor = ''; } if(this.isDraggingNote) { this.isDraggingNote = false; this.renderPreview(); } });
     this.el.songBlocksContainer?.addEventListener('change', (e) => { if (e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = this.songData.song_blocks.find(b => b.id === blockId); if (block) { block.strings = parseInt(e.target.value, 10); this.drawFretboard(blockId); } } });
     this.el.songBlocksContainer?.addEventListener('click', this.handleSongBlockClick.bind(this));
@@ -156,42 +158,146 @@ ProAnthemApp.prototype.initializeDemoSong = function() {
     this.updateMusicalSettingsUI();
     this.renderSongBlocks();
     this.updateSoundingKey();
-    this.setStatus('Demo loaded. Your changes will not be saved.');
+    UI.setStatus(this.el.statusMessage, 'Demo loaded. Your changes will not be saved.');
 };
 
 ProAnthemApp.prototype.loadDemoChords = function() {
     const demoChords = ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}));
-    this.renderChordPalette(demoChords);
-};
-
-ProAnthemApp.prototype.renderChordPalette = function(chords) {
-    this.el.chordPalette.innerHTML = ''; 
-    chords.forEach(c => { 
-        const btn = document.createElement('button'); 
-        btn.className = 'btn btn-secondary btn-sm'; 
-        btn.textContent = c.name; 
-        btn.onclick = (e) => { 
-            if (e.ctrlKey || e.metaKey) { 
-                this.chordQueue.push(c.name); 
-                this.renderChordQueue(); 
-            } else if (this.lastFocusedLyricsBlock) { 
-                const t = `[${c.name}]`; 
-                const p = this.lastFocusedLyricsBlock.selectionStart; 
-                this.lastFocusedLyricsBlock.value = this.lastFocusedLyricsBlock.value.slice(0, p) + t + this.lastFocusedLyricsBlock.value.slice(p); 
-                this.lastFocusedLyricsBlock.focus(); 
-                this.lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); 
-                this.updateBlockData(this.lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', this.lastFocusedLyricsBlock.value); 
-            }
-        }; 
-        this.el.chordPalette.appendChild(btn); 
-    });
+    UI.renderChordPalette(this.el.chordPalette, demoChords, this.handleChordClick.bind(this));
 };
 
 ProAnthemApp.prototype.loadChords = async function() {
     try {
         const chords = await api.getChords();
-        this.renderChordPalette(chords);
-    } catch(e) { this.setStatus('Failed to load chords.', true); }
+        UI.renderChordPalette(this.el.chordPalette, chords, this.handleChordClick.bind(this));
+    } catch(e) { UI.setStatus(this.el.statusMessage, 'Failed to load chords.', true); }
+};
+
+ProAnthemApp.prototype.handleChordClick = function(event, name) {
+    if (event.ctrlKey || event.metaKey) { 
+        this.chordQueue.push(name); 
+        UI.renderChordQueue(this.el.chordQueueDiv, this.el.clearQueueBtn, this.chordQueue, this.chordQueueIndex); 
+    } else if (this.lastFocusedLyricsBlock) { 
+        const t = `[${name}]`; 
+        const p = this.lastFocusedLyricsBlock.selectionStart; 
+        this.lastFocusedLyricsBlock.value = this.lastFocusedLyricsBlock.value.slice(0, p) + t + this.lastFocusedLyricsBlock.value.slice(p); 
+        this.lastFocusedLyricsBlock.focus(); 
+        this.lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); 
+        this.updateBlockData(this.lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', this.lastFocusedLyricsBlock.value); 
+    }
+};
+
+ProAnthemApp.prototype.renderSongBlocks = function() {
+    UI.renderSongBlocks(
+        this.el.songBlocksContainer,
+        this.songData.song_blocks,
+        (block) => UI.createBlockElement(block, this.drawFretboard.bind(this)),
+        () => this.initializeSortable()
+    );
+    UI.renderAddBlockButtons(this.el.addBlockButtonsContainer, this.songData.song_blocks);
+    this.renderPreview();
+};
+
+ProAnthemApp.prototype.renderPreview = function() {
+    const renderTransposedTab = (block) => Fretboard.renderTransposedTab(block, this.songData.tuning, this.songData.capo, this.songData.transpose, this.CONSTANTS.TUNINGS, this.CONSTANTS.FRETBOARD_CONFIG);
+    UI.renderPreview(this.el.livePreview, this.songData.song_blocks, renderTransposedTab);
+};
+
+ProAnthemApp.prototype.drawFretboard = function(blockId) {
+    const block = this.songData.song_blocks.find(b => b.id === blockId);
+    if (!block) return;
+    Fretboard.drawFretboard(
+        blockId,
+        block.strings || 6,
+        this.CONSTANTS.TUNINGS,
+        this.CONSTANTS.STRING_CONFIG,
+        this.CONSTANTS.FRETBOARD_CONFIG,
+        (id) => this.drawNotesOnFretboard(id),
+        (svgEl) => this.attachFretboardListeners(svgEl)
+    );
+};
+
+ProAnthemApp.prototype.drawNotesOnFretboard = function(blockId) {
+    const block = this.songData.song_blocks.find(b => b.id === blockId);
+    if (!block || !block.data) return;
+    Fretboard.drawNotesOnFretboard(
+        blockId,
+        block.data.notes,
+        this.selectedNote,
+        block.strings || 6,
+        this.songData.tuning,
+        this.songData.capo,
+        this.CONSTANTS.TUNINGS,
+        this.CONSTANTS.STRING_CONFIG,
+        this.CONSTANTS.FRETBOARD_CONFIG
+    );
+};
+
+ProAnthemApp.prototype.attachFretboardListeners = function(svgEl) {
+    const blockId = svgEl.id.split('-').pop();
+    const block = this.songData.song_blocks.find(b => b.id === blockId);
+    if (!block) return;
+
+    svgEl.addEventListener('mousedown', (e) => {
+        this.isDraggingNote = false;
+        if (block.editMode && e.target.closest('.note-group')) {
+            this.isDraggingNote = true;
+            const noteGroup = e.target.closest('.note-group');
+            const noteIndex = parseInt(noteGroup.querySelector('.fretboard-note').dataset.noteIndex, 10);
+            this.selectedNote = { blockId, noteIndex };
+            this.drawNotesOnFretboard(blockId);
+        }
+    });
+
+    svgEl.addEventListener('click', (e) => {
+        if (this.isDraggingNote) { this.isDraggingNote = false; return; }
+        const isNoteClick = e.target.closest('.note-group');
+        if (block.editMode) {
+            if (isNoteClick) {
+                const clickedNoteIndex = parseInt(isNoteClick.querySelector('.fretboard-note').dataset.noteIndex, 10);
+                if (this.selectedNote.blockId === blockId && this.selectedNote.noteIndex === clickedNoteIndex) {
+                    block.data.notes.splice(clickedNoteIndex, 1);
+                    this.selectedNote = {};
+                } else {
+                    this.selectedNote = { blockId, noteIndex: clickedNoteIndex };
+                }
+            } else {
+                this.selectedNote = {};
+            }
+            this.drawNotesOnFretboard(blockId);
+        } else {
+            if (!isNoteClick) {
+                const clickData = Fretboard.getFretFromClick(e, svgEl, block.strings || 6, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG);
+                if (clickData) {
+                    this.fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+                    this.el.fretNumberSelector.innerHTML = '';
+                    for (let i = 0; i <= this.CONSTANTS.FRETBOARD_CONFIG.frets; i++) {
+                        const option = new Option(i, i);
+                        if (i === clickData.fret) option.selected = true;
+                        this.el.fretNumberSelector.appendChild(option);
+                    }
+                    this.el.fretSelectionModal.style.left = `${e.clientX + 5}px`;
+                    this.el.fretSelectionModal.style.top = `${e.clientY + 5}px`;
+                    this.el.fretSelectionModal.classList.remove('hidden');
+                }
+            }
+        }
+    });
+};
+
+ProAnthemApp.prototype.initializeSortable = function() {
+    if (this.el.songBlocksContainer.sortableInstance) {
+        this.el.songBlocksContainer.sortableInstance.destroy();
+    }
+    this.el.songBlocksContainer.sortableInstance = new Sortable(this.el.songBlocksContainer, {
+        animation: 150,
+        handle: '.block-header',
+        onEnd: (evt) => {
+            const [movedItem] = this.songData.song_blocks.splice(evt.oldIndex, 1);
+            this.songData.song_blocks.splice(evt.newIndex, 0, movedItem);
+            this.renderPreview();
+        }
+    });
 };
 
 ProAnthemApp.prototype.handleSave = async function() {
@@ -392,20 +498,20 @@ ProAnthemApp.prototype.handleCreateSetlist = async function() { if(this.isDemo) 
 ProAnthemApp.prototype.handleDeleteSetlist = async function() { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); return;} const setlistId = this.el.setlistSelector.value; const setlistName = this.el.setlistSelector.options[this.el.setlistSelector.selectedIndex].text; if (!setlistId) return; if (confirm(`ARE YOU SURE you want to permanently delete the setlist "${setlistName}"? This cannot be undone.`)) { try { await this.api.deleteSetlist(setlistId); this.setStatus(`Setlist "${setlistName}" deleted.`, false); await this.loadSetlists(); this.handleSetlistSelection(null); } catch(error) { this.setStatus(`Failed to delete setlist: ${error.message}`, true); } } };
 ProAnthemApp.prototype.handleAddSongToSetlist = async function() { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); return;} const setlistId = this.el.setlistSelector.value; if (!this.songData.id) return alert('Please save the current song before adding it to a setlist.'); if (!setlistId) return alert('Please select a setlist first.'); try { await this.api.addSongToSetlist(setlistId, this.songData.id); this.setStatus(`'${this.songData.title}' added to setlist.`, false); await this.handleSetlistSelection(setlistId); } catch(error) { this.setStatus(`Failed to add song: ${error.message}`, true); } };
 ProAnthemApp.prototype.handleRemoveItemFromSetlist = async function(itemLi) { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); itemLi.remove(); return;} const setlistId = this.el.setlistSelector.value; const itemId = itemLi.dataset.itemId; const itemType = itemLi.dataset.itemType; if (!setlistId || !itemId) return; if (confirm("Are you sure you want to remove this item from the setlist?")) { try { if (itemType === 'song') { await this.api.removeSongFromSetlist(setlistId, itemId); } itemLi.remove(); await this.saveSetlistOrderAndNotes(); } catch(error) { this.setStatus(`Failed to remove item: ${error.message}`, true); await this.handleSetlistSelection(setlistId); } } };
-ProAnthemApp.prototype.handlePrintSetlist = async function(drummerMode) { if (this.isDemo) { this.setStatus('Printing is disabled in demo.', true); return; } const setlistId = this.el.setlistSelector.value; if (!setlistId) return; this.setStatus('Generating PDF...'); try { const setlist = await this.api.getSetlist(setlistId); let extraData = { order: [], notes: [] }; try { const parsedNotes = JSON.parse(setlist.notes || '{}'); if (parsedNotes.order && Array.isArray(parsedNotes.notes)) extraData = parsedNotes; } catch (e) {} const allItemsMap = new Map(); (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' })); (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n)); const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => allItemsMap.get(id.toString())).filter(Boolean); const { jsPDF } = window.jspdf; const doc = new jsPDF(); const leftMargin = 15, rightMargin = doc.internal.pageSize.getWidth() - 15, yStart = 20; let y = yStart; const pageHeight = doc.internal.pageSize.getHeight(), marginBottom = 20, maxWidth = rightMargin - leftMargin; const getImageDataUrl = async (url) => { if (!url) return Promise.resolve(null); return new Promise((resolve) => { const img = new Image(); img.crossOrigin = 'Anonymous'; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); resolve(canvas.toDataURL('image/png')); }; img.onerror = () => { console.error('Failed to load watermark image.'); resolve(null); }; img.src = url; }); }; const logoDataUrl = await getImageDataUrl(setlist.logo_url); const addWatermarkToPage = () => { if (logoDataUrl) { doc.setGState(new doc.GState({opacity: 0.1})); doc.addImage(logoDataUrl, 'PNG', rightMargin - 20, 10, 20, 20); doc.setGState(new doc.GState({opacity: 1.0})); } }; const checkPageBreak = (neededHeight) => { if (y + neededHeight > pageHeight - marginBottom) { addWatermarkToPage(); doc.addPage(); y = yStart; addWatermarkToPage(); } }; addWatermarkToPage(); doc.setFontSize(26); doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth }); y += 15; doc.setFontSize(16); if (setlist.venue) { doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth }); y += 8; } if (setlist.event_date) { doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' }); } y += 15; doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text('Song List:', leftMargin, y); y += 8; doc.setFont(undefined, 'normal'); orderedItems.forEach((item, index) => { checkPageBreak(8); let titleText; if (item.type === 'song') { titleText = `${index + 1}. ${item.title} (${item.artist || 'Unknown'})`; const splitTitle = doc.splitTextToSize(titleText, maxWidth - 5); doc.text(splitTitle, leftMargin + 5, y); y += splitTitle.length * 7; } else { titleText = `${index + 1}. --- ${item.title} ---`; doc.setFont(undefined, 'italic'); doc.text(titleText, leftMargin + 5, y); y += 7; doc.setFont(undefined, 'normal'); } }); for (const item of orderedItems) { addWatermarkToPage(); doc.addPage(); y = yStart; addWatermarkToPage(); if (item.type === 'song') { doc.setFontSize(18); doc.setFont(undefined, 'bold'); doc.text(item.title, leftMargin, y, { maxWidth }); y += 8; doc.setFontSize(14); doc.setFont(undefined, 'italic'); doc.text(item.artist || 'Unknown Artist', leftMargin, y, { maxWidth }); y += 12; const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []); for (const block of songBlocks) { let blockToRender = block.type === 'reference' ? (songBlocks.find(b => b.id === block.originalId) || block) : block; if (!blockToRender || (!blockToRender.content && (!blockToRender.data || !blockToRender.data.notes))) continue; if(drummerMode && !(blockToRender.type === 'lyrics' || blockToRender.type === 'drum_tab')) continue; if(!drummerMode && blockToRender.type === 'drum_tab') continue; checkPageBreak(12); doc.setFont(undefined, 'bold'); doc.setFontSize(12); doc.text(block.label, leftMargin, y, { maxWidth }); y += 7; doc.setFont('Courier', 'normal'); doc.setFontSize(10); const lineHeight = 5; const contentToRender = blockToRender.type === 'tab' ? this.renderTransposedTab(blockToRender) : (blockToRender.content || ''); for (const line of contentToRender.split('\n')) { if (blockToRender.type === 'lyrics') { const parsed = this.parseLineForRender(line); if (!drummerMode) { checkPageBreak(lineHeight * 2.5); doc.setTextColor(60, 60, 60); doc.text(parsed.chordLine, leftMargin, y, { maxWidth }); y += lineHeight; } else { checkPageBreak(lineHeight * 1.5); } doc.setTextColor(0, 0, 0); const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth); doc.text(splitLyrics, leftMargin, y); y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5); } else if (blockToRender.type === 'tab' || blockToRender.type === 'drum_tab') { const splitText = doc.splitTextToSize(line, maxWidth); checkPageBreak(splitText.length * lineHeight); doc.setTextColor(0,0,0); doc.text(splitText, leftMargin, y); y += (splitText.length * lineHeight) + (lineHeight * 0.5); } } y += lineHeight; } } else { doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text(item.title, doc.internal.pageSize.getWidth() / 2, pageHeight / 2, { align: 'center', maxWidth }); } } addWatermarkToPage(); doc.save(`${setlist.name.replace(/\s/g, '_')}${drummerMode ? '_Drummer' : ''}.pdf`); this.setStatus('PDF generated.', false); } catch (error) { this.setStatus(`Failed to generate PDF: ${error.message}`, true); console.error("PDF generation error:", error); } };
+ProAnthemApp.prototype.handlePrintSetlist = async function(drummerMode = false) { if (this.isDemo) { this.setStatus('Printing is disabled in demo.', true); return; } const setlistId = this.el.setlistSelector.value; if (!setlistId) return; this.setStatus('Generating PDF...'); try { const setlist = await this.api.getSetlist(setlistId); let extraData = { order: [], notes: [] }; try { const parsedNotes = JSON.parse(setlist.notes || '{}'); if (parsedNotes.order && Array.isArray(parsedNotes.notes)) extraData = parsedNotes; } catch (e) {} const allItemsMap = new Map(); (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' })); (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n)); const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => allItemsMap.get(id.toString())).filter(Boolean); const { jsPDF } = window.jspdf; const doc = new jsPDF(); const leftMargin = 15, rightMargin = doc.internal.pageSize.getWidth() - 15, yStart = 20; let y = yStart; const pageHeight = doc.internal.pageSize.getHeight(), marginBottom = 20, maxWidth = rightMargin - leftMargin; const getImageDataUrl = async (url) => { if (!url) return Promise.resolve(null); return new Promise((resolve) => { const img = new Image(); img.crossOrigin = 'Anonymous'; img.onload = () => { const canvas = document.createElement('canvas'); canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0); resolve(canvas.toDataURL('image/png')); }; img.onerror = () => { console.error('Failed to load watermark image.'); resolve(null); }; img.src = url; }); }; const logoDataUrl = await getImageDataUrl(setlist.logo_url); const addWatermarkToPage = () => { if (logoDataUrl) { doc.setGState(new doc.GState({opacity: 0.1})); doc.addImage(logoDataUrl, 'PNG', rightMargin - 20, 10, 20, 20); doc.setGState(new doc.GState({opacity: 1.0})); } }; const checkPageBreak = (neededHeight) => { if (y + neededHeight > pageHeight - marginBottom) { addWatermarkToPage(); doc.addPage(); y = yStart; addWatermarkToPage(); } }; addWatermarkToPage(); doc.setFontSize(26); doc.text(setlist.name, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth }); y += 15; doc.setFontSize(16); if (setlist.venue) { doc.text(setlist.venue, doc.internal.pageSize.getWidth() / 2, y, { align: 'center', maxWidth }); y += 8; } if (setlist.event_date) { doc.text(new Date(setlist.event_date).toLocaleDateString(undefined, { timeZone: 'UTC' }), doc.internal.pageSize.getWidth() / 2, y, { align: 'center' }); } y += 15; doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.text('Song List:', leftMargin, y); y += 8; doc.setFont(undefined, 'normal'); orderedItems.forEach((item, index) => { checkPageBreak(8); let titleText; if (item.type === 'song') { titleText = `${index + 1}. ${item.title} (${item.artist || 'Unknown'})`; const splitTitle = doc.splitTextToSize(titleText, maxWidth - 5); doc.text(splitTitle, leftMargin + 5, y); y += splitTitle.length * 7; } else { titleText = `${index + 1}. --- ${item.title} ---`; doc.setFont(undefined, 'italic'); doc.text(titleText, leftMargin + 5, y); y += 7; doc.setFont(undefined, 'normal'); } }); for (const item of orderedItems) { addWatermarkToPage(); doc.addPage(); y = yStart; addWatermarkToPage(); if (item.type === 'song') { doc.setFontSize(18); doc.setFont(undefined, 'bold'); doc.text(item.title, leftMargin, y, { maxWidth }); y += 8; doc.setFontSize(14); doc.setFont(undefined, 'italic'); doc.text(item.artist || 'Unknown Artist', leftMargin, y, { maxWidth }); y += 12; const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []); for (const block of songBlocks) { let blockToRender = block.type === 'reference' ? (songBlocks.find(b => b.id === block.originalId) || block) : block; if (!blockToRender || (!blockToRender.content && (!blockToRender.data || !blockToRender.data.notes))) continue; if(drummerMode && !(blockToRender.type === 'lyrics' || blockToRender.type === 'drum_tab')) continue; if(!drummerMode && blockToRender.type === 'drum_tab') continue; checkPageBreak(12); doc.setFont(undefined, 'bold'); doc.setFontSize(12); doc.text(block.label, leftMargin, y, { maxWidth }); y += 7; doc.setFont('Courier', 'normal'); doc.setFontSize(10); const lineHeight = 5; const contentToRender = blockToRender.type === 'tab' ? this.renderTransposedTab(blockToRender) : (blockToRender.content || ''); for (const line of contentToRender.split('\n')) { if (blockToRender.type === 'lyrics') { const parsed = this.parseLineForRender(line); if (!drummerMode) { checkPageBreak(lineHeight * 2.5); doc.setTextColor(60, 60, 60); doc.text(parsed.chordLine, leftMargin, y, { maxWidth }); y += lineHeight; } else { checkPageBreak(lineHeight * 1.5); } doc.setTextColor(0, 0, 0); const splitLyrics = doc.splitTextToSize(parsed.lyricLine, maxWidth); doc.text(splitLyrics, leftMargin, y); y += (splitLyrics.length * lineHeight) + (lineHeight * 0.5); } else if (blockToRender.type === 'tab' || blockToRender.type === 'drum_tab') { const splitText = doc.splitTextToSize(line, maxWidth); checkPageBreak(splitText.length * lineHeight); doc.setTextColor(0,0,0); doc.text(splitText, leftMargin, y); y += (splitText.length * lineHeight) + (lineHeight * 0.5); } } y += lineHeight; } } else { doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text(item.title, doc.internal.pageSize.getWidth() / 2, pageHeight / 2, { align: 'center', maxWidth }); } } addWatermarkToPage(); doc.save(`${setlist.name.replace(/\s/g, '_')}${drummerMode ? '_Drummer' : ''}.pdf`); this.setStatus('PDF generated.', false); } catch (error) { this.setStatus(`Failed to generate PDF: ${error.message}`, true); console.error("PDF generation error:", error); } };
 ProAnthemApp.prototype.renderSongBlocks = function() { this.el.songBlocksContainer.innerHTML = ''; (this.songData.song_blocks || []).forEach(block => this.el.songBlocksContainer.appendChild(this.createBlockElement(block))); this.renderAddBlockButtons(); this.renderPreview(); this.initializeSortable(); };
 ProAnthemApp.prototype.createBlockElement = function(block) { const div = document.createElement('div'); div.className = 'song-block'; div.dataset.blockId = block.id; let contentHtml = '', headerControls = ''; const drumPlaceholder = `HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`; if (block.type === 'lyrics') { contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`; } else if (block.type === 'tab') { const stringOptions = [6, 7, 8].map(num => `<option value="${num}" ${block.strings === num ? 'selected' : ''}>${num}-String</option>`).join(''); contentHtml = `<div class="mb-2"><label class="text-xs text-gray-400">Instrument:</label><select class="form-select form-input text-sm w-32 bg-gray-900" data-action="change-strings">${stringOptions}</select></div><div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`; const isEditMode = block.editMode || false; const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary'; headerControls = `<button class="btn ${editButtonClass} btn-sm" data-action="edit-tab">${isEditMode ? 'Done Editing' : 'Edit'}</button>`; } else if (block.type === 'drum_tab') { contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`; } else if (block.type === 'reference') { const originalBlock = this.songData.song_blocks.find(b => b.id === block.originalId); contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`; } div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type.replace('_', ' ')})</span></div></div><div class="flex items-center gap-2">${headerControls}<button class="btn-sm text-xs hover:underline" data-action="rename">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`; if (block.type === 'tab') setTimeout(() => this.drawFretboard(block.id), 0); return div; };
 ProAnthemApp.prototype.renderAddBlockButtons = function() { const createdSections = this.songData.song_blocks.filter(b => b.type !== 'reference'); let referenceButtonsHtml = ''; if (createdSections.length > 0) { const refItems = createdSections.map(b => `<a href="#" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600" data-original-id="${b.id}" role="menuitem">${b.label}</a>`).join(''); referenceButtonsHtml = `<div class="relative inline-block text-left"><button id="insert-ref-btn" class="btn btn-secondary">Insert Existing Section</button><div id="ref-dropdown" class="hidden origin-top-right absolute left-0 mt-2 w-56 rounded-md shadow-lg bg-gray-700 ring-1 ring-black ring-opacity-5 z-10"><div class="py-1" role="menu" aria-orientation="vertical">${refItems}</div></div></div>`; } this.el.addBlockButtonsContainer.innerHTML = `<button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Verse </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Chorus </button><button class="btn btn-secondary" data-action="add" data-type="lyrics"> + Bridge </button><button class="btn btn-secondary" data-action="add" data-type="tab"> + Tab Section </button><button class="btn btn-secondary" data-action="add" data-type="drum_tab"> + Drum Tab </button>${referenceButtonsHtml}`; };
 ProAnthemApp.prototype.renderPreview = function() { let previewHtml = ''; (this.songData.song_blocks || []).forEach(block => { let blockToRender = block.type === 'reference' ? (this.songData.song_blocks.find(b => b.id === block.originalId) || block) : block; previewHtml += `<h4 class="text-lg font-bold mt-4 text-gray-400">${block.label}</h4>`; if (!blockToRender) return; if (blockToRender.type === 'lyrics') { (blockToRender.content || '').split('\n').forEach(line => { const parsed = this.parseLineForRender(line); previewHtml += `<div class="live-preview-chords">${parsed.chordLine}</div><div>${parsed.lyricLine}</div>`; }); } else if (blockToRender.type === 'tab') { previewHtml += `<div class="tab-preview">${this.renderTransposedTab(blockToRender)}</div>`; } else if (blockToRender.type === 'drum_tab') { previewHtml += `<div class="tab-preview">${blockToRender.content || ''}</div>`; } }); this.el.livePreview.innerHTML = previewHtml; };
 ProAnthemApp.prototype.getFretFromClick = function(evt, svgEl) { const block = this.songData.song_blocks.find(b => b.id === svgEl.id.split('-').pop()); return Fretboard.getFretFromClick(evt, svgEl, block.strings || 6, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG); };
 ProAnthemApp.prototype.drawFretboard = function(blockId) { const block = this.songData.song_blocks.find(b => b.id === blockId); if (!block) return; Fretboard.drawFretboard(blockId, block.strings || 6, this.CONSTANTS.TUNINGS, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG, (id) => this.drawNotesOnFretboard(id), (svgEl) => this.attachFretboardListeners(svgEl)); };
-ProAnthemApp.prototype.drawNotesOnFretboard = function(blockId) { const block = this.songData.song_blocks.find(b => b.id === blockId); if (!block) return; Fretboard.drawNotesOnFretboard(blockId, block.data.notes, this.selectedNote, block.strings || 6, this.songData.tuning, this.songData.capo, this.CONSTANTS.TUNINGS, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG); };
+ProAnthemApp.prototype.drawNotesOnFretboard = function(blockId) { const block = this.songData.song_blocks.find(b => b.id === blockId); if (!block || !block.data) return; Fretboard.drawNotesOnFretboard(blockId, block.data.notes, this.selectedNote, block.strings || 6, this.songData.tuning, this.songData.capo, this.CONSTANTS.TUNINGS, this.CONSTANTS.STRING_CONFIG, this.CONSTANTS.FRETBOARD_CONFIG); };
 ProAnthemApp.prototype.renderTransposedTab = function(tabBlock) { return Fretboard.renderTransposedTab(tabBlock, this.songData.tuning, this.songData.capo, this.songData.transpose, this.CONSTANTS.TUNINGS, this.CONSTANTS.FRETBOARD_CONFIG); };
 ProAnthemApp.prototype.updateBlockData = function(blockId, field, value, height) { const block = this.songData.song_blocks.find(b => b.id === blockId); if (block) { if (field !== null) block[field] = value; if (height !== null) block.height = height; if (field === 'content') this.renderPreview(); } };
 ProAnthemApp.prototype.initializeSortable = function() { if (this.el.songBlocksContainer.sortableInstance) { this.el.songBlocksContainer.sortableInstance.destroy(); } this.el.songBlocksContainer.sortableInstance = new Sortable(this.el.songBlocksContainer, { animation: 150, handle: '.block-header', onEnd: (evt) => { const [movedItem] = this.songData.song_blocks.splice(evt.oldIndex, 1); this.songData.song_blocks.splice(evt.newIndex, 0, movedItem); this.renderPreview(); } }); };
 ProAnthemApp.prototype.parseLineForRender = function(rawLine) { if (!rawLine || !rawLine.trim()) return { chordLine: ' ', lyricLine: ' ' }; let chordLine = ""; let lyricLine = ""; const parts = rawLine.split(/(\[[^\]]+\])/g); for (const part of parts) { if (part.startsWith('[') && part.endsWith(']')) { const chordName = part.slice(1, -1); chordLine += chordName; lyricLine += ' '.repeat(chordName.length); } else { lyricLine += part; chordLine += ' '.repeat(part.length); } } return { chordLine: chordLine.trimEnd() || ' ', lyricLine: lyricLine.trimEnd() || ' ' }; };
 ProAnthemApp.prototype.populateTuningSelector = function() { for (const key in this.CONSTANTS.TUNINGS) { const option = document.createElement('option'); option.value = key; option.textContent = this.CONSTANTS.TUNINGS[key].name; this.el.tuningSelector.appendChild(option); } };
-ProAnthemApp.prototype.loadSheetList = async function(selectId = null) { try { const songs = await this.api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); this.el.songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; this.el.songSelector.appendChild(o); }); if (selectId) this.el.songSelector.value = selectId; } catch (e) { this.setStatus('Failed to load songs.', true); } };
+ProAnthemApp.prototype.loadSheetList = async function(selectId = null) { try { const songs = await api.getSheets(); songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)); this.el.songSelector.innerHTML = '<option value="new">-- Create New Song --</option>'; songs.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.title || 'Untitled'; this.el.songSelector.appendChild(o); }); if (selectId) this.el.songSelector.value = selectId; } catch (e) { this.setStatus('Failed to load songs.', true); } };
 ProAnthemApp.prototype.transposeChord = function(chord, amount) { const regex = /^([A-G][b#]?)(.*)/; const match = chord.match(regex); if (!match) return chord; let note = match[1]; let index = this.CONSTANTS.SHARP_SCALE.indexOf(note); if (index === -1) { const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'}; note = flatNotes[note] || note; index = this.CONSTANTS.SHARP_SCALE.indexOf(note); } if (index === -1) return chord; const newIndex = (index + amount + 12) % 12; return this.CONSTANTS.SHARP_SCALE[newIndex] + match[2]; };
 ProAnthemApp.prototype.handleTranspose = function(amount) { this.songData.transpose += amount; this.updateMusicalSettingsUI(); this.songData.song_blocks.forEach(block => { if (block.type === 'lyrics' && block.content) { block.content = block.content.replace(/\[([^\]]+)\]/g, (match, chord) => `[${this.transposeChord(chord, amount)}]`); } }); this.renderSongBlocks(); };
 ProAnthemApp.prototype.renderChordQueue = function() { this.el.chordQueueDiv.innerHTML = ''; if (this.chordQueue.length === 0) { document.querySelectorAll('.lyrics-block').forEach(el => el.classList.remove('placement-mode')); this.el.clearQueueBtn.disabled = true; return; } document.querySelectorAll('.lyrics-block').forEach(el => el.classList.add('placement-mode')); this.el.clearQueueBtn.disabled = false; this.chordQueue.forEach((name, index) => { const pill = document.createElement('span'); pill.className = `queue-pill ${index === this.chordQueueIndex ? 'next' : ''}`; pill.textContent = name; this.el.chordQueueDiv.appendChild(pill); }); };
