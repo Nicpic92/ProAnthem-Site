@@ -1,6 +1,7 @@
 // --- START OF FILE public/js/auth.js ---
 
-// This is the unified authentication script for the entire ProAnthem site.
+// This file handles user sessions, access control, and login/signup forms.
+import { login, signup } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
@@ -10,10 +11,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if(signupFormPricing) signupFormPricing.addEventListener('submit', handleSignupForPricing);
 });
 
-// --- Core Auth & API Functions ---
-function getToken() { return localStorage.getItem('user_token'); }
+// --- Core Auth & Session Functions ---
+export function getToken() { return localStorage.getItem('user_token'); }
 
-function getUserPayload() {
+export function getUserPayload() {
     const token = getToken();
     if (!token) return null;
     try {
@@ -26,7 +27,7 @@ function getUserPayload() {
     }
 }
 
-function logout() {
+export function logout() {
     localStorage.removeItem('user_token');
     window.location.href = '/proanthem_index.html';
 }
@@ -55,36 +56,19 @@ function updateNav() {
     }
 }
 
-async function apiRequest(endpoint, data = null, method = 'GET') {
-    const token = getToken();
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
-    if (token) options.headers['Authorization'] = `Bearer ${token}`;
-    if (data) options.body = JSON.stringify(data);
-    try {
-        const response = await fetch(`/api/${endpoint}`, options);
-        if (response.status === 204) return null;
-        const responseData = await response.json();
-        if (!response.ok) {
-            if (response.status === 401) {
-                alert('Your session has expired. Please log in again.');
-                logout();
-            }
-            throw new Error(responseData.message || `API Error: ${response.status}`);
-        }
-        return responseData;
-    } catch (error) {
-        console.error(`API Request Error to ${endpoint}:`, error);
-        throw error;
-    }
-}
-
 // --- Subscription & Access Control ---
-function checkAccess() {
-    // *** THIS IS THE CORRECTED SECTION ***
-    // This function is now passive. It ONLY returns true or false. It NEVER redirects.
+export function checkAccess() {
+    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
+    const currentPath = window.location.pathname;
+
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
+        return true; 
+    }
+
     const user = getUserPayload();
     if (!user) {
-        return false; // No user, no access.
+        window.location.href = '/proanthem_index.html';
+        return false;
     }
     
     const specialRoles = ['admin', 'band_admin', 'band_member'];
@@ -92,8 +76,30 @@ function checkAccess() {
     
     const hasSpecialRole = specialRoles.includes(user.role);
     const hasValidSubscription = validStatuses.includes(user.subscription_status);
+    const hasAccess = hasSpecialRole || hasValidSubscription;
     
-    return hasSpecialRole || hasValidSubscription;
+    const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
+    const accessDenied = document.getElementById('access-denied');
+    
+    if (!content || !accessDenied) return true;
+
+    if (hasAccess) {
+        accessDenied.classList.add('hidden');
+        content.classList.remove('hidden');
+        content.style.display = 'block'; 
+        return true;
+    } else {
+        accessDenied.classList.remove('hidden');
+        content.classList.add('hidden');
+        content.style.display = 'none';
+        
+        const accessDeniedLink = accessDenied.querySelector('a');
+        if (accessDeniedLink) {
+            accessDeniedLink.textContent = 'Manage Subscription';
+            accessDeniedLink.href = '/pricing.html';
+        }
+        return false;
+    }
 }
 
 // --- Form Handlers ---
@@ -122,10 +128,8 @@ async function handleSignupForPricing(event) {
     }
 
     try {
-        await apiRequest('signup', payload, 'POST');
-        
+        await signup(payload);
         if (pendingSongJSON) localStorage.removeItem('pendingSong');
-
         const credentials = { email: payload.email, password: payload.password };
         const redirectTo = inviteToken || payload.pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
         await performLogin(credentials, redirectTo);
@@ -152,7 +156,7 @@ async function handleLogin(event) {
 
 async function performLogin(credentials, redirectTo = null) {
     try {
-        const result = await apiRequest('login', credentials, 'POST');
+        const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
             
@@ -161,7 +165,6 @@ async function performLogin(credentials, redirectTo = null) {
                 return;
             }
 
-            // After login, check access to determine where to go.
             if (checkAccess()) {
                 window.location.href = '/ProjectAnthem.html';
             } else {
