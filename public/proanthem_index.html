@@ -12,7 +12,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        /* Page-specific overrides can go here if needed */
         #auth-modal input {
             background-color: #1f2937;
             border: 1px solid #4b5563;
@@ -27,7 +26,7 @@
             <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
         </a>
         <div id="nav-auth-section">
-            <!-- This div is intentionally left empty. auth.js will populate it. -->
+            <!-- Populated by auth script -->
         </div>
     </header>
 
@@ -35,16 +34,17 @@
         <section class="text-center py-20 px-6">
             <div class="container mx-auto">
                 <h2 class="text-5xl md:text-7xl font-extrabold tracking-tight text-white">
-                    Your Band's <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Stage-Ready Command Center.</span>
+                    Your Band's <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-fuchsia-400">Stage-Ready Command Center.</span>
                 </h2>
                 <p class="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-gray-300">
                     From the writer's room to the main stage, ProAnthem is the professional toolkit for Christian rock bands. Tame the chaos of complex songs, build powerful setlists, and keep every member perfectly in sync. It's time to unleash your sound.
                 </p>
                 <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <a href="/pricing.html" class="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
+                    <!-- *** THIS IS THE MODIFIED SECTION *** -->
+                    <a href="/pricing.html" class="btn btn-primary w-full sm:w-auto font-bold text-lg rounded-full py-4 px-10">
                         View Plans & Start 3-Day Trial
                     </a>
-                    <a href="/demo.html" class="w-full sm:w-auto border-2 border-indigo-400 text-indigo-400 font-bold text-lg rounded-full py-4 px-10 hover:bg-indigo-400 hover:text-white transition-colors duration-300">
+                    <a href="/demo.html" class="btn btn-secondary w-full sm:w-auto font-bold text-lg rounded-full py-4 px-10">
                         Try a Live Demo
                     </a>
                 </div>
@@ -52,6 +52,7 @@
         </section>
 
         <section id="features" class="py-20 px-6 bg-gray-900">
+            <!-- ... features section remains unchanged ... -->
             <div class="container mx-auto">
                 <div class="text-center mb-16">
                     <h3 class="text-4xl font-bold text-white">From Rehearsal Room to the Main Stage</h3>
@@ -107,7 +108,8 @@
                     Spend less time managing files and more time making music. Create your account and get instant access to the entire ProAnthem toolkit.
                 </p>
                 <div class="mt-8">
-                    <a href="/pricing.html" class="bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-bold text-lg rounded-full py-4 px-10 hover:opacity-90 transition-transform transform hover:scale-105">
+                    <!-- *** THIS IS THE MODIFIED SECTION *** -->
+                    <a href="/pricing.html" class="btn btn-primary font-bold text-lg rounded-full py-4 px-10">
                         Start Your Free Trial Now
                     </a>
                 </div>
@@ -116,6 +118,7 @@
 
         <!-- CONTACT FORM SECTION START -->
         <section id="contact" class="py-20 px-6 bg-gray-900">
+            <!-- ... contact form section remains unchanged ... -->
             <div class="container mx-auto max-w-3xl">
                 <div class="text-center mb-12">
                     <h3 class="text-4xl font-bold text-white">Have a Question?</h3>
@@ -129,7 +132,6 @@
                         <input type="text" name="name" id="name" required class="form-input" placeholder="Your Name">
                         <input type="email" name="email" id="email" required class="form-input" placeholder="Your Email">
                     </div>
-                    <!-- *** THIS IS THE CORRECTED SECTION FOR THE CONTACT FORM *** -->
                     <div>
                         <input type="hidden" name="_subject" value="New ProAnthem Contact Form Submission!">
                         <textarea name="message" id="message" required rows="5" class="form-input" placeholder="Your Message"></textarea>
@@ -159,7 +161,7 @@
                 <form id="login-form" class="space-y-6">
                     <input id="login-email" name="email" type="email" required placeholder="Email address" class="form-input">
                     <input id="login-password" name="password" type="password" required placeholder="Password" class="form-input">
-                    <button type="submit" class="w-full bg-indigo-600 py-3 rounded-md font-semibold hover:bg-indigo-700">Log In</button>
+                    <button type="submit" class="btn btn-primary w-full py-3">Log In</button>
                 </form>
                 <p id="login-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
                 <p class="text-center text-sm text-gray-400 mt-4">Don't have an account? <a href="/pricing.html" class="font-medium text-indigo-400 hover:text-indigo-300">Sign up here</a></p>
