@@ -37,17 +37,17 @@ function updateNav() {
     if (!navAuthSection) return;
 
     if (user) {
-        let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
+        let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-secondary">Tool</a>`;
         if (user.role === 'admin' || user.role === 'band_admin') {
-             buttonHtml = `<a href="/band.html" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 mr-4">Manage Band</a>` + buttonHtml;
+             buttonHtml = `<a href="/band.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
         }
         if (user.role === 'admin') {
-             buttonHtml = `<a href="/admin.html" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-red-700 transition duration-300 mr-4">Admin Panel</a>` + buttonHtml;
+             buttonHtml = `<a href="/admin.html" class="btn btn-primary mr-4">Admin Panel</a>` + buttonHtml;
         }
          buttonHtml += `<button onclick="logout()" class="ml-4 text-gray-300 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
     } else {
-        navAuthSection.innerHTML = `<button id="login-modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Log In</button>`;
+        navAuthSection.innerHTML = `<button id="login-modal-button" class="btn btn-secondary">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
             loginBtn.addEventListener('click', () => openModal('login'));
@@ -80,15 +80,16 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 
 // --- Subscription & Access Control ---
 function checkAccess() {
-    // *** THIS IS THE MODIFIED SECTION ***
+    // *** THIS IS THE CORRECTED SECTION ***
     const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
     const currentPath = window.location.pathname;
 
-    // If we are on a public page, do not run any access checks.
+    // If we are on a public page, access is always granted. Do not run any checks.
     if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
         return true; 
     }
 
+    // --- If we are NOT on a public page, proceed with the checks ---
     const user = getUserPayload();
     if (!user) {
         // If no user and not on a public page, redirect to login.
@@ -145,7 +146,6 @@ async function handleSignupForPricing(event) {
         inviteToken: inviteToken || null,
     };
     
-    // Add pending song if it exists
     const pendingSongJSON = localStorage.getItem('pendingSong');
     if (pendingSongJSON) {
         try {
