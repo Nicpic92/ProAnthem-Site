@@ -14,7 +14,7 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
-    const { email, password, firstName, lastName, artistBandName, inviteToken } = JSON.parse(event.body);
+    const { email, password, firstName, lastName, artistBandName, inviteToken, pendingSong } = JSON.parse(event.body);
 
     if (!email || !password || !firstName || !lastName) {
         return { statusCode: 400, body: JSON.stringify({ message: 'Missing required user fields.' }) };
@@ -32,31 +32,27 @@ exports.handler = async (event) => {
         const password_hash = await bcrypt.hash(password, 10);
         let bandId;
         let role = 'solo'; // Default role
+        const lowerCaseEmail = email.toLowerCase();
 
         if (inviteToken) {
-            // *** THIS IS THE REPLACED SECTION ***
             // --- SECURE INVITED USER FLOW ---
-            // Find a pending invite that matches the token AND the user's email
             const inviteQuery = 'SELECT band_id FROM band_invites WHERE token = $1 AND status = \'pending\' AND lower(email) = $2';
-            const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, email.toLowerCase()]);
+            const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, lowerCaseEmail]);
 
             if (!invite) {
-                // This is critical for security. If the token doesn't match the email, it's invalid.
                 await client.query('ROLLBACK');
                 return { statusCode: 400, body: JSON.stringify({ message: 'Invalid or expired invitation token.' })};
             }
             bandId = invite.band_id;
             role = 'band_member';
 
-            // Mark the invite as accepted so it can't be used again
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
-            // Create the user, now that we've validated their invite
              const userInsertQuery = `
                 INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6);
             `;
-            await client.query(userInsertQuery, [email.toLowerCase(), password_hash, firstName, lastName, bandId, role]);
+            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, bandId, role]);
 
         } else {
             // --- NEW BAND ADMIN/SOLO USER FLOW ---
@@ -80,7 +76,33 @@ exports.handler = async (event) => {
                 INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
             `;
-            await client.query(userInsertQuery, [email.toLowerCase(), password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
+            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
+
+            // *** THIS IS THE NEW SECTION ***
+            // If a song from the demo was included, save it for the new user.
+            if (pendingSong && bandId) {
+                console.log(`Saving pending song "${pendingSong.title}" for new user ${lowerCaseEmail}`);
+                const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = pendingSong;
+                const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
+                const newTuning = tuning ?? 'E_STANDARD';
+                const newCapo = capo ?? 0;
+                const newTranspose = transpose ?? 0;
+                
+                const songInsertQuery = `
+                    INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks, audio_url, tuning, capo, transpose) 
+                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
+                await client.query(songInsertQuery, [
+                    title || 'My First Song', 
+                    artist || 'Unknown Artist', 
+                    lowerCaseEmail, 
+                    bandId, 
+                    songBlocksJson, 
+                    audio_url, 
+                    newTuning, 
+                    newCapo, 
+                    newTranspose
+                ]);
+            }
         }
         
         await client.query('COMMIT');
