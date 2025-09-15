@@ -3,17 +3,13 @@
   publish = "public"
 
 # RULE 1: API calls must always work.
-# This rule is first, so it always gets priority.
-# It proxies any /api/ request to your Netlify functions.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
 # RULE 2: Developer Access.
-# If a request has ?dev=true, it should be passed through WITHOUT being
-# redirected to the construction page. The `force = true` ensures this
-# rule takes precedence over the later "catch-all" rule for any file that exists.
+# Passthrough for developers with the secret key.
 [[redirects]]
   from = "/*"
   to = "/:splat"
@@ -21,12 +17,30 @@
   force = true
   conditions = { "dev" = "true" }
 
-# RULE 3: The "Under Construction" Catch-All.
-# If a request has made it this far, it means it's NOT an API call and
-# it does NOT have ?dev=true. Therefore, send it to the construction page.
-# The 200 status means the URL in the browser doesn't change, which is cleaner.
+# RULE 3: Allow Assets to be Served.
+# NEW RULE! This is the fix.
+# This rule tells Netlify to serve any files in the /assets, /css, or /js folders normally.
+# It MUST come before the final catch-all rule.
+[[redirects]]
+  from = "/assets/*"
+  to = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/css/*"
+  to = "/css/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/js/*"
+  to = "/js/:splat"
+  status = 200
+
+# RULE 4: The "Under Construction" Catch-All.
+# If a request is not an API call, not from a dev, and not for an asset,
+# THEN AND ONLY THEN serve the construction page.
 [[redirects]]
   from = "/*"
   to = "/construction.html"
   status = 200
-  force = true # This ensures it overrides the default behavior of serving files.
+  force = true
