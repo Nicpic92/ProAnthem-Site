@@ -14,6 +14,7 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
 
+    // Now accepting 'pendingSong' in the request body
     const { email, password, firstName, lastName, artistBandName, inviteToken, pendingSong } = JSON.parse(event.body);
 
     if (!email || !password || !firstName || !lastName) {
@@ -31,11 +32,11 @@ exports.handler = async (event) => {
         
         const password_hash = await bcrypt.hash(password, 10);
         let bandId;
-        let role = 'solo'; // Default role
+        let role = 'solo';
         const lowerCaseEmail = email.toLowerCase();
 
         if (inviteToken) {
-            // --- SECURE INVITED USER FLOW ---
+            // --- SECURE INVITED USER FLOW (Unchanged) ---
             const inviteQuery = 'SELECT band_id FROM band_invites WHERE token = $1 AND status = \'pending\' AND lower(email) = $2';
             const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, lowerCaseEmail]);
 
@@ -107,7 +108,7 @@ exports.handler = async (event) => {
         
         await client.query('COMMIT');
         
-        // --- SEND WELCOME EMAIL ---
+        // --- SEND WELCOME EMAIL (Unchanged) ---
         const msg = {
             to: email,
             from: 'spreadsheetsimplicity@gmail.com',
