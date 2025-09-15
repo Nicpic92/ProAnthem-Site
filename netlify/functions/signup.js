@@ -1,9 +1,10 @@
+// --- START OF FILE netlify/functions/signup.js ---
+
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const sgMail = require('@sendgrid/mail'); // --- NEW: Import SendGrid ---
+const sgMail = require('@sendgrid/mail');
 
-// --- NEW: Set the API key from your environment variables ---
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const generateBandNumber = () => Math.floor(10000 + Math.random() * 90000);
@@ -30,21 +31,27 @@ exports.handler = async (event) => {
         
         const password_hash = await bcrypt.hash(password, 10);
         let bandId;
-        let role = 'solo';
+        let role = 'solo'; // Default role
 
         if (inviteToken) {
-            // --- INVITED USER FLOW ---
+            // *** THIS IS THE REPLACED SECTION ***
+            // --- SECURE INVITED USER FLOW ---
+            // Find a pending invite that matches the token AND the user's email
             const inviteQuery = 'SELECT band_id FROM band_invites WHERE token = $1 AND status = \'pending\' AND lower(email) = $2';
             const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, email.toLowerCase()]);
 
             if (!invite) {
+                // This is critical for security. If the token doesn't match the email, it's invalid.
+                await client.query('ROLLBACK');
                 return { statusCode: 400, body: JSON.stringify({ message: 'Invalid or expired invitation token.' })};
             }
             bandId = invite.band_id;
             role = 'band_member';
 
+            // Mark the invite as accepted so it can't be used again
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
+            // Create the user, now that we've validated their invite
              const userInsertQuery = `
                 INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
                 VALUES ($1, $2, $3, $4, $5, $6);
@@ -78,10 +85,10 @@ exports.handler = async (event) => {
         
         await client.query('COMMIT');
         
-        // --- NEW: SEND WELCOME EMAIL ---
+        // --- SEND WELCOME EMAIL ---
         const msg = {
-            to: email, // The user's email address
-            from: 'spreadsheetsimplicity@gmail.com', // Your verified SendGrid sender
+            to: email,
+            from: 'spreadsheetsimplicity@gmail.com',
             subject: 'Welcome to ProAnthem!',
             html: `
                 <div style="font-family: Inter, system-ui, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
@@ -106,14 +113,11 @@ exports.handler = async (event) => {
             await sgMail.send(msg);
             console.log('Welcome email sent successfully to:', email);
         } catch (error) {
-            // Log the error but don't fail the entire signup process.
-            // The user account is more important than the welcome email.
             console.error('Failed to send welcome email:', error);
             if (error.response) {
                 console.error(error.response.body);
             }
         }
-        // --- END OF NEW CODE ---
         
         return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.' }) };
 
@@ -128,3 +132,5 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
+
+// --- END OF FILE netlify/functions/signup.js ---
