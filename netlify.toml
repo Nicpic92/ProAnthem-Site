@@ -1,3 +1,5 @@
+# --- START OF FILE netlify.toml ---
+
 [build]
   functions = "netlify/functions"
   publish = "public"
@@ -18,9 +20,7 @@
   conditions = { "dev" = "true" }
 
 # RULE 3: Allow Assets to be Served.
-# NEW RULE! This is the fix.
-# This rule tells Netlify to serve any files in the /assets, /css, or /js folders normally.
-# It MUST come before the final catch-all rule.
+# This rule is essential for the construction page and the main site.
 [[redirects]]
   from = "/assets/*"
   to = "/assets/:splat"
@@ -36,11 +36,21 @@
   to = "/js/:splat"
   status = 200
 
-# RULE 4: The "Under Construction" Catch-All.
-# If a request is not an API call, not from a dev, and not for an asset,
-# THEN AND ONLY THEN serve the construction page.
+# RULE 4: Band Profile Public Pages.
+# NEW RULE! This routes all public band pages to the correct HTML file.
+# It MUST come before the final "Under Construction" rule.
+[[redirects]]
+  from = "/bands/*"
+  to = "/band-profile.html"
+  status = 200
+
+# RULE 5: The "Under Construction" Catch-All.
+# If a request is not an API call, not from a dev, not for an asset,
+# and not for a band page, THEN serve the construction page.
 [[redirects]]
   from = "/*"
   to = "/construction.html"
   status = 200
   force = true
+
+# --- END OF FILE netlify.toml ---
