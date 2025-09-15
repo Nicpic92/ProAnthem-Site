@@ -17,17 +17,17 @@
             border-bottom: 2px solid transparent;
         }
         .tab-button.active {
-            border-bottom-color: #4f46e5; /* indigo-600 */
+            border-bottom-color: #dc2626; /* red-600 */
             color: #f3f4f6; /* gray-100 */
         }
     </style>
 </head>
-<body class="marketing flex flex-col min-h-screen">
+<body class="tool flex flex-col min-h-screen">
 
     <header class="container mx-auto p-6 flex justify-between items-center">
         <a href="/proanthem_index.html" class="flex items-center space-x-4">
             <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
-            <h1 class="text-4xl font-bold text-white">ProAnthem</h1>
+            <h1 class="text-4xl font-bold">ProAnthem</h1>
         </a>
         <div id="nav-auth-section">
              <!-- Populated by auth script -->
@@ -38,7 +38,7 @@
         <div id="band-content" style="display: none;">
             <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
                  <div>
-                    <h1 id="band-name-header" class="text-4xl font-bold text-white">Your Band</h1>
+                    <h1 id="band-name-header" class="text-4xl font-bold">Your Band</h1>
                     <p id="band-id-display" class="text-lg text-gray-400 mt-2">Loading band info...</p>
                  </div>
                  <a href="/ProjectAnthem.html" class="btn btn-secondary w-full md:w-auto">← Back to Tool</a>
@@ -47,17 +47,16 @@
             <!-- Tab Navigation -->
             <div class="mt-8 border-b border-gray-700">
                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button class="tab-button active" data-tab="members">Members</button>
-                    <button class="tab-button" data-tab="profile">Public Profile</button>
-                    <button class="tab-button" data-tab="calendar">Calendar</button>
+                    <button class="tab-button active text-gray-400 hover:text-gray-200" data-tab="members">Members</button>
+                    <button class="tab-button text-gray-400 hover:text-gray-200" data-tab="profile">Public Profile</button>
+                    <button class="tab-button text-gray-400 hover:text-gray-200" data-tab="calendar">Calendar</button>
                 </nav>
             </div>
 
             <!-- Tab Content -->
             <div id="tab-content-members" class="tab-content mt-8">
-                <!-- Member Management from old file -->
                 <div class="bg-gray-900 p-6 rounded-lg shadow-md">
-                     <h2 class="text-2xl font-bold text-white mb-4">Add New Band Member</h2>
+                     <h2 class="text-2xl font-bold mb-4">Add New Band Member</h2>
                      <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                         <input type="text" id="new-member-firstname" required class="form-input p-2 rounded-md" placeholder="First Name">
                         <input type="text" id="new-member-lastname" required class="form-input p-2 rounded-md" placeholder="Last Name">
@@ -76,9 +75,9 @@
                      </div>
                 </div>
                 <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
-                    <h2 class="text-2xl font-bold text-white mb-4">Current Members</h2>
+                    <h2 class="text-2xl font-bold mb-4">Current Members</h2>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full text-white">
+                        <table class="min-w-full">
                             <thead class="bg-gray-800">
                                 <tr>
                                     <th class="p-3 text-left font-semibold">Email</th>
@@ -95,7 +94,7 @@
 
             <div id="tab-content-profile" class="tab-content mt-8 hidden">
                 <form id="profile-form" class="bg-gray-900 p-8 rounded-lg shadow-md space-y-6">
-                    <h2 class="text-2xl font-bold text-white">Edit Public Profile</h2>
+                    <h2 class="text-2xl font-bold">Edit Public Profile</h2>
                     <p class="text-gray-400">This information will be displayed on your public band page. Fill out as much as you'd like.</p>
                     
                     <div>
@@ -105,7 +104,7 @@
                     <div>
                         <label for="profile-slug" class="block text-sm font-medium">Custom URL Slug</label>
                         <div class="flex items-center mt-1">
-                            <span class="text-gray-400 bg-gray-800 p-2 rounded-l-md border border-r-0 border-gray-600">your-site.com/</span>
+                            <span class="text-gray-400 bg-gray-800 p-2 rounded-l-md border border-r-0 border-gray-600">proanthem.com/bands/</span>
                             <input type="text" id="profile-slug" name="slug" class="form-input rounded-l-none" placeholder="your-band-name">
                         </div>
                     </div>
@@ -114,7 +113,7 @@
                         <textarea id="profile-bio" name="bio" rows="5" class="form-input mt-1"></textarea>
                     </div>
 
-                    <h3 class="text-xl font-bold text-white pt-4 border-t border-gray-700">Links</h3>
+                    <h3 class="text-xl font-bold pt-4 border-t border-gray-700">Links</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="url" name="link_website" class="form-input" placeholder="https://yourwebsite.com">
                         <input type="url" name="link_spotify" class="form-input" placeholder="Spotify URL">
@@ -138,7 +137,7 @@
             <div id="tab-content-calendar" class="tab-content mt-8 hidden">
                  <div class="bg-gray-900 p-8 rounded-lg shadow-md">
                     <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-2xl font-bold text-white">Band Calendar</h2>
+                        <h2 class="text-2xl font-bold">Band Calendar</h2>
                         <button id="add-event-btn" class="btn btn-primary">Add Event</button>
                     </div>
                     <div id="calendar-event-list" class="space-y-4">
@@ -146,21 +145,19 @@
                     </div>
                 </div>
             </div>
-
         </div>
 
         <div id="access-denied" class="text-center py-20" style="display: none;">
             <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
             <p class="mt-4 text-lg text-gray-300">You must be a Band Admin to view this page.</p>
-            <a href="/ProjectAnthem.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Return to the Tool</a>
+            <a href="/ProjectAnthem.html" class="btn btn-primary mt-6">Return to the Tool</a>
         </div>
     </main>
 
-    <!-- Event Modal -->
-    <div id="event-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
-        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-2xl w-full text-white space-y-4">
+    <div id="event-modal" class="modal-overlay hidden">
+        <div class="modal-content">
             <h2 id="event-modal-title" class="text-2xl font-bold">Add Event</h2>
-            <form id="event-form" class="space-y-4">
+            <form id="event-form" class="space-y-4 mt-4">
                 <input type="hidden" id="event-id" name="id">
                 <input type="text" name="title" required class="form-input" placeholder="Event Title (e.g., Rehearsal, Gig at The Venue)">
                 <input type="datetime-local" name="event_date" required class="form-input">
@@ -194,19 +191,21 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <script src="/js/auth.js"></script>
-    <script>
-        // Store band data globally on this page
-        let bandProfileData = {};
-
+    <!-- *** THIS IS THE CORRECTED SECTION *** -->
+    <script type="module" src="/js/auth.js"></script>
+    <script type="module">
+        // Import the specific API functions we need for this page
+        import { apiRequest } from './js/api.js';
+        
+        // This page has its own logic, so we keep it in a local module script.
         document.addEventListener('DOMContentLoaded', () => {
+            // checkAccess is now available globally from auth.js
             if (checkAccess()) {
                 initializeBandPage();
             }
         });
 
         function initializeBandPage() {
-            // Tab switching logic
             const tabs = document.querySelectorAll('.tab-button');
             const contents = document.querySelectorAll('.tab-content');
             tabs.forEach(tab => {
@@ -218,186 +217,34 @@
                 });
             });
 
-            // Original member management logic
             loadBandDetails();
             loadBandMembers();
             document.getElementById('add-member-form').addEventListener('submit', handleAddMember);
             document.getElementById('copy-link-btn').addEventListener('click', copyInviteLink);
             
-            // New Profile logic
             loadBandProfile();
             document.getElementById('profile-form').addEventListener('submit', handleSaveProfile);
             
-            // New Calendar logic
             loadCalendarEvents();
-            document.getElementById('add-event-btn').addEventListener('click', openEventModal);
+            document.getElementById('add-event-btn').addEventListener('click', () => openEventModal(null));
             document.getElementById('event-public').addEventListener('change', togglePublicEventFields);
             document.getElementById('event-form').addEventListener('submit', handleSaveEvent);
             document.getElementById('cancel-event-btn').addEventListener('click', closeEventModal);
             document.getElementById('delete-event-btn').addEventListener('click', handleDeleteEvent);
         }
 
-        // --- MEMBER FUNCTIONS ---
-        async function loadBandDetails() { /* ... unchanged ... */ }
-        async function loadBandMembers() { /* ... unchanged ... */ }
-        async function handleAddMember(event) { /* ... unchanged ... */ }
-        function copyInviteLink() { /* ... unchanged ... */ }
-        async function removeMember(userEmail) { /* ... unchanged ... */ }
-        
-        // --- PROFILE FUNCTIONS ---
-        async function loadBandProfile() {
-            try {
-                const profile = await apiRequest('band-profile');
-                bandProfileData = profile;
-                const form = document.getElementById('profile-form');
-                form.elements['band_name'].value = profile.band_name || '';
-                form.elements['slug'].value = profile.slug || '';
-                form.elements['bio'].value = profile.bio || '';
-                form.elements['link_website'].value = profile.link_website || '';
-                form.elements['link_spotify'].value = profile.link_spotify || '';
-                form.elements['link_apple_music'].value = profile.link_apple_music || '';
-                form.elements['link_youtube'].value = profile.link_youtube || '';
-                form.elements['link_instagram'].value = profile.link_instagram || '';
-                form.elements['link_facebook'].value = profile.link_facebook || '';
-                form.elements['press_kit_enabled'].checked = profile.press_kit_enabled;
-            } catch (error) {
-                alert(`Error loading profile: ${error.message}`);
-            }
-        }
-
-        async function handleSaveProfile(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            const payload = Object.fromEntries(formData.entries());
-            payload.press_kit_enabled = form.elements['press_kit_enabled'].checked; // FormData doesn't capture unchecked boxes
-
-            try {
-                await apiRequest('band-profile', payload, 'PUT');
-                alert('Profile saved successfully!');
-                // Update header with new name if changed
-                document.getElementById('band-name-header').textContent = payload.band_name;
-            } catch (error) {
-                alert(`Error saving profile: ${error.message}`);
-            }
-        }
-
-        // --- CALENDAR FUNCTIONS ---
-        async function loadCalendarEvents() {
-            const listEl = document.getElementById('calendar-event-list');
-            listEl.innerHTML = '<p>Loading events...</p>';
-            try {
-                const events = await apiRequest('band-profile/events');
-                listEl.innerHTML = '';
-                if (events.length === 0) {
-                    listEl.innerHTML = '<p class="text-gray-400">No events scheduled.</p>';
-                }
-                events.forEach(event => {
-                    const eventDate = new Date(event.event_date);
-                    const isPast = eventDate < new Date();
-                    const eventEl = document.createElement('div');
-                    eventEl.className = `p-4 rounded-lg border flex justify-between items-center ${isPast ? 'bg-gray-800 border-gray-700 opacity-60' : 'bg-gray-800/50 border-gray-700'}`;
-                    eventEl.innerHTML = `
-                        <div>
-                            <p class="font-bold">${event.title} <span class="text-sm font-normal px-2 py-0.5 rounded ${event.is_public ? 'bg-blue-600' : 'bg-gray-600'}">${event.is_public ? 'Public' : 'Private'}</span></p>
-                            <p class="text-sm text-gray-400">${eventDate.toLocaleString()}</p>
-                        </div>
-                        <button class="btn btn-secondary btn-sm">Edit</button>
-                    `;
-                    eventEl.querySelector('button').addEventListener('click', () => openEventModal(event));
-                    listEl.appendChild(eventEl);
-                });
-            } catch (error) {
-                 listEl.innerHTML = `<p class="text-red-500">Error loading events: ${error.message}</p>`;
-            }
-        }
-
-        function openEventModal(event = null) {
-            const modal = document.getElementById('event-modal');
-            const form = document.getElementById('event-form');
-            form.reset();
-            if (event) {
-                document.getElementById('event-modal-title').textContent = 'Edit Event';
-                form.elements['id'].value = event.id;
-                form.elements['title'].value = event.title;
-                // Format date for datetime-local input
-                const d = new Date(event.event_date);
-                d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-                form.elements['event_date'].value = d.toISOString().slice(0, 16);
-
-                form.elements['venue_name'].value = event.venue_name || '';
-                form.elements['details'].value = event.details || '';
-                form.elements['is_public'].checked = event.is_public;
-                form.elements['external_url'].value = event.external_url || '';
-                document.getElementById('delete-event-btn').classList.remove('hidden');
-            } else {
-                document.getElementById('event-modal-title').textContent = 'Add Event';
-                document.getElementById('delete-event-btn').classList.add('hidden');
-            }
-            togglePublicEventFields();
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-        function closeEventModal() {
-            document.getElementById('event-modal').classList.add('hidden');
-            document.getElementById('event-modal').classList.remove('flex');
-        }
-
-        function togglePublicEventFields() {
-            const isPublicCheckbox = document.getElementById('event-public');
-            const publicFields = document.getElementById('public-event-fields');
-            publicFields.classList.toggle('hidden', !isPublicCheckbox.checked);
-        }
-        
-        async function handleSaveEvent(event) {
-            event.preventDefault();
-            const form = event.target;
-            const formData = new FormData(form);
-            const payload = Object.fromEntries(formData.entries());
-            payload.is_public = form.elements['is_public'].checked;
-            payload.id = payload.id ? parseInt(payload.id) : null;
-            
-            const method = payload.id ? 'PUT' : 'POST';
-            const endpoint = payload.id ? `band-profile/events/${payload.id}` : 'band-profile/events';
-
-            try {
-                await apiRequest(endpoint, payload, method);
-                closeEventModal();
-                loadCalendarEvents();
-            } catch (error) {
-                alert(`Error saving event: ${error.message}`);
-            }
-        }
-
-        async function handleDeleteEvent() {
-            const eventId = document.getElementById('event-id').value;
-            if (!eventId || !confirm('Are you sure you want to delete this event?')) return;
-            
-            try {
-                await apiRequest(`band-profile/events/${eventId}`, null, 'DELETE');
-                closeEventModal();
-                loadCalendarEvents();
-            } catch (error) {
-                alert(`Error deleting event: ${error.message}`);
-            }
-        }
-
-        // ---UNCHANGED HELPER FUNCTIONS---
-        // NOTE: These are copied from the old file to make this page self-contained.
         async function loadBandDetails() {
             const nameHeader = document.getElementById('band-name-header');
             const idDisplay = document.getElementById('band-id-display');
             try {
                 const details = await apiRequest('band');
-                if (details) {
-                    nameHeader.textContent = details.band_name || 'Your Band';
-                    idDisplay.textContent = `Band Number: ${details.band_number || 'N/A'}`;
-                }
+                nameHeader.textContent = details.band_name || 'Your Band';
+                idDisplay.textContent = `Band Number: ${details.band_number || 'N/A'}`;
             } catch(error) {
                 idDisplay.textContent = `Could not load band info.`;
             }
         }
+        
         async function loadBandMembers() {
             const tableBody = document.getElementById('members-table-body');
             tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
@@ -409,14 +256,19 @@
                     row.className = 'border-b border-gray-700';
                     const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
                     const roleDisplay = member.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    let actionsHtml = (member.role !== 'band_admin' && member.role !== 'admin') ? `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember('${member.email}')">Remove</button>` : '';
+                    let actionsHtml = (member.role !== 'band_admin' && member.role !== 'admin') ? `<button class="btn-sm text-red-400 hover:underline" data-email="${member.email}">Remove</button>` : '';
                     row.innerHTML = `<td class="p-3">${member.email}</td><td class="p-3 text-gray-400">${name}</td><td class="p-3 text-gray-400">${roleDisplay}</td><td class="p-3">${actionsHtml}</td>`;
+                    const removeBtn = row.querySelector('button[data-email]');
+                    if (removeBtn) {
+                        removeBtn.addEventListener('click', () => removeMember(member.email));
+                    }
                     tableBody.appendChild(row);
                 });
             } catch (error) {
                  tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load members: ${error.message}</td></tr>`;
             }
         }
+        
         async function handleAddMember(event) {
             event.preventDefault();
             const statusContainer = document.getElementById('add-member-status-container');
@@ -465,6 +317,121 @@
                     alert(`Failed to remove member: ${error.message}`);
                 }
             }
+        }
+        
+        async function loadBandProfile() {
+            try {
+                const profile = await apiRequest('band-profile');
+                const form = document.getElementById('profile-form');
+                for (const key in profile) {
+                    if (form.elements[key]) {
+                        if (form.elements[key].type === 'checkbox') {
+                            form.elements[key].checked = profile[key];
+                        } else {
+                            form.elements[key].value = profile[key] || '';
+                        }
+                    }
+                }
+            } catch (error) { alert(`Error loading profile: ${error.message}`); }
+        }
+
+        async function handleSaveProfile(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.press_kit_enabled = form.elements['press_kit_enabled'].checked;
+
+            try {
+                await apiRequest('band-profile', payload, 'PUT');
+                alert('Profile saved successfully!');
+                document.getElementById('band-name-header').textContent = payload.band_name;
+            } catch (error) { alert(`Error saving profile: ${error.message}`); }
+        }
+
+        async function loadCalendarEvents() {
+            const listEl = document.getElementById('calendar-event-list');
+            listEl.innerHTML = '<p>Loading events...</p>';
+            try {
+                const events = await apiRequest('band-profile/events');
+                listEl.innerHTML = '';
+                if (events.length === 0) {
+                    listEl.innerHTML = '<p class="text-gray-400">No events scheduled.</p>';
+                }
+                events.forEach(event => {
+                    const eventDate = new Date(event.event_date);
+                    const isPast = eventDate < new Date();
+                    const eventEl = document.createElement('div');
+                    eventEl.className = `p-4 rounded-lg border flex justify-between items-center ${isPast ? 'bg-gray-800 border-gray-700 opacity-60' : 'bg-gray-800/50 border-gray-700'}`;
+                    eventEl.innerHTML = `
+                        <div>
+                            <p class="font-bold">${event.title} <span class="text-sm font-normal px-2 py-0.5 rounded ${event.is_public ? 'bg-blue-600' : 'bg-gray-600'}">${event.is_public ? 'Public' : 'Private'}</span></p>
+                            <p class="text-sm text-gray-400">${eventDate.toLocaleString()}</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm">Edit</button>
+                    `;
+                    eventEl.querySelector('button').addEventListener('click', () => openEventModal(event));
+                    listEl.appendChild(eventEl);
+                });
+            } catch (error) {
+                 listEl.innerHTML = `<p class="text-red-500">Error loading events: ${error.message}</p>`;
+            }
+        }
+
+        function openEventModal(event) {
+            const modal = document.getElementById('event-modal');
+            const form = document.getElementById('event-form');
+            form.reset();
+            if (event) {
+                document.getElementById('event-modal-title').textContent = 'Edit Event';
+                form.elements['id'].value = event.id;
+                form.elements['title'].value = event.title;
+                const d = new Date(event.event_date);
+                d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+                form.elements['event_date'].value = d.toISOString().slice(0, 16);
+                form.elements['venue_name'].value = event.venue_name || '';
+                form.elements['details'].value = event.details || '';
+                form.elements['is_public'].checked = event.is_public;
+                form.elements['external_url'].value = event.external_url || '';
+                document.getElementById('delete-event-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('event-modal-title').textContent = 'Add Event';
+                document.getElementById('delete-event-btn').classList.add('hidden');
+            }
+            togglePublicEventFields();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEventModal() { document.getElementById('event-modal').classList.add('hidden'); }
+        function togglePublicEventFields() { document.getElementById('public-event-fields').classList.toggle('hidden', !document.getElementById('event-public').checked); }
+        
+        async function handleSaveEvent(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.is_public = form.elements['is_public'].checked;
+            payload.id = payload.id ? parseInt(payload.id) : null;
+            
+            const method = payload.id ? 'PUT' : 'POST';
+            const endpoint = payload.id ? `band-profile/events/${payload.id}` : 'band-profile/events';
+
+            try {
+                await apiRequest(endpoint, payload, method);
+                closeEventModal();
+                loadCalendarEvents();
+            } catch (error) { alert(`Error saving event: ${error.message}`); }
+        }
+
+        async function handleDeleteEvent() {
+            const eventId = document.getElementById('event-id').value;
+            if (!eventId || !confirm('Are you sure you want to delete this event?')) return;
+            try {
+                await apiRequest(`band-profile/events/${eventId}`, null, 'DELETE');
+                closeEventModal();
+                loadCalendarEvents();
+            } catch (error) { alert(`Error deleting event: ${error.message}`); }
         }
     </script>
 </body>
