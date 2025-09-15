@@ -1,3 +1,5 @@
+<!-- START OF FILE public/Band.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,6 +10,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- This file will be created in the next step -->
+    <!-- <link rel="stylesheet" href="/css/style.css"> -->
     <style>
         body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
         .form-input { background-color: #1f2937; border: 1px solid #4b5563; }
@@ -55,10 +59,17 @@
                          <input type="email" id="new-member-email" required class="form-input mt-1 block w-full p-2 rounded-md">
                      </div>
                      <div class="md:col-span-3 text-right">
-                        <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Add Member</button>
+                        <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Create Invite Link</button>
                      </div>
                  </form>
-                 <p id="add-member-status" class="text-sm mt-3 h-5"></p>
+                 <div id="add-member-status-container" class="mt-3 hidden">
+                    <p id="add-member-status" class="text-sm h-5"></p>
+                    <div id="invite-link-container" class="mt-2 hidden">
+                        <p class="text-sm text-gray-300">Send this link to the new member:</p>
+                        <input type="text" id="invite-link-input" readonly class="form-input w-full mt-1 bg-gray-800 text-yellow-300 cursor-pointer">
+                        <button id="copy-link-btn" class="btn btn-sm btn-secondary mt-2">Copy Link</button>
+                    </div>
+                 </div>
             </div>
 
             <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
@@ -106,6 +117,15 @@
             loadBandMembers();
             
             document.getElementById('add-member-form').addEventListener('submit', handleAddMember);
+
+            const copyBtn = document.getElementById('copy-link-btn');
+            const inviteLinkInput = document.getElementById('invite-link-input');
+            copyBtn.addEventListener('click', () => {
+                inviteLinkInput.select();
+                document.execCommand('copy');
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy Link'; }, 2000);
+            });
         });
 
         async function loadBandDetails() {
@@ -131,7 +151,7 @@
                 members.forEach(member => {
                     const row = document.createElement('tr');
                     row.className = 'border-b border-gray-700';
-                    const name = (member.first_name && member.last_name && member.first_name !== 'New') ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
+                    const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
                     const roleDisplay = member.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                     let actionsHtml = '';
@@ -154,46 +174,18 @@
         
         async function handleAddMember(event) {
             event.preventDefault();
+            const statusContainer = document.getElementById('add-member-status-container');
             const statusEl = document.getElementById('add-member-status');
-            statusEl.textContent = 'Adding member...';
-            statusEl.className = 'text-sm mt-3 h-5 text-yellow-400';
+            const inviteLinkContainer = document.getElementById('invite-link-container');
+            const inviteLinkInput = document.getElementById('invite-link-input');
+            
+            statusContainer.classList.remove('hidden');
+            inviteLinkContainer.classList.add('hidden');
+            statusEl.textContent = 'Creating invite link...';
+            statusEl.className = 'text-sm h-5 text-yellow-400';
+            
             const button = event.target.querySelector('button');
-
-            const payload = {
-                firstName: document.getElementById('new-member-firstname').value,
-                lastName: document.getElementById('new-member-lastname').value,
-                email: document.getElementById('new-member-email').value,
-            };
-
             button.disabled = true;
 
-            try {
-                const result = await apiRequest('band/members', payload, 'POST');
-                alert(`Member added!\n\nPlease send them the following credentials:\nEmail: ${payload.email}\nPassword: ${result.message.split(': ')[1]}`);
-                
-                statusEl.textContent = 'Member added successfully!';
-                statusEl.className = 'text-sm mt-3 h-5 text-green-400';
-                event.target.reset();
-                loadBandMembers();
-            } catch(error) {
-                statusEl.textContent = `Error: ${error.message}`;
-                statusEl.className = 'text-sm mt-3 h-5 text-red-500';
-            } finally {
-                 button.disabled = false;
-                 button.textContent = 'Add Member';
-            }
-        }
-
-        async function removeMember(userEmail) {
-            if (confirm(`Are you sure you want to remove ${userEmail} from the band? They will lose access immediately.`)) {
-                try {
-                    await apiRequest('band/members', { emailToRemove: userEmail }, 'DELETE');
-                    loadBandMembers();
-                } catch(error) {
-                    alert(`Failed to remove member: ${error.message}`);
-                }
-            }
-        }
-    </script>
-</body>
-</html>
+            const payload = {
+                firstName: document.getElementById('new-member-fir
