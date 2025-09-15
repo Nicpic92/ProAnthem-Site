@@ -2,25 +2,31 @@
   functions = "netlify/functions"
   publish = "public"
 
-# Redirects for your API functions
+# RULE 1: API calls must always work.
+# This rule is first, so it always gets priority.
+# It proxies any /api/ request to your Netlify functions.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# NEW: The "Under Construction" Redirect Rules
-# This rule will redirect ALL traffic to the construction page,
-# EXCEPT for requests that have a special "developer" query parameter.
+# RULE 2: Developer Access.
+# If a request has ?dev=true, it should be passed through WITHOUT being
+# redirected to the construction page. The `force = true` ensures this
+# rule takes precedence over the later "catch-all" rule for any file that exists.
+[[redirects]]
+  from = "/*"
+  to = "/:splat"
+  status = 200
+  force = true
+  conditions = { "dev" = "true" }
+
+# RULE 3: The "Under Construction" Catch-All.
+# If a request has made it this far, it means it's NOT an API call and
+# it does NOT have ?dev=true. Therefore, send it to the construction page.
+# The 200 status means the URL in the browser doesn't change, which is cleaner.
 [[redirects]]
   from = "/*"
   to = "/construction.html"
-  status = 302 # Temporary redirect
-  conditions = { "dev" = "!true" } # The magic condition
-
-# This rule makes it so that if you go to the root of the site with the
-# special parameter, it correctly serves the main index page.
-[[redirects]]
-  from = "/"
-  to = "/proanthem_index.html"
   status = 200
-  query = { "dev" = "true" }
+  force = true # This ensures it overrides the default behavior of serving files.
