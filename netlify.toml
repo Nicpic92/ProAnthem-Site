@@ -5,52 +5,25 @@
   publish = "public"
 
 # RULE 1: API calls must always work.
+# This rule proxies any /api/ request to your Netlify functions.
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# RULE 2: Developer Access.
-# Passthrough for developers with the secret key.
-[[redirects]]
-  from = "/*"
-  to = "/:splat"
-  status = 200
-  force = true
-  conditions = { "dev" = "true" }
-
-# RULE 3: Allow Assets to be Served.
-# This rule is essential for the construction page and the main site.
-[[redirects]]
-  from = "/assets/*"
-  to = "/assets/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/css/*"
-  to = "/css/:splat"
-  status = 200
-
-[[redirects]]
-  from = "/js/*"
-  to = "/js/:splat"
-  status = 200
-
-# RULE 4: Band Profile Public Pages.
-# NEW RULE! This routes all public band pages to the correct HTML file.
-# It MUST come before the final "Under Construction" rule.
+# RULE 2: Band Profile Public Pages.
+# This routes all public band pages to the correct HTML file.
 [[redirects]]
   from = "/bands/*"
   to = "/band-profile.html"
   status = 200
 
-# RULE 5: The "Under Construction" Catch-All.
-# If a request is not an API call, not from a dev, not for an asset,
-# and not for a band page, THEN serve the construction page.
+# RULE 3: Main Homepage Rule.
+# This ensures that visiting the root of your site serves the main index page.
+# This is a fallback that's good practice to have.
 [[redirects]]
-  from = "/*"
-  to = "/construction.html"
+  from = "/"
+  to = "/proanthem_index.html"
   status = 200
-  force = true
 
 # --- END OF FILE netlify.toml ---
