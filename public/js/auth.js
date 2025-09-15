@@ -28,12 +28,7 @@ function getUserPayload() {
 
 function logout() {
     localStorage.removeItem('user_token');
-    // A smarter redirect
-    if (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/band')) {
-        window.location.href = '/proanthem_index.html';
-    } else {
-        window.location.href = '/proanthem_index.html';
-    }
+    window.location.href = '/proanthem_index.html';
 }
 
 function updateNav() {
@@ -43,7 +38,7 @@ function updateNav() {
 
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="bg-indigo-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-indigo-700 transition duration-300">Tool</a>`;
-        if (user.role === 'admin' || user.role === 'band_admin') { // Admins and Band Admins see this
+        if (user.role === 'admin' || user.role === 'band_admin') {
              buttonHtml = `<a href="/band.html" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:bg-blue-700 transition duration-300 mr-4">Manage Band</a>` + buttonHtml;
         }
         if (user.role === 'admin') {
@@ -85,13 +80,19 @@ async function apiRequest(endpoint, data = null, method = 'GET') {
 
 // --- Subscription & Access Control ---
 function checkAccess() {
+    // *** THIS IS THE MODIFIED SECTION ***
+    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
+    const currentPath = window.location.pathname;
+
+    // If we are on a public page, do not run any access checks.
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
+        return true; 
+    }
+
     const user = getUserPayload();
     if (!user) {
-        // If no user, deny access and redirect to login, unless on a public page
-        const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html'];
-        if (!publicPages.includes(window.location.pathname)) {
-            window.location.href = '/proanthem_index.html';
-        }
+        // If no user and not on a public page, redirect to login.
+        window.location.href = '/proanthem_index.html';
         return false;
     }
     
@@ -100,14 +101,12 @@ function checkAccess() {
     
     const hasSpecialRole = specialRoles.includes(user.role);
     const hasValidSubscription = validStatuses.includes(user.subscription_status);
-
     const hasAccess = hasSpecialRole || hasValidSubscription;
     
-    // Check for tool content on multiple pages (tool, band, admin)
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (!content || !accessDenied) return true; // Failsafe for pages without these elements
+    if (!content || !accessDenied) return true;
 
     if (hasAccess) {
         accessDenied.classList.add('hidden');
@@ -128,7 +127,6 @@ function checkAccess() {
     }
 }
 
-
 // --- Form Handlers ---
 async function handleSignupForPricing(event) {
     event.preventDefault();
@@ -144,14 +142,24 @@ async function handleSignupForPricing(event) {
         email: form.querySelector('#signup-email').value,
         password: form.querySelector('#signup-password').value,
         artistBandName: inviteToken ? "Invited Member" : form.querySelector('#signup-artist-name').value,
-        inviteToken: inviteToken || null
+        inviteToken: inviteToken || null,
     };
+    
+    // Add pending song if it exists
+    const pendingSongJSON = localStorage.getItem('pendingSong');
+    if (pendingSongJSON) {
+        try {
+            payload.pendingSong = JSON.parse(pendingSongJSON);
+        } catch (e) { console.error("Could not parse pending song.") }
+    }
 
     try {
         await apiRequest('signup', payload, 'POST');
+        
+        if (pendingSongJSON) localStorage.removeItem('pendingSong');
+
         const credentials = { email: payload.email, password: payload.password };
-        // Determine where to redirect after successful login
-        const redirectTo = inviteToken ? '/ProjectAnthem.html' : '/pricing.html';
+        const redirectTo = inviteToken || payload.pendingSong ? '/ProjectAnthem.html' : '/pricing.html';
         await performLogin(credentials, redirectTo);
     } catch(error) {
         signupError.textContent = error.message;
@@ -180,13 +188,11 @@ async function performLogin(credentials, redirectTo = null) {
         if (result.token) {
             localStorage.setItem('user_token', result.token);
             
-            // If a specific redirect is provided (like after signup), use it.
             if (redirectTo) {
                 window.location.href = redirectTo;
                 return;
             }
 
-            // Otherwise, determine the best place to go based on subscription.
             const user = getUserPayload();
             const specialRoles = ['admin', 'band_admin', 'band_member'];
             const validStatuses = ['active', 'trialing', 'admin_granted'];
@@ -200,7 +206,6 @@ async function performLogin(credentials, redirectTo = null) {
             throw new Error("Login failed: No token returned.");
         }
     } catch(error) {
-        // Re-throw the error so the calling function's catch block can handle it
         throw error;
     }
 }
