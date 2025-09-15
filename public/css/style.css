@@ -10,8 +10,8 @@ body { font-family: Inter, system-ui, sans-serif; background-color: #242424; col
 .btn:disabled { background-color: #4b5563; opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
 
-/* -- NEW COLOR SCHEME -- */
-/* Primary: Replaces purple/indigo with a deep, crimson red for primary actions */
+/* -- NEW UNIFIED COLOR SCHEME -- */
+/* Primary: A deep, crimson red for ALL primary actions */
 .btn-primary { background-color: #dc2626; color: white; } /* red-700 */
 .btn-primary:hover:not(:disabled) { background-color: #b91c1c; } /* red-800 */
 
@@ -19,7 +19,7 @@ body { font-family: Inter, system-ui, sans-serif; background-color: #242424; col
 .btn-secondary { background-color: #475569; color: white; } /* slate-600 */
 .btn-secondary:hover:not(:disabled) { background-color: #334155; } /* slate-700 */
 
-/* Danger: Unchanged, a bright red for destructive actions */
+/* Danger: A bright red for destructive actions */
 .btn-danger { background-color: #ef4444; color: white; } /* red-500 */
 .btn-danger:hover:not(:disabled) { background-color: #dc2626; } /* red-700 */
 
@@ -38,7 +38,7 @@ body { font-family: Inter, system-ui, sans-serif; background-color: #242424; col
 .queue-pill.next { background-color: #dc2626; font-weight: bold; } /* Primary red for the next chord */
 
 /* Fretboard */
-.fretboard-wrapper { overflow-x: auto; border: 1px solid #4b5563; border-radius: 6px; }
+.fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
 .fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
 .fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
 .fretboard-note:active { cursor: grabbing; }
@@ -69,21 +69,13 @@ aside#sidebar > div::-webkit-scrollbar {
     display: none;
 }
 
-/* Marketing Pages Specific Styles */
+/* Marketing Pages Body Style - This sets the dark background */
 body.marketing,
 html.marketing { 
     background-color: #111827; 
     color: #f3f4f6; 
 }
-.marketing .form-input, .marketing .form-select { background-color: #1f2937; border: 1px solid #4b5563; }
-/* Override primary button on marketing pages to keep it blue/purple for brand recognition */
-.marketing .btn-primary { background-color: #4f46e5; } .marketing .btn-primary:hover { background-color: #4338ca; }
-.marketing .btn-secondary { background-color: #475569; color: white; } .marketing .btn-secondary:hover { background-color: #334155; }
-/* This makes the gradient on the homepage text use our new colors */
-.marketing .bg-gradient-to-r {
-    --tw-gradient-from: #60a5fa; /* blue-400 */
-    --tw-gradient-to: #e879f9; /* fuchsia-400 */
-}
+
 /* Tab button active state */
 .tab-button.active {
     border-bottom-color: #dc2626; /* Primary Red */
