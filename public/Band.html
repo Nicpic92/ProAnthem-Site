@@ -10,18 +10,19 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- This file will be created in the next step -->
-    <!-- <link rel="stylesheet" href="/css/style.css"> -->
+    <link rel="stylesheet" href="/css/style.css">
     <style>
-        body { background-color: #111827; color: #f3f4f6; font-family: Inter, system-ui, sans-serif; }
-        .form-input { background-color: #1f2937; border: 1px solid #4b5563; }
-        .btn-primary { background-color: #4f46e5; } .btn-primary:hover { background-color: #4338ca; }
-        .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
-        .btn-secondary { background-color: #4b5563; color: white; } .btn-secondary:hover:not(:disabled) { background-color: #6b7280; }
-        .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
+        .tab-button {
+            background-color: transparent;
+            border-bottom: 2px solid transparent;
+        }
+        .tab-button.active {
+            border-bottom-color: #4f46e5; /* indigo-600 */
+            color: #f3f4f6; /* gray-100 */
+        }
     </style>
 </head>
-<body class="flex flex-col min-h-screen">
+<body class="marketing flex flex-col min-h-screen">
 
     <header class="container mx-auto p-6 flex justify-between items-center">
         <a href="/proanthem_index.html" class="flex items-center space-x-4">
@@ -43,53 +44,109 @@
                  <a href="/ProjectAnthem.html" class="btn btn-secondary w-full md:w-auto">← Back to Tool</a>
             </div>
 
-            <div class="mt-8 bg-gray-900 p-6 rounded-lg shadow-md">
-                 <h2 class="text-2xl font-bold text-white mb-4">Add New Band Member</h2>
-                 <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                     <div class="w-full">
-                         <label for="new-member-firstname" class="block text-sm font-medium text-gray-300">First Name</label>
-                         <input type="text" id="new-member-firstname" required class="form-input mt-1 block w-full p-2 rounded-md">
-                     </div>
-                      <div class="w-full">
-                         <label for="new-member-lastname" class="block text-sm font-medium text-gray-300">Last Name</label>
-                         <input type="text" id="new-member-lastname" required class="form-input mt-1 block w-full p-2 rounded-md">
-                     </div>
-                     <div class="w-full">
-                         <label for="new-member-email" class="block text-sm font-medium text-gray-300">Email</label>
-                         <input type="email" id="new-member-email" required class="form-input mt-1 block w-full p-2 rounded-md">
-                     </div>
-                     <div class="md:col-span-3 text-right">
-                        <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Create Invite Link</button>
-                     </div>
-                 </form>
-                 <div id="add-member-status-container" class="mt-3 hidden">
-                    <p id="add-member-status" class="text-sm h-5"></p>
-                    <div id="invite-link-container" class="mt-2 hidden">
-                        <p class="text-sm text-gray-300">Send this link to the new member:</p>
-                        <input type="text" id="invite-link-input" readonly class="form-input w-full mt-1 bg-gray-800 text-yellow-300 cursor-pointer">
-                        <button id="copy-link-btn" class="btn btn-sm btn-secondary mt-2">Copy Link</button>
-                    </div>
-                 </div>
+            <!-- Tab Navigation -->
+            <div class="mt-8 border-b border-gray-700">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button class="tab-button active" data-tab="members">Members</button>
+                    <button class="tab-button" data-tab="profile">Public Profile</button>
+                    <button class="tab-button" data-tab="calendar">Calendar</button>
+                </nav>
             </div>
 
-            <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold text-white mb-4">Current Members</h2>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full text-white">
-                        <thead class="bg-gray-800">
-                            <tr>
-                                <th class="p-3 text-left font-semibold">Email</th>
-                                <th class="p-3 text-left font-semibold">Name</th>
-                                <th class="p-3 text-left font-semibold">Role</th>
-                                <th class="p-3 text-left font-semibold">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="members-table-body" class="bg-gray-800/50">
-                            <!-- Rows will be populated by JavaScript -->
-                        </tbody>
-                    </table>
+            <!-- Tab Content -->
+            <div id="tab-content-members" class="tab-content mt-8">
+                <!-- Member Management from old file -->
+                <div class="bg-gray-900 p-6 rounded-lg shadow-md">
+                     <h2 class="text-2xl font-bold text-white mb-4">Add New Band Member</h2>
+                     <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <input type="text" id="new-member-firstname" required class="form-input p-2 rounded-md" placeholder="First Name">
+                        <input type="text" id="new-member-lastname" required class="form-input p-2 rounded-md" placeholder="Last Name">
+                        <input type="email" id="new-member-email" required class="form-input p-2 rounded-md" placeholder="Email Address">
+                         <div class="md:col-span-3 text-right">
+                            <button type="submit" class="btn btn-primary w-full md:w-auto px-6 py-2">Create Invite Link</button>
+                         </div>
+                     </form>
+                     <div id="add-member-status-container" class="mt-3 hidden">
+                        <p id="add-member-status" class="text-sm h-5"></p>
+                        <div id="invite-link-container" class="mt-2 hidden">
+                            <p class="text-sm text-gray-300">Send this link to the new member:</p>
+                            <input type="text" id="invite-link-input" readonly class="form-input w-full mt-1 bg-gray-800 text-yellow-300 cursor-pointer">
+                            <button id="copy-link-btn" class="btn btn-sm btn-secondary mt-2">Copy Link</button>
+                        </div>
+                     </div>
+                </div>
+                <div class="mt-12 bg-gray-900 p-8 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-bold text-white mb-4">Current Members</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-white">
+                            <thead class="bg-gray-800">
+                                <tr>
+                                    <th class="p-3 text-left font-semibold">Email</th>
+                                    <th class="p-3 text-left font-semibold">Name</th>
+                                    <th class="p-3 text-left font-semibold">Role</th>
+                                    <th class="p-3 text-left font-semibold">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="members-table-body" class="bg-gray-800/50"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+
+            <div id="tab-content-profile" class="tab-content mt-8 hidden">
+                <form id="profile-form" class="bg-gray-900 p-8 rounded-lg shadow-md space-y-6">
+                    <h2 class="text-2xl font-bold text-white">Edit Public Profile</h2>
+                    <p class="text-gray-400">This information will be displayed on your public band page. Fill out as much as you'd like.</p>
+                    
+                    <div>
+                        <label for="profile-band-name" class="block text-sm font-medium">Band Name</label>
+                        <input type="text" id="profile-band-name" name="band_name" class="form-input mt-1">
+                    </div>
+                    <div>
+                        <label for="profile-slug" class="block text-sm font-medium">Custom URL Slug</label>
+                        <div class="flex items-center mt-1">
+                            <span class="text-gray-400 bg-gray-800 p-2 rounded-l-md border border-r-0 border-gray-600">your-site.com/</span>
+                            <input type="text" id="profile-slug" name="slug" class="form-input rounded-l-none" placeholder="your-band-name">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="profile-bio" class="block text-sm font-medium">Band Bio</label>
+                        <textarea id="profile-bio" name="bio" rows="5" class="form-input mt-1"></textarea>
+                    </div>
+
+                    <h3 class="text-xl font-bold text-white pt-4 border-t border-gray-700">Links</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="url" name="link_website" class="form-input" placeholder="https://yourwebsite.com">
+                        <input type="url" name="link_spotify" class="form-input" placeholder="Spotify URL">
+                        <input type="url" name="link_apple_music" class="form-input" placeholder="Apple Music URL">
+                        <input type="url" name="link_youtube" class="form-input" placeholder="YouTube URL">
+                        <input type="url" name="link_instagram" class="form-input" placeholder="Instagram URL">
+                        <input type="url" name="link_facebook" class="form-input" placeholder="Facebook URL">
+                    </div>
+                    
+                    <div class="flex items-center pt-4 border-t border-gray-700">
+                        <input type="checkbox" id="profile-enabled" name="press_kit_enabled" class="h-4 w-4 rounded bg-gray-700 border-gray-600 text-indigo-600 focus:ring-indigo-500">
+                        <label for="profile-enabled" class="ml-3 text-sm font-medium">Enable Public Page</label>
+                    </div>
+
+                    <div class="text-right">
+                        <button type="submit" class="btn btn-primary">Save Profile</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div id="tab-content-calendar" class="tab-content mt-8 hidden">
+                 <div class="bg-gray-900 p-8 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-white">Band Calendar</h2>
+                        <button id="add-event-btn" class="btn btn-primary">Add Event</button>
+                    </div>
+                    <div id="calendar-event-list" class="space-y-4">
+                        <!-- Events will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <div id="access-denied" class="text-center py-20" style="display: none;">
@@ -98,41 +155,241 @@
             <a href="/ProjectAnthem.html" class="mt-6 inline-block bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700">Return to the Tool</a>
         </div>
     </main>
+
+    <!-- Event Modal -->
+    <div id="event-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 hidden items-center justify-center z-50">
+        <div class="bg-gray-900 rounded-lg shadow-xl p-8 m-4 max-w-2xl w-full text-white space-y-4">
+            <h2 id="event-modal-title" class="text-2xl font-bold">Add Event</h2>
+            <form id="event-form" class="space-y-4">
+                <input type="hidden" id="event-id" name="id">
+                <input type="text" name="title" required class="form-input" placeholder="Event Title (e.g., Rehearsal, Gig at The Venue)">
+                <input type="datetime-local" name="event_date" required class="form-input">
+                <input type="text" name="venue_name" class="form-input" placeholder="Venue Name">
+                <textarea name="details" rows="3" class="form-input" placeholder="Private Notes (Load-in times, etc.)"></textarea>
+                
+                <div class="pt-4 border-t border-gray-700">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="event-public" name="is_public" class="h-4 w-4 rounded bg-gray-700 text-indigo-600">
+                        <label for="event-public" class="ml-3 text-sm font-medium">Make this event public on my band page</label>
+                    </div>
+                    <div id="public-event-fields" class="mt-4 space-y-4 hidden">
+                         <input type="url" name="external_url" class="form-input" placeholder="Public Info/Ticket URL (e.g., Facebook event)">
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center pt-4 border-t border-gray-700">
+                    <div>
+                        <button type="button" id="delete-event-btn" class="btn btn-danger hidden">Delete</button>
+                    </div>
+                    <div class="flex gap-4">
+                        <button type="button" id="cancel-event-btn" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Event</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
     
     <footer class="text-center py-6 text-gray-500">
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <script src="/auth_proanthem.js"></script>
+    <script src="/js/auth.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const user = getUserPayload();
-            if (!user || (user.role !== 'band_admin' && user.role !== 'admin')) {
-                document.getElementById('access-denied').style.display = 'block';
-                return;
-            }
-            
-            document.getElementById('band-content').style.display = 'block';
-            loadBandDetails();
-            loadBandMembers();
-            
-            document.getElementById('add-member-form').addEventListener('submit', handleAddMember);
+        // Store band data globally on this page
+        let bandProfileData = {};
 
-            const copyBtn = document.getElementById('copy-link-btn');
-            const inviteLinkInput = document.getElementById('invite-link-input');
-            copyBtn.addEventListener('click', () => {
-                inviteLinkInput.select();
-                document.execCommand('copy');
-                copyBtn.textContent = 'Copied!';
-                setTimeout(() => { copyBtn.textContent = 'Copy Link'; }, 2000);
-            });
+        document.addEventListener('DOMContentLoaded', () => {
+            if (checkAccess()) {
+                initializeBandPage();
+            }
         });
 
+        function initializeBandPage() {
+            // Tab switching logic
+            const tabs = document.querySelectorAll('.tab-button');
+            const contents = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    contents.forEach(c => c.classList.add('hidden'));
+                    document.getElementById(`tab-content-${tab.dataset.tab}`).classList.remove('hidden');
+                });
+            });
+
+            // Original member management logic
+            loadBandDetails();
+            loadBandMembers();
+            document.getElementById('add-member-form').addEventListener('submit', handleAddMember);
+            document.getElementById('copy-link-btn').addEventListener('click', copyInviteLink);
+            
+            // New Profile logic
+            loadBandProfile();
+            document.getElementById('profile-form').addEventListener('submit', handleSaveProfile);
+            
+            // New Calendar logic
+            loadCalendarEvents();
+            document.getElementById('add-event-btn').addEventListener('click', openEventModal);
+            document.getElementById('event-public').addEventListener('change', togglePublicEventFields);
+            document.getElementById('event-form').addEventListener('submit', handleSaveEvent);
+            document.getElementById('cancel-event-btn').addEventListener('click', closeEventModal);
+            document.getElementById('delete-event-btn').addEventListener('click', handleDeleteEvent);
+        }
+
+        // --- MEMBER FUNCTIONS ---
+        async function loadBandDetails() { /* ... unchanged ... */ }
+        async function loadBandMembers() { /* ... unchanged ... */ }
+        async function handleAddMember(event) { /* ... unchanged ... */ }
+        function copyInviteLink() { /* ... unchanged ... */ }
+        async function removeMember(userEmail) { /* ... unchanged ... */ }
+        
+        // --- PROFILE FUNCTIONS ---
+        async function loadBandProfile() {
+            try {
+                const profile = await apiRequest('band-profile');
+                bandProfileData = profile;
+                const form = document.getElementById('profile-form');
+                form.elements['band_name'].value = profile.band_name || '';
+                form.elements['slug'].value = profile.slug || '';
+                form.elements['bio'].value = profile.bio || '';
+                form.elements['link_website'].value = profile.link_website || '';
+                form.elements['link_spotify'].value = profile.link_spotify || '';
+                form.elements['link_apple_music'].value = profile.link_apple_music || '';
+                form.elements['link_youtube'].value = profile.link_youtube || '';
+                form.elements['link_instagram'].value = profile.link_instagram || '';
+                form.elements['link_facebook'].value = profile.link_facebook || '';
+                form.elements['press_kit_enabled'].checked = profile.press_kit_enabled;
+            } catch (error) {
+                alert(`Error loading profile: ${error.message}`);
+            }
+        }
+
+        async function handleSaveProfile(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.press_kit_enabled = form.elements['press_kit_enabled'].checked; // FormData doesn't capture unchecked boxes
+
+            try {
+                await apiRequest('band-profile', payload, 'PUT');
+                alert('Profile saved successfully!');
+                // Update header with new name if changed
+                document.getElementById('band-name-header').textContent = payload.band_name;
+            } catch (error) {
+                alert(`Error saving profile: ${error.message}`);
+            }
+        }
+
+        // --- CALENDAR FUNCTIONS ---
+        async function loadCalendarEvents() {
+            const listEl = document.getElementById('calendar-event-list');
+            listEl.innerHTML = '<p>Loading events...</p>';
+            try {
+                const events = await apiRequest('band-profile/events');
+                listEl.innerHTML = '';
+                if (events.length === 0) {
+                    listEl.innerHTML = '<p class="text-gray-400">No events scheduled.</p>';
+                }
+                events.forEach(event => {
+                    const eventDate = new Date(event.event_date);
+                    const isPast = eventDate < new Date();
+                    const eventEl = document.createElement('div');
+                    eventEl.className = `p-4 rounded-lg border flex justify-between items-center ${isPast ? 'bg-gray-800 border-gray-700 opacity-60' : 'bg-gray-800/50 border-gray-700'}`;
+                    eventEl.innerHTML = `
+                        <div>
+                            <p class="font-bold">${event.title} <span class="text-sm font-normal px-2 py-0.5 rounded ${event.is_public ? 'bg-blue-600' : 'bg-gray-600'}">${event.is_public ? 'Public' : 'Private'}</span></p>
+                            <p class="text-sm text-gray-400">${eventDate.toLocaleString()}</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm">Edit</button>
+                    `;
+                    eventEl.querySelector('button').addEventListener('click', () => openEventModal(event));
+                    listEl.appendChild(eventEl);
+                });
+            } catch (error) {
+                 listEl.innerHTML = `<p class="text-red-500">Error loading events: ${error.message}</p>`;
+            }
+        }
+
+        function openEventModal(event = null) {
+            const modal = document.getElementById('event-modal');
+            const form = document.getElementById('event-form');
+            form.reset();
+            if (event) {
+                document.getElementById('event-modal-title').textContent = 'Edit Event';
+                form.elements['id'].value = event.id;
+                form.elements['title'].value = event.title;
+                // Format date for datetime-local input
+                const d = new Date(event.event_date);
+                d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+                form.elements['event_date'].value = d.toISOString().slice(0, 16);
+
+                form.elements['venue_name'].value = event.venue_name || '';
+                form.elements['details'].value = event.details || '';
+                form.elements['is_public'].checked = event.is_public;
+                form.elements['external_url'].value = event.external_url || '';
+                document.getElementById('delete-event-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('event-modal-title').textContent = 'Add Event';
+                document.getElementById('delete-event-btn').classList.add('hidden');
+            }
+            togglePublicEventFields();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEventModal() {
+            document.getElementById('event-modal').classList.add('hidden');
+            document.getElementById('event-modal').classList.remove('flex');
+        }
+
+        function togglePublicEventFields() {
+            const isPublicCheckbox = document.getElementById('event-public');
+            const publicFields = document.getElementById('public-event-fields');
+            publicFields.classList.toggle('hidden', !isPublicCheckbox.checked);
+        }
+        
+        async function handleSaveEvent(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const payload = Object.fromEntries(formData.entries());
+            payload.is_public = form.elements['is_public'].checked;
+            payload.id = payload.id ? parseInt(payload.id) : null;
+            
+            const method = payload.id ? 'PUT' : 'POST';
+            const endpoint = payload.id ? `band-profile/events/${payload.id}` : 'band-profile/events';
+
+            try {
+                await apiRequest(endpoint, payload, method);
+                closeEventModal();
+                loadCalendarEvents();
+            } catch (error) {
+                alert(`Error saving event: ${error.message}`);
+            }
+        }
+
+        async function handleDeleteEvent() {
+            const eventId = document.getElementById('event-id').value;
+            if (!eventId || !confirm('Are you sure you want to delete this event?')) return;
+            
+            try {
+                await apiRequest(`band-profile/events/${eventId}`, null, 'DELETE');
+                closeEventModal();
+                loadCalendarEvents();
+            } catch (error) {
+                alert(`Error deleting event: ${error.message}`);
+            }
+        }
+
+        // ---UNCHANGED HELPER FUNCTIONS---
+        // NOTE: These are copied from the old file to make this page self-contained.
         async function loadBandDetails() {
             const nameHeader = document.getElementById('band-name-header');
             const idDisplay = document.getElementById('band-id-display');
             try {
-                const details = await apiRequest('band', null, 'GET');
+                const details = await apiRequest('band');
                 if (details) {
                     nameHeader.textContent = details.band_name || 'Your Band';
                     idDisplay.textContent = `Band Number: ${details.band_number || 'N/A'}`;
@@ -141,51 +398,76 @@
                 idDisplay.textContent = `Could not load band info.`;
             }
         }
-        
         async function loadBandMembers() {
             const tableBody = document.getElementById('members-table-body');
             tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
             try {
-                const members = await apiRequest('band/members', null, 'GET');
+                const members = await apiRequest('band/members');
                 tableBody.innerHTML = '';
                 members.forEach(member => {
                     const row = document.createElement('tr');
                     row.className = 'border-b border-gray-700';
                     const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
                     const roleDisplay = member.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-                    let actionsHtml = '';
-                    if (member.role !== 'band_admin' && member.role !== 'admin') {
-                        actionsHtml = `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember('${member.email}')">Remove</button>`;
-                    }
-
-                    row.innerHTML = `
-                        <td class="p-3">${member.email}</td>
-                        <td class="p-3 text-gray-400">${name}</td>
-                        <td class="p-3 text-gray-400">${roleDisplay}</td>
-                        <td class="p-3">${actionsHtml}</td>
-                    `;
+                    let actionsHtml = (member.role !== 'band_admin' && member.role !== 'admin') ? `<button class="btn-sm text-red-400 hover:underline" onclick="removeMember('${member.email}')">Remove</button>` : '';
+                    row.innerHTML = `<td class="p-3">${member.email}</td><td class="p-3 text-gray-400">${name}</td><td class="p-3 text-gray-400">${roleDisplay}</td><td class="p-3">${actionsHtml}</td>`;
                     tableBody.appendChild(row);
                 });
             } catch (error) {
                  tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load members: ${error.message}</td></tr>`;
             }
         }
-        
         async function handleAddMember(event) {
             event.preventDefault();
             const statusContainer = document.getElementById('add-member-status-container');
             const statusEl = document.getElementById('add-member-status');
             const inviteLinkContainer = document.getElementById('invite-link-container');
             const inviteLinkInput = document.getElementById('invite-link-input');
-            
             statusContainer.classList.remove('hidden');
             inviteLinkContainer.classList.add('hidden');
             statusEl.textContent = 'Creating invite link...';
             statusEl.className = 'text-sm h-5 text-yellow-400';
-            
             const button = event.target.querySelector('button');
             button.disabled = true;
-
             const payload = {
-                firstName: document.getElementById('new-member-fir
+                firstName: document.getElementById('new-member-firstname').value,
+                lastName: document.getElementById('new-member-lastname').value,
+                email: document.getElementById('new-member-email').value,
+            };
+            try {
+                const result = await apiRequest('band/members', payload, 'POST');
+                statusEl.textContent = result.message;
+                statusEl.className = 'text-sm h-5 text-green-400';
+                inviteLinkInput.value = result.link;
+                inviteLinkContainer.classList.remove('hidden');
+                event.target.reset();
+            } catch(error) {
+                statusEl.textContent = `Error: ${error.message}`;
+                statusEl.className = 'text-sm h-5 text-red-500';
+            } finally {
+                 button.disabled = false;
+            }
+        }
+        function copyInviteLink() {
+            const inviteLinkInput = document.getElementById('invite-link-input');
+            const copyBtn = document.getElementById('copy-link-btn');
+            inviteLinkInput.select();
+            document.execCommand('copy');
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBtn.textContent = 'Copy Link'; }, 2000);
+        }
+        async function removeMember(userEmail) {
+            if (confirm(`Are you sure you want to remove ${userEmail} from the band? They will lose access immediately.`)) {
+                try {
+                    await apiRequest('band/members', { emailToRemove: userEmail }, 'DELETE');
+                    loadBandMembers();
+                } catch(error) {
+                    alert(`Failed to remove member: ${error.message}`);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
+
+<!-- END OF FILE public/Band.html -->
