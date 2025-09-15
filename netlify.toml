@@ -1,19 +1,26 @@
-# Netlify Configuration File for ProAnthem
-
 [build]
-  functions = "netlify/functions/"
-  publish = "public/"
+  functions = "netlify/functions"
+  publish = "public"
 
-# This rule ensures that API calls are correctly proxied to your serverless functions.
+# Redirects for your API functions
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# This is the main rule for the entire ProAnthem site.
-# It serves the proanthem_index.html for any request to the root.
+# NEW: The "Under Construction" Redirect Rules
+# This rule will redirect ALL traffic to the construction page,
+# EXCEPT for requests that have a special "developer" query parameter.
+[[redirects]]
+  from = "/*"
+  to = "/construction.html"
+  status = 302 # Temporary redirect
+  conditions = { "dev" = "!true" } # The magic condition
+
+# This rule makes it so that if you go to the root of the site with the
+# special parameter, it correctly serves the main index page.
 [[redirects]]
   from = "/"
   to = "/proanthem_index.html"
   status = 200
-  force = true
+  query = { "dev" = "true" }
