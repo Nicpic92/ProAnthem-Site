@@ -51,4 +51,40 @@ body.marketing {
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .tab-button.active { border-bottom-color: #dc2626; }
 
+/* --- FIX: Added missing fretboard and component styles --- */
+.block-header:active { cursor: grabbing; }
+.block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
+.fretboard-wrapper { overflow-x: auto; border: 1px solid #555; border-radius: 6px; }
+.fretboard-string { stroke: #9ca3af; stroke-width: 2px; }
+.fretboard-note { fill: #facc15; cursor: grab; transition: fill 0.2s; }
+.fretboard-note:active { cursor: grabbing; }
+.fretboard-note.selected { fill: #ef4444; stroke: white; stroke-width: 2px; }
+.fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
+.queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
+.form-textarea.placement-mode { cursor: crosshair; }
+.drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
+.resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
+.resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
+.btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
+.sortable-ghost { opacity: 0.4; background: #4a5568; }
+.sounding-key-box {
+    display: inline-block;
+    background-color: #1f2937;
+    border: 1px solid #4b5563;
+    border-radius: 6px;
+    padding: 0.5rem 1.5rem;
+    font-size: 1.25rem; /* text-xl */
+    font-weight: 700; /* font-bold */
+    color: #a5b4fc; /* indigo-300 */
+    min-width: 80px;
+    text-align: center;
+}
+aside#sidebar > div {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+aside#sidebar > div::-webkit-scrollbar {
+    display: none;
+}
+
 /* --- END OF FILE public/css/style.css --- */
