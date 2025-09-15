@@ -2,9 +2,6 @@
 
 import { login, signup } from './api.js';
 
-// --- DIAGNOSTIC LOG ---
-console.log("RUNNING DIAGNOSTIC VERSION of auth.js. If you don't see this, the file is cached.");
-
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
     const loginForm = document.getElementById('login-form');
@@ -62,35 +59,28 @@ function updateNav() {
 }
 
 export function checkAccess() {
-    // --- DIAGNOSTIC LOGS START ---
-    console.log("--- checkAccess() Initiated ---");
-    console.log("Original window.location.pathname:", window.location.pathname);
-    // --- DIAGNOSTIC LOGS END ---
-
-    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
+    // --- FIX: Add the extension-less paths for all public pages to account for "pretty URLs" ---
+    const publicPages = [
+        '/', 
+        '/proanthem_index.html', '/proanthem_index',
+        '/pricing.html', '/pricing',
+        '/demo.html', '/demo',
+        '/construction.html', '/construction',
+        '/band-profile.html', '/band-profile'
+    ];
+    
     const currentPath = window.location.pathname.toLowerCase();
-    const isPublic = publicPages.includes(currentPath) || currentPath.startsWith('/bands/');
 
-    // --- DIAGNOSTIC LOGS START ---
-    console.log("Lowercase path for checking:", currentPath);
-    console.log("Is it considered a public page?", isPublic);
-    // --- DIAGNOSTIC LOGS END ---
-
-    if (isPublic) {
-        // --- DIAGNOSTIC LOG ---
-        console.log("Result: Access GRANTED because it is a public page.");
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
         return true; 
     }
 
     const user = getUserPayload();
     if (!user) {
-        // --- DIAGNOSTIC LOG ---
-        console.log("Result: Access DENIED. User is not logged in. Redirecting...");
         window.location.href = '/proanthem_index.html';
         return false;
     }
     
-    // ... rest of the function remains the same ...
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     
@@ -101,19 +91,14 @@ export function checkAccess() {
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (!content || !accessDenied) {
-        console.log("Result: Access GRANTED because required content/denied elements are missing.");
-        return true;
-    }
+    if (!content || !accessDenied) return true;
 
     if (hasAccess) {
-        console.log("Result: Access GRANTED for logged-in user.");
         accessDenied.classList.add('hidden');
         content.classList.remove('hidden');
         content.style.display = 'block'; 
         return true;
     } else {
-        console.log("Result: Access DENIED for logged-in user (subscription issue). Showing access denied message.");
         accessDenied.classList.remove('hidden');
         content.classList.add('hidden');
         content.style.display = 'none';
@@ -127,7 +112,6 @@ export function checkAccess() {
     }
 }
 
-// ... the rest of the file (form handlers) remains unchanged ...
 async function handleSignupForPricing(event) {
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
@@ -190,11 +174,10 @@ async function performLogin(credentials, redirectTo = null) {
                 return;
             }
 
-            if (checkAccess()) {
-                window.location.href = '/ProjectAnthem.html';
-            } else {
-                window.location.href = '/pricing.html';
-            }
+            // Note: After a successful login, checkAccess() will re-run on the destination page.
+            // We can simplify the logic here.
+            window.location.href = '/ProjectAnthem.html';
+            
         } else {
             throw new Error("Login failed: No token returned.");
         }
@@ -219,3 +202,5 @@ function openModal(view) {
         }
     }
 }
+
+// --- END OF FILE public/js/auth.js ---
