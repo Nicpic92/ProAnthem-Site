@@ -58,4 +58,8 @@ export const login = (credentials) => apiRequest('login', credentials, 'POST');
 export const signup = (payload) => apiRequest('signup', payload, 'POST');
 export const changePassword = (payload) => apiRequest('band/change-password', payload, 'POST');
 
+// --- FIX: Add specific exports for the Stripe functions needed by pricing.html ---
+export const createCheckoutSession = (plan) => apiRequest('stripe/create-checkout-session', { plan }, 'POST');
+export const createCustomerPortal = () => apiRequest('stripe/create-customer-portal', {}, 'POST');
+
 // --- END OF FILE public/js/api.js ---
