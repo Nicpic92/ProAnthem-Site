@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProAnthem - Upgrades in Progress</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            background-color: #111827; 
+            color: #f3f4f6; 
+            font-family: Inter, system-ui, sans-serif; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <main class="container mx-auto px-6 py-12 max-w-2xl">
+        <div class="flex justify-center mb-8">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-20">
+        </div>
+        
+        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-white">
+            Something <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-purple-400">Awesome</span> is Coming.
+        </h1>
+        
+        <p class="mt-6 text-lg md:text-xl text-gray-300">
+            We're currently making ProAnthem even better for you and your band. The full site will be back online shortly with powerful new features and a more streamlined experience.
+        </p>
+        
+        <p class="mt-8 font-bold text-lg text-white">Get Notified When We're Back!</p>
+        <p class="mt-2 text-gray-400">
+            Enter your email below, and we'll send you a one-time notification the moment we relaunch.
+        </p>
+
+        <form id="notify-form" action="https://formspree.io/f/xpwjbkqg" method="POST" class="mt-6 flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+            <input type="email" name="email" required class="w-full flex-grow bg-gray-800 border-gray-700 rounded-md p-3 text-white focus:ring-indigo-500 focus:border-indigo-500" placeholder="your.email@example.com">
+            <input type="hidden" name="subject" value="ProAnthem Relaunch Notification Request">
+            <button type="submit" class="bg-indigo-600 text-white font-semibold py-3 px-6 rounded-md hover:bg-indigo-700 transition duration-300">
+                Notify Me
+            </button>
+        </form>
+        <p id="form-status" class="text-center mt-4 h-6"></p>
+
+        <div class="mt-12 text-gray-500 text-sm">
+            <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+        </div>
+    </main>
+
+    <script>
+        const form = document.getElementById('notify-form');
+        const statusEl = document.getElementById('form-status');
+
+        async function handleSubmit(event) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            
+            statusEl.textContent = 'Submitting...';
+            statusEl.style.color = '#9ca3af';
+
+            try {
+                const response = await fetch(event.target.action, {
+                    method: form.method,
+                    body: data,
+                    headers: { 'Accept': 'application/json' }
+                });
+
+                if (response.ok) {
+                    statusEl.textContent = "Thanks! We'll be in touch.";
+                    statusEl.style.color = '#4ade80'; // green
+                    form.reset();
+                } else {
+                    statusEl.textContent = "Oops! There was a problem.";
+                    statusEl.style.color = '#f87171'; // red
+                }
+            } catch (error) {
+                statusEl.textContent = "Oops! A network error occurred.";
+                statusEl.style.color = '#f87171'; // red
+            }
+        }
+        form.addEventListener("submit", handleSubmit);
+    </script>
+</body>
+</html>
