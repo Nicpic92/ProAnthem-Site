@@ -2,6 +2,9 @@
 
 import { login, signup } from './api.js';
 
+// --- DIAGNOSTIC LOG ---
+console.log("RUNNING DIAGNOSTIC VERSION of auth.js. If you don't see this, the file is cached.");
+
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
     const loginForm = document.getElementById('login-form');
@@ -47,7 +50,6 @@ function updateNav() {
          buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
         
-        // Add event listener programmatically
         document.getElementById('logout-button')?.addEventListener('click', logout);
 
     } else {
@@ -60,23 +62,35 @@ function updateNav() {
 }
 
 export function checkAccess() {
-    // --- FIX: The publicPages array should be all lowercase for consistent checking ---
-    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
-    
-    // --- FIX: Convert the current path to lowercase to ensure a case-insensitive match ---
-    const currentPath = window.location.pathname.toLowerCase();
+    // --- DIAGNOSTIC LOGS START ---
+    console.log("--- checkAccess() Initiated ---");
+    console.log("Original window.location.pathname:", window.location.pathname);
+    // --- DIAGNOSTIC LOGS END ---
 
-    // --- FIX: The startsWith check also needs to be case-insensitive ---
-    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
+    const publicPages = ['/', '/proanthem_index.html', '/pricing.html', '/demo.html', '/construction.html', '/band-profile.html'];
+    const currentPath = window.location.pathname.toLowerCase();
+    const isPublic = publicPages.includes(currentPath) || currentPath.startsWith('/bands/');
+
+    // --- DIAGNOSTIC LOGS START ---
+    console.log("Lowercase path for checking:", currentPath);
+    console.log("Is it considered a public page?", isPublic);
+    // --- DIAGNOSTIC LOGS END ---
+
+    if (isPublic) {
+        // --- DIAGNOSTIC LOG ---
+        console.log("Result: Access GRANTED because it is a public page.");
         return true; 
     }
 
     const user = getUserPayload();
     if (!user) {
+        // --- DIAGNOSTIC LOG ---
+        console.log("Result: Access DENIED. User is not logged in. Redirecting...");
         window.location.href = '/proanthem_index.html';
         return false;
     }
     
+    // ... rest of the function remains the same ...
     const specialRoles = ['admin', 'band_admin', 'band_member'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     
@@ -87,14 +101,19 @@ export function checkAccess() {
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (!content || !accessDenied) return true;
+    if (!content || !accessDenied) {
+        console.log("Result: Access GRANTED because required content/denied elements are missing.");
+        return true;
+    }
 
     if (hasAccess) {
+        console.log("Result: Access GRANTED for logged-in user.");
         accessDenied.classList.add('hidden');
         content.classList.remove('hidden');
         content.style.display = 'block'; 
         return true;
     } else {
+        console.log("Result: Access DENIED for logged-in user (subscription issue). Showing access denied message.");
         accessDenied.classList.remove('hidden');
         content.classList.add('hidden');
         content.style.display = 'none';
@@ -108,6 +127,7 @@ export function checkAccess() {
     }
 }
 
+// ... the rest of the file (form handlers) remains unchanged ...
 async function handleSignupForPricing(event) {
     event.preventDefault();
     const signupError = document.getElementById('signup-error');
@@ -199,5 +219,3 @@ function openModal(view) {
         }
     }
 }
-
-// --- END OF FILE public/js/auth.js ---
