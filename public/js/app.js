@@ -4,40 +4,32 @@ const isDemoMode = window.location.pathname.includes('Demo.html');
 
 document.addEventListener('DOMContentLoaded', () => {
     if (isDemoMode) {
-        // Run the dedicated demo initializer that uses NO API calls
         initializeAppForDemo();
     } else {
-        // For the live app, check for access first.
-        // This function will handle redirects if needed.
         if (checkAccess()) {
             const user = getUserPayload();
             if (user && user.force_reset) {
                 document.getElementById('password-reset-modal').classList.remove('hidden');
                 document.getElementById('password-reset-form').addEventListener('submit', handlePasswordReset);
             } else {
-                // Run the API-driven initializer for the live app
                 initializeAppForLiveApp();
             }
         }
     }
 });
 
-// --- DEDICATED INITIALIZERS ---
-
 function initializeAppForDemo() {
     console.log("Initializing in DEMO mode.");
-    const coreApp = new ProAnthemApp(true); // Pass true for isDemo
+    const coreApp = new ProAnthemApp(true);
     coreApp.init();
 }
 
 function initializeAppForLiveApp() {
     console.log("Initializing in LIVE APP mode.");
-    const coreApp = new ProAnthemApp(false); // Pass false for isDemo
+    const coreApp = new ProAnthemApp(false);
     coreApp.init();
 }
 
-
-// --- SHARED PASSWORD RESET LOGIC ---
 async function handlePasswordReset(event) {
     event.preventDefault();
     const errorEl = document.getElementById('password-reset-error');
@@ -55,15 +47,11 @@ async function handlePasswordReset(event) {
         await apiRequest('band/change-password', { currentPassword, newPassword }, 'POST');
         alert('Password updated successfully! You can now use the tool.');
         document.getElementById('password-reset-modal').classList.add('hidden');
-        initializeAppForLiveApp(); // Re-initialize the live app after reset
+        initializeAppForLiveApp();
     } catch (error) {
         errorEl.textContent = error.message;
     }
 }
-
-
-// --- MAIN APPLICATION CLASS ---
-// We wrap the entire application logic in a class to keep it organized.
 
 function ProAnthemApp(isDemo = false) {
     this.isDemo = isDemo;
@@ -116,6 +104,47 @@ ProAnthemApp.prototype.init = function() {
     }
 };
 
+ProAnthemApp.prototype.attachEventListeners = function() {
+    this.el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) this.initializeDemoSong(); });
+    [this.el.tuningSelector, this.el.capoFretInput].forEach(elem => elem?.addEventListener('input', () => { this.songData.tuning = this.el.tuningSelector.value; this.songData.capo = parseInt(this.el.capoFretInput.value, 10) || 0; this.renderSongBlocks(); this.updateSoundingKey(); }));
+    this.el.transposeUpBtn?.addEventListener('click', () => this.handleTranspose(1));
+    this.el.transposeDownBtn?.addEventListener('click', () => this.handleTranspose(-1));
+    this.el.saveBtn?.addEventListener('click', this.handleSave.bind(this));
+    this.el.deleteBtn?.addEventListener('click', this.handleDelete.bind(this));
+    this.el.addChordBtn?.addEventListener('click', this.handleAddChord.bind(this));
+    this.el.newChordInput?.addEventListener('keyup', (e) => e.key === 'Enter' && this.handleAddChord());
+    this.el.clearQueueBtn?.addEventListener('click', () => { this.chordQueue = []; this.chordQueueIndex = 0; this.renderChordQueue(); });
+    this.el.songBlocksContainer?.addEventListener('focusin', (e) => { if (e.target.classList.contains('lyrics-block')) this.lastFocusedLyricsBlock = e.target; });
+    this.el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; this.updateBlockData(blockId, 'content', e.target.value); this.updateSoundingKey(); } });
+    this.el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { this.activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
+    document.addEventListener('mousemove', (e) => { if (this.activeResize.element) { const height = this.activeResize.startHeight + e.clientY - this.activeResize.startY; this.activeResize.element.style.height = `${Math.max(50, height)}px`; } if (this.isDraggingNote && this.selectedNote.blockId) { const block = this.songData.song_blocks.find(b => b.id === this.selectedNote.blockId); const note = block?.data?.notes[this.selectedNote.noteIndex]; if (note) { const svg = document.getElementById(`fretboard-svg-${this.selectedNote.blockId}`); const clickData = this.getFretFromClick(e, svg); if (clickData) { note.position = clickData.position; note.string = clickData.string; this.drawNotesOnFretboard(this.selectedNote.blockId); } } } });
+    document.addEventListener('mouseup', () => { if (this.activeResize.element) { const newHeight = this.activeResize.element.offsetHeight; this.updateBlockData(this.activeResize.blockId, null, null, newHeight); this.activeResize = { element: null, startY: 0, startHeight: 0 }; document.body.style.cursor = ''; } if(this.isDraggingNote) { this.isDraggingNote = false; this.renderPreview(); } });
+    this.el.songBlocksContainer?.addEventListener('change', (e) => { if (e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = this.songData.song_blocks.find(b => b.id === blockId); if (block) { block.strings = parseInt(e.target.value, 10); this.drawFretboard(blockId); } } });
+    this.el.songBlocksContainer?.addEventListener('click', this.handleSongBlockClick.bind(this));
+    document.addEventListener('keydown', this.handleDeleteNote.bind(this));
+    this.el.addBlockButtonsContainer?.addEventListener('click', this.handleAddBlockClick.bind(this));
+    this.el.recordBtn?.addEventListener('click', this.startRecording.bind(this));
+    this.el.stopBtn?.addEventListener('click', this.stopRecording.bind(this));
+    this.el.songSelector?.addEventListener('change', () => this.loadSong(this.el.songSelector.value));
+    this.el.setlistBtn?.addEventListener('click', this.openSetlistManager.bind(this));
+    this.el.closeSetlistModalBtn?.addEventListener('click', () => this.el.setlistModal.classList.add('hidden'));
+    this.el.setlistSelector?.addEventListener('change', (e) => this.handleSetlistSelection(e.target.value));
+    this.el.saveSetlistDetailsBtn?.addEventListener('click', this.handleSaveSetlistDetails.bind(this));
+    this.el.createSetlistBtn?.addEventListener('click', this.handleCreateSetlist.bind(this));
+    this.el.addSongToSetlistBtn?.addEventListener('click', this.handleAddSongToSetlist.bind(this));
+    this.el.printSetlistBtn?.addEventListener('click', () => this.handlePrintSetlist(false));
+    this.el.printDrummerSetlistBtn?.addEventListener('click', () => this.handlePrintSetlist(true));
+    this.el.deleteSetlistBtn?.addEventListener('click', this.handleDeleteSetlist.bind(this));
+    this.el.addFretBtn?.addEventListener('click', this.confirmFretSelection.bind(this));
+    this.el.cancelFretBtn?.addEventListener('click', () => this.el.fretSelectionModal.classList.add('hidden'));
+    this.el.songsInSetlist?.addEventListener('click', (e) => { if (e.target.dataset.action === 'remove-item') this.handleRemoveItemFromSetlist(e.target.closest('li')); });
+    this.el.addSetlistNoteBtn?.addEventListener('click', this.handleAddSetlistNote.bind(this));
+    this.el.deleteAudioBtn?.addEventListener('click', this.handleDeleteAudio.bind(this));
+    this.el.importBtn?.addEventListener('click', () => { this.el.importTextarea.value = ''; this.el.importModal.classList.remove('hidden'); });
+    this.el.importCancelBtn?.addEventListener('click', () => this.el.importModal.classList.add('hidden'));
+    this.el.importConfirmBtn?.addEventListener('click', this.handleImport.bind(this));
+};
+
 ProAnthemApp.prototype.initializeDemoSong = function() {
     this.songData = { 
         id: 'demo-song', title: 'The ProAnthem Feature Tour', artist: 'The Dev Team', audio_url: null, 
@@ -166,47 +195,6 @@ ProAnthemApp.prototype.loadChords = async function() {
         const chords = await this.api.getChords();
         this.renderChordPalette(chords);
     } catch(e) { this.setStatus('Failed to load chords.', true); }
-};
-
-ProAnthemApp.prototype.attachEventListeners = function() {
-    this.el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) this.initializeDemoSong(); });
-    [this.el.tuningSelector, this.el.capoFretInput].forEach(elem => elem.addEventListener('input', () => { this.songData.tuning = this.el.tuningSelector.value; this.songData.capo = parseInt(this.el.capoFretInput.value, 10) || 0; this.renderSongBlocks(); this.updateSoundingKey(); }));
-    this.el.transposeUpBtn?.addEventListener('click', () => this.handleTranspose(1));
-    this.el.transposeDownBtn?.addEventListener('click', () => this.handleTranspose(-1));
-    this.el.saveBtn?.addEventListener('click', this.handleSave.bind(this));
-    this.el.deleteBtn?.addEventListener('click', this.handleDelete.bind(this));
-    this.el.addChordBtn?.addEventListener('click', this.handleAddChord.bind(this));
-    this.el.newChordInput?.addEventListener('keyup', (e) => e.key === 'Enter' && this.handleAddChord());
-    this.el.clearQueueBtn?.addEventListener('click', () => { this.chordQueue = []; this.chordQueueIndex = 0; this.renderChordQueue(); });
-    this.el.songBlocksContainer?.addEventListener('focusin', (e) => { if (e.target.classList.contains('lyrics-block')) this.lastFocusedLyricsBlock = e.target; });
-    this.el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; this.updateBlockData(blockId, 'content', e.target.value); this.updateSoundingKey(); } });
-    this.el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { this.activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
-    document.addEventListener('mousemove', (e) => { if (this.activeResize.element) { const height = this.activeResize.startHeight + e.clientY - this.activeResize.startY; this.activeResize.element.style.height = `${Math.max(50, height)}px`; } if (this.isDraggingNote && this.selectedNote.blockId) { const block = this.songData.song_blocks.find(b => b.id === this.selectedNote.blockId); const note = block?.data?.notes[this.selectedNote.noteIndex]; if (note) { const svg = document.getElementById(`fretboard-svg-${this.selectedNote.blockId}`); const clickData = this.getFretFromClick(e, svg); if (clickData) { note.position = clickData.position; note.string = clickData.string; this.drawNotesOnFretboard(this.selectedNote.blockId); } } } });
-    document.addEventListener('mouseup', () => { if (this.activeResize.element) { const newHeight = this.activeResize.element.offsetHeight; this.updateBlockData(this.activeResize.blockId, null, null, newHeight); this.activeResize = { element: null, startY: 0, startHeight: 0 }; document.body.style.cursor = ''; } if(this.isDraggingNote) { this.isDraggingNote = false; this.renderPreview(); } });
-    this.el.songBlocksContainer?.addEventListener('change', (e) => { if (e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = this.songData.song_blocks.find(b => b.id === blockId); if (block) { block.strings = parseInt(e.target.value, 10); this.drawFretboard(blockId); } } });
-    this.el.songBlocksContainer?.addEventListener('click', this.handleSongBlockClick.bind(this));
-    document.addEventListener('keydown', this.handleDeleteNote.bind(this));
-    this.el.addBlockButtonsContainer?.addEventListener('click', this.handleAddBlockClick.bind(this));
-    this.el.recordBtn?.addEventListener('click', this.startRecording.bind(this));
-    this.el.stopBtn?.addEventListener('click', this.stopRecording.bind(this));
-    this.el.songSelector?.addEventListener('change', () => this.loadSong(this.el.songSelector.value));
-    this.el.setlistBtn?.addEventListener('click', this.openSetlistManager.bind(this));
-    this.el.closeSetlistModalBtn?.addEventListener('click', () => this.el.setlistModal.classList.add('hidden'));
-    this.el.setlistSelector?.addEventListener('change', (e) => this.handleSetlistSelection(e.target.value));
-    this.el.saveSetlistDetailsBtn?.addEventListener('click', this.handleSaveSetlistDetails.bind(this));
-    this.el.createSetlistBtn?.addEventListener('click', this.handleCreateSetlist.bind(this));
-    this.el.addSongToSetlistBtn?.addEventListener('click', this.handleAddSongToSetlist.bind(this));
-    this.el.printSetlistBtn?.addEventListener('click', () => this.handlePrintSetlist(false));
-    this.el.printDrummerSetlistBtn?.addEventListener('click', () => this.handlePrintSetlist(true));
-    this.el.deleteSetlistBtn?.addEventListener('click', this.handleDeleteSetlist.bind(this));
-    this.el.addFretBtn?.addEventListener('click', this.confirmFretSelection.bind(this));
-    this.el.cancelFretBtn?.addEventListener('click', () => this.el.fretSelectionModal.classList.add('hidden'));
-    this.el.songsInSetlist?.addEventListener('click', (e) => { if (e.target.dataset.action === 'remove-item') this.handleRemoveItemFromSetlist(e.target.closest('li')); });
-    this.el.addSetlistNoteBtn?.addEventListener('click', this.handleAddSetlistNote.bind(this));
-    this.el.deleteAudioBtn?.addEventListener('click', this.handleDeleteAudio.bind(this));
-    this.el.importBtn?.addEventListener('click', () => { this.el.importTextarea.value = ''; this.el.importModal.classList.remove('hidden'); });
-    this.el.importCancelBtn?.addEventListener('click', () => this.el.importModal.classList.add('hidden'));
-    this.el.importConfirmBtn?.addEventListener('click', this.handleImport.bind(this));
 };
 
 ProAnthemApp.prototype.handleSave = async function() {
@@ -334,10 +322,12 @@ ProAnthemApp.prototype.setStatus = function(message, isError = false) {
 };
 
 ProAnthemApp.prototype.updateMusicalSettingsUI = function() {
-    this.el.tuningSelector.value = this.songData.tuning;
-    this.el.capoFretInput.value = this.songData.capo;
-    const steps = this.songData.transpose;
-    this.el.transposeStatus.textContent = steps > 0 ? `+${steps}` : steps;
+    if (this.el.tuningSelector) this.el.tuningSelector.value = this.songData.tuning;
+    if (this.el.capoFretInput) this.el.capoFretInput.value = this.songData.capo;
+    if (this.el.transposeStatus) {
+        const steps = this.songData.transpose;
+        this.el.transposeStatus.textContent = steps > 0 ? `+${steps}` : steps;
+    }
 };
 
 ProAnthemApp.prototype.parsePastedSong = function(text) {
@@ -366,10 +356,10 @@ ProAnthemApp.prototype.parsePastedSong = function(text) {
     function bracketInlineChords(line) { if (line.includes('[') || line.trim() === '') return line; const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g'); return line.replace(chordTokenRegex, '[$1]'); }
     function mergeChordLyricLines(chordLine, lyricLine) { let chords = []; const chordFinderRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g'); let match; while ((match = chordFinderRegex.exec(chordLine)) !== null) { chords.push({ text: `[${match[0]}]`, index: match.index }); } if (chords.length === 0) return lyricLine; let mergedLine = lyricLine; for (let i = chords.length - 1; i >= 0; i--) { const chord = chords[i]; const insertionIndex = Math.min(chord.index, mergedLine.length); mergedLine = mergedLine.slice(0, insertionIndex) + chord.text + mergedLine.slice(insertionIndex); } return mergedLine; }
     let sectionLines = [];
+    const processSectionLines = (blockLines) => { if (!currentBlock) createNewBlock('Verse 1', 'lyrics'); if (blockLines.every(l => l.trim() === '')) return; if (blockLines.some(l => tabLineRegex.test(l))) { currentBlock.type = 'tab'; currentBlock.content += blockLines.join('\n') + '\n\n'; return; } let processedLines = []; for (let i = 0; i < blockLines.length; i++) { const currentLine = blockLines[i]; const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null; if (chordLineRegex.test(currentLine.trim()) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine.trim())) { processedLines.push(mergeChordLyricLines(currentLine, nextLine)); i++; } else { processedLines.push(bracketInlineChords(currentLine)); } } currentBlock.content += processedLines.join('\n') + '\n\n'; };
     for (const line of lines) { const headerMatch = line.match(headerRegex); if (headerMatch) { if (sectionLines.length > 0) processSectionLines(sectionLines); sectionLines = []; const label = (headerMatch[1] || headerMatch[2] || 'Section').trim(); createNewBlock(label, 'lyrics'); } else { sectionLines.push(line); } }
     if (sectionLines.length > 0) processSectionLines(sectionLines);
     pushBlock();
-    function processSectionLines(blockLines) { if (!currentBlock) createNewBlock('Verse 1', 'lyrics'); if (blockLines.every(l => l.trim() === '')) return; if (blockLines.some(l => tabLineRegex.test(l))) { currentBlock.type = 'tab'; currentBlock.content += blockLines.join('\n') + '\n\n'; return; } let processedLines = []; for (let i = 0; i < blockLines.length; i++) { const currentLine = blockLines[i]; const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null; if (chordLineRegex.test(currentLine.trim()) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine.trim())) { processedLines.push(mergeChordLyricLines(currentLine, nextLine)); i++; } else { processedLines.push(bracketInlineChords(currentLine)); } } currentBlock.content += processedLines.join('\n') + '\n\n'; }
     return { blocks: newBlocks, metadata: metadata };
 };
 
@@ -392,10 +382,9 @@ ProAnthemApp.prototype.handleImport = function() {
     this.el.importModal.classList.add('hidden');
 };
 
-// All other prototype methods...
-ProAnthemApp.prototype.updateSoundingKey = function() { /* ... full implementation ... */ };
-ProAnthemApp.prototype.openSetlistManager = async function() { /* ... full implementation ... */ };
-ProAnthemApp.prototype.loadSetlists = async function(selectId) { /* ... full implementation ... */ };
+ProAnthemApp.prototype.updateSoundingKey = function() { const capoFret = this.songData.capo || 0; let firstChord = null; for (const block of this.songData.song_blocks) { if (block.type === 'lyrics' && block.content) { const match = block.content.match(/\[([^\]]+)\]/); if (match) { firstChord = match[1]; break; } } } if (!firstChord) { this.el.soundingKeyDisplay.textContent = '-'; return; } const soundingKey = this.transposeChord(firstChord, capoFret); this.el.soundingKeyDisplay.textContent = soundingKey; };
+ProAnthemApp.prototype.openSetlistManager = async function() { if (!document.getElementById('tool-content')?.classList.contains('hidden')) { this.el.setlistModal.classList.remove('hidden'); await this.loadSetlists(); this.handleSetlistSelection(null); } };
+ProAnthemApp.prototype.loadSetlists = async function(selectId = null) { try { const lists = this.isDemo ? [{id: 1, name: "Demo Setlist"}] : await this.api.getSetlists(); this.el.setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>'; lists.forEach(list => { const option = document.createElement('option'); option.value = list.id; option.textContent = list.name; this.el.setlistSelector.appendChild(option); }); if (selectId) { this.el.setlistSelector.value = selectId; await this.handleSetlistSelection(selectId); } } catch (error) { this.setStatus('Failed to load setlists.', true); } };
 ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) { /* ... full implementation ... */ };
 ProAnthemApp.prototype.saveSetlistOrderAndNotes = async function() { /* ... full implementation ... */ };
 ProAnthemApp.prototype.handleSaveSetlistDetails = async function() { /* ... full implementation ... */ };
@@ -404,8 +393,8 @@ ProAnthemApp.prototype.handleDeleteSetlist = async function() { /* ... full impl
 ProAnthemApp.prototype.handleAddSongToSetlist = async function() { /* ... full implementation ... */ };
 ProAnthemApp.prototype.handleRemoveItemFromSetlist = async function(itemLi) { /* ... full implementation ... */ };
 ProAnthemApp.prototype.handlePrintSetlist = async function(drummerMode) { /* ... full implementation ... */ };
-ProAnthemApp.prototype.renderSongBlocks = function() { /* ... full implementation ... */ };
-ProAnthemApp.prototype.createBlockElement = function(block) { /* ... full implementation ... */ };
+ProAnthemApp.prototype.renderSongBlocks = function() { this.el.songBlocksContainer.innerHTML = ''; (this.songData.song_blocks || []).forEach(block => this.el.songBlocksContainer.appendChild(this.createBlockElement(block))); this.renderAddBlockButtons(); this.renderPreview(); this.initializeSortable(); };
+ProAnthemApp.prototype.createBlockElement = function(block) { const div = document.createElement('div'); div.className = 'song-block'; div.dataset.blockId = block.id; let contentHtml = '', headerControls = ''; const drumPlaceholder = `HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`; if (block.type === 'lyrics') { contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`; } else if (block.type === 'tab') { const stringOptions = [6, 7, 8].map(num => `<option value="${num}" ${block.strings === num ? 'selected' : ''}>${num}-String</option>`).join(''); contentHtml = `<div class="mb-2"><label class="text-xs text-gray-400">Instrument:</label><select class="form-select form-input text-sm w-32 bg-gray-900" data-action="change-strings">${stringOptions}</select></div><div class="fretboard-wrapper"><div id="fretboard-${block.id}"></div></div>`; const isEditMode = block.editMode || false; const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary'; headerControls = `<button class="btn ${editButtonClass} btn-sm" data-action="edit-tab">${isEditMode ? 'Done Editing' : 'Edit'}</button>`; } else if (block.type === 'drum_tab') { contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`; } else if (block.type === 'reference') { const originalBlock = this.songData.song_blocks.find(b => b.id === block.originalId); contentHtml = `<div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div>`; } div.innerHTML = `<div class="block-header"><div class="flex items-center gap-4"><div class="flex items-center gap-2"><span class="font-bold">${block.label}</span><span class="text-xs text-gray-400">(${block.type.replace('_', ' ')})</span></div></div><div class="flex items-center gap-2">${headerControls}<button class="btn-sm text-xs hover:underline" data-action="rename">Rename</button><button class="btn-sm text-red-400 hover:underline" data-action="delete">Delete</button></div></div><div class="block-content">${contentHtml}</div>`; if (block.type === 'tab') setTimeout(() => this.drawFretboard(block.id), 0); return div; };
 ProAnthemApp.prototype.renderAddBlockButtons = function() { /* ... full implementation ... */ };
 ProAnthemApp.prototype.renderPreview = function() { /* ... full implementation ... */ };
 ProAnthemApp.prototype.getFretFromClick = function(evt, svgEl) { /* ... full implementation ... */ };
@@ -429,6 +418,5 @@ ProAnthemApp.prototype.confirmFretSelection = function() { /* ... full implement
 ProAnthemApp.prototype.handleAddBlockClick = function(e) { /* ... full implementation ... */ };
 ProAnthemApp.prototype.handleAddSetlistNote = function() { /* ... full implementation ... */ };
 ProAnthemApp.prototype.handleDeleteAudio = async function() { /* ... full implementation ... */ };
-
 
 // --- END OF FILE public/js/app.js ---
