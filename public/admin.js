@@ -25,12 +25,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function openModal(modalId) {
-    document.getElementById(modalId).classList.remove('hidden');
-    document.getElementById(modalId).classList.add('flex'); // Use flex to center it
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex'); // Use flex to center it
+    }
 }
+
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.add('hidden');
-    document.getElementById(modalId).classList.remove('flex');
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
 async function loadUsers() {
@@ -120,6 +127,6 @@ async function confirmCopySong() {
     }
 }
 
-// Make functions globally available for inline onclick attributes
+// Make functions globally available for inline onclick attributes used in admin.html
 window.openCopySongModal = openCopySongModal;
 window.closeModal = closeModal;
