@@ -3,11 +3,11 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
-    // ... (authentication logic is unchanged)
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
+
     let userEmail, bandId;
     try {
         const token = authHeader.split(' ')[1];
@@ -37,7 +37,6 @@ exports.handler = async (event) => {
                 const setlistResult = await client.query(query, [setlistId, bandId]);
                 if (setlistResult.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Setlist not found or access denied' }) };
 
-                // --- THIS IS THE FIX: Retrieve all necessary data for the Show Builder ---
                 const songsQuery = `
                     SELECT 
                         ls.id, ls.title, ls.artist, ls.song_blocks, 
@@ -55,7 +54,6 @@ exports.handler = async (event) => {
                 return { statusCode: 200, body: JSON.stringify(result.rows) };
             }
         }
-        // ... (POST, PUT, DELETE methods are unchanged)
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body);
             if (setlistId && resourceType === 'songs') {
@@ -89,7 +87,7 @@ exports.handler = async (event) => {
                 const checkQuery = `SELECT 1 FROM setlists WHERE id = $1 AND band_id = $2`;
                 const checkResult = await client.query(checkQuery, [setlistId, bandId]);
                 if (checkResult.rows.length === 0) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden' }) };
-
+                
                 const songIds = body.song_ids;
                 await client.query('BEGIN');
                 await client.query('DELETE FROM setlist_songs WHERE setlist_id = $1', [setlistId]);
