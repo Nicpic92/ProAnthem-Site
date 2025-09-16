@@ -1,17 +1,128 @@
-// In netlify/functions/login.js
+const { Client } = require('pg');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// ... (user is found, password matches) ...
+const SOLO_PLAN_PRICE_ID = process.env.STRIPE_SOLO_PRICE_ID;
+const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
+const JWT_SECRET = process.env.JWT_SECRET;
 
-const specialRoles = ['admin', 'band_admin', 'band_member'];
-const specialStatuses = ['admin_granted', 'trialing'];
+exports.handler = async (event) => {
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
+    }
 
-if (specialRoles.includes(userRole) || specialStatuses.includes(subStatus)) {
-    // A 'band_member' ENTERS this block.
-    // The code does nothing and proceeds to generate a token.
-    // THIS PART IS CORRECT.
-} else {
-    // A PAYING 'solo' or 'band_admin' enters this block.
-    // THIS LOGIC IS FLAWED, BUT NOT THE CAUSE OF THE CURRENT ERROR.
-}
+    const { email, password } = JSON.parse(event.body);
+    if (!email || !password) {
+        return { statusCode: 400, body: JSON.stringify({ message: 'Email and password are required.' }) };
+    }
 
-// ... token generation ...
+    const client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+    });
+
+    try {
+        await client.connect();
+        const userQuery = 'SELECT * FROM users WHERE email = $1';
+        const userResult = await client.query(userQuery, [email.toLowerCase()]);
+
+        if (userResult.rows.length === 0) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
+        }
+        let user = userResult.rows[0];
+
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
+        }
+        
+        let subStatus = user.subscription_status;
+        let userRole = user.role;
+        const forceReset = user.password_reset_required || false;
+
+        // --- THIS IS THE CORRECTED LOGIC BLOCK ---
+        // These roles are managed manually or by invitation, not by Stripe payments directly.
+        // We should trust the database role for these users and not try to change it based on a subscription.
+        const nonStripeManagedRoles = ['admin', 'band_member'];
+
+        if (nonStripeManagedRoles.includes(user.role)) {
+            // Do nothing. Trust the role assigned in the database.
+            // This prevents an invited 'band_member' from having their role changed,
+            // and protects admins.
+        } else {
+            // This user's role IS managed by their subscription (e.g., 'solo', 'band_admin').
+            // We verify their status with Stripe.
+            if (user.stripe_customer_id) {
+                const subscriptions = await stripe.subscriptions.list({
+                    customer: user.stripe_customer_id,
+                    status: 'all', 
+                    limit: 1,
+                });
+
+                let newStatus = 'inactive';
+                let newPlan = null;
+                // Start by assuming the role WILL NOT CHANGE unless a subscription dictates it.
+                let newRole = user.role; 
+
+                if (subscriptions.data.length > 0) {
+                    const sub = subscriptions.data[0];
+                    // Trust the status from Stripe ('trialing', 'active', 'canceled', etc.)
+                    newStatus = sub.status;
+                    const priceId = sub.items.data[0].price.id;
+
+                    // Determine plan and role based on the Stripe Price ID
+                    if (priceId === BAND_PLAN_PRICE_ID) {
+                        newPlan = 'band';
+                        newRole = 'band_admin'; // A paying user on a band plan is the admin.
+                    } else if (priceId === SOLO_PLAN_PRICE_ID) {
+                        newPlan = 'solo';
+                        newRole = 'solo';
+                    }
+                }
+                
+                // Only update the database if something has changed.
+                if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || newRole !== user.role) {
+                    await client.query(
+                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                        [newStatus, newPlan, newRole, user.email]
+                    );
+                    // Update local variables to reflect the change for the token payload
+                    subStatus = newStatus;
+                    userRole = newRole;
+                } else {
+                    // If nothing changed, still ensure the local variables are up-to-date from Stripe
+                    subStatus = newStatus;
+                }
+            } else {
+                // User has no Stripe ID, so they are inactive (unless they have a special role).
+                subStatus = 'inactive';
+            }
+        }
+        
+        const tokenPayload = {
+            user: {
+                email: user.email, 
+                role: userRole, 
+                name: user.first_name,
+                band_id: user.band_id, 
+                subscription_status: subStatus,
+                force_reset: forceReset 
+            }
+        };
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '1d' });
+
+        if(forceReset) {
+            await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
+        }
+        
+        return { statusCode: 200, body: JSON.stringify({ message: 'Login successful.', token: token }) };
+    } catch (error) {
+        console.error('Login Error:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error' }) };
+    } finally {
+        if(client) {
+            await client.end();
+        }
+    }
+};
