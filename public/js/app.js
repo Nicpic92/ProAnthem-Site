@@ -82,12 +82,60 @@ function ProAnthemApp(isDemo = false) {
         SHARP_SCALE: ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
     };
 
+    // --- THIS IS THE FIX ---
+    // The `this.el` object is now correctly defined without duplicates.
     this.el = {
-        titleInput: document.getElementById('titleInput'), artistInput: document.getElementById('artistInput'), durationInput: document.getElementById('durationInput'), songBlocksContainer: document.getElementById('song-blocks-container'), addBlockButtonsContainer: document.getElementById('add-block-buttons'), livePreview: document.getElementById('livePreview'), tuningSelector: document.getElementById('tuningSelector'), capoFretInput: document.getElementById('capoFretInput'), songSelector: document.getElementById('songSelector'), saveBtn: document.getElementById('saveBtn'), deleteBtn: document.getElementById('deleteBtn'), statusMessage: document.getElementById('statusMessage'), chordPalette: document.querySelector('#sidebar #chordPalette'), newChordInput: document.querySelector('#sidebar #newChordInput'), addChordBtn: document.querySelector('#sidebar #addChordBtn'), transposeDownBtn: document.getElementById('transposeDownBtn'), transposeUpBtn: document.getElementById('transposeUpBtn'), transposeStatus: document.getElementById('transposeStatus'), chordQueueDiv: document.getElementById('chordQueue'), clearQueueBtn: document.getElementById('clearQueueBtn'), setlistBtn: document.getElementById('setlistBtn'), recordBtn: document.getElementById('recordBtn'), stopBtn: document.getElementById('stopBtn'), recordingStatus: document.getElementById('recordingStatus'), deleteAudioBtn: document.getElementById('deleteAudioBtn'),
-        setlistModal: document.getElementById('setlistModal'), closeSetlistModalBtn: document.getElementById('closeSetlistModalBtn'), setlistSelector: document.getElementById('setlistSelector'), createSetlistBtn: document.getElementById('createSetlistBtn'), addSongToSetlistBtn: document.getElementById('addSongToSetlistBtn'), printSetlistBtn: document.getElementById('printSetlistBtn'), newSetlistInput: document.getElementById('newSetlistInput'), songsInSetlist: document.getElementById('songsInSetlist'), currentSetlistTitle: document.getElementById('currentSetlistTitle'), setlistDetailsSection: document.getElementById('setlistDetailsSection'), saveSetlistDetailsBtn: document.getElementById('saveSetlistDetailsBtn'), deleteSetlistBtn: document.getElementById('deleteSetlistBtn'), printDrummerSetlistBtn: document.getElementById('printDrummerSetlistBtn'),
-        fretSelectionModal: document.getElementById('fret-selection-modal'), fretNumberSelector: document.getElementById('fret-number-selector'), addFretBtn: document.getElementById('add-fret-btn'), cancelFretBtn: document.getElementById('cancel-fret-btn'), soundingKeyDisplay: document.getElementById('soundingKeyDisplay'),
-        importBtn: document.getElementById('importBtn'), importModal: document.getElementById('import-modal'), importTextarea: document.getElementById('import-textarea'), importConfirmBtn: document.getElementById('import-confirm-btn'), importCancelBtn: document.getElementById('import-cancel-btn'),
-        setlistNoteForm: document.getElementById('setlistNoteForm'), newSetlistNoteInput: document.getElementById('newSetlistNoteInput'), addSetlistNoteBtn: document.getElementById('addSetlistNoteBtn'),
+        titleInput: document.getElementById('titleInput'), 
+        artistInput: document.getElementById('artistInput'), 
+        durationInput: document.getElementById('durationInput'), 
+        songBlocksContainer: document.getElementById('song-blocks-container'), 
+        addBlockButtonsContainer: document.getElementById('add-block-buttons'), 
+        livePreview: document.getElementById('livePreview'), 
+        tuningSelector: document.getElementById('tuningSelector'), 
+        capoFretInput: document.getElementById('capoFretInput'), 
+        songSelector: document.getElementById('songSelector'), 
+        saveBtn: document.getElementById('saveBtn'), 
+        deleteBtn: document.getElementById('deleteBtn'), 
+        statusMessage: document.getElementById('statusMessage'), 
+        chordPalette: document.querySelector('#sidebar #chordPalette'), 
+        newChordInput: document.querySelector('#sidebar #newChordInput'), 
+        addChordBtn: document.querySelector('#sidebar #addChordBtn'), 
+        transposeDownBtn: document.getElementById('transposeDownBtn'), 
+        transposeUpBtn: document.getElementById('transposeUpBtn'), 
+        transposeStatus: document.getElementById('transposeStatus'), 
+        chordQueueDiv: document.getElementById('chordQueue'), 
+        clearQueueBtn: document.getElementById('clearQueueBtn'), 
+        setlistBtn: document.getElementById('setlistBtn'), 
+        recordBtn: document.getElementById('recordBtn'), 
+        stopBtn: document.getElementById('stopBtn'), 
+        recordingStatus: document.getElementById('recordingStatus'), 
+        deleteAudioBtn: document.getElementById('deleteAudioBtn'),
+        setlistModal: document.getElementById('setlistModal'), 
+        closeSetlistModalBtn: document.getElementById('closeSetlistModalBtn'), 
+        setlistSelector: document.getElementById('setlistSelector'), 
+        createSetlistBtn: document.getElementById('createSetlistBtn'), 
+        addSongToSetlistBtn: document.getElementById('addSongToSetlistBtn'), 
+        printSetlistBtn: document.getElementById('printSetlistBtn'), 
+        newSetlistInput: document.getElementById('newSetlistInput'), 
+        songsInSetlist: document.getElementById('songsInSetlist'), 
+        currentSetlistTitle: document.getElementById('currentSetlistTitle'), 
+        setlistDetailsSection: document.getElementById('setlistDetailsSection'), 
+        saveSetlistDetailsBtn: document.getElementById('saveSetlistDetailsBtn'), 
+        deleteSetlistBtn: document.getElementById('deleteSetlistBtn'), 
+        printDrummerSetlistBtn: document.getElementById('printDrummerSetlistBtn'),
+        fretSelectionModal: document.getElementById('fret-selection-modal'), 
+        fretNumberSelector: document.getElementById('fret-number-selector'), 
+        addFretBtn: document.getElementById('add-fret-btn'), 
+        cancelFretBtn: document.getElementById('cancel-fret-btn'), 
+        soundingKeyDisplay: document.getElementById('soundingKeyDisplay'),
+        importBtn: document.getElementById('importBtn'), 
+        importModal: document.getElementById('import-modal'), 
+        importTextarea: document.getElementById('import-textarea'), 
+        importConfirmBtn: document.getElementById('import-confirm-btn'), 
+        importCancelBtn: document.getElementById('import-cancel-btn'),
+        setlistNoteForm: document.getElementById('setlistNoteForm'), 
+        newSetlistNoteInput: document.getElementById('newSetlistNoteInput'), 
+        addSetlistNoteBtn: document.getElementById('addSetlistNoteBtn'),
         resetDemoBtn: document.getElementById('resetDemoBtn'),
         newSetlistNoteDuration: document.getElementById('newSetlistNoteDuration'),
         setlistTotalTime: document.getElementById('setlistTotalTime')
@@ -131,7 +179,10 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.songSelector?.addEventListener('change', () => this.loadSong(this.el.songSelector.value));
     
     // --- THIS IS THE FIX ---
-    this.el.setlistBtn?.addEventListener('click', this.openSetlistManager.bind(this));
+    // The event listener for the Show Builder button is now correctly attached.
+    if (this.el.setlistBtn) {
+        this.el.setlistBtn.addEventListener('click', this.openSetlistManager.bind(this));
+    }
     
     this.el.closeSetlistModalBtn?.addEventListener('click', () => this.el.setlistModal.classList.add('hidden'));
     this.el.setlistSelector?.addEventListener('change', (e) => this.handleSetlistSelection(e.target.value));
@@ -150,6 +201,8 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.importCancelBtn?.addEventListener('click', () => this.el.importModal.classList.add('hidden'));
     this.el.importConfirmBtn?.addEventListener('click', this.handleImport.bind(this));
 };
+
+// ... (The rest of the file is correct and remains unchanged)
 
 ProAnthemApp.prototype.initializeDemoSong = function() {
     this.songData = { 
