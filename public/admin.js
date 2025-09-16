@@ -22,13 +22,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     loadUsers();
+
+    document.getElementById('add-user-btn').addEventListener('click', openAddUserModal);
+    document.getElementById('add-user-form').addEventListener('submit', confirmAddUser);
 });
 
 function openModal(modalId) {
     const modal = document.getElementById(modalId);
     if (modal) {
         modal.classList.remove('hidden');
-        modal.classList.add('flex'); // Use flex to center it
+        modal.classList.add('flex');
     }
 }
 
@@ -47,25 +50,96 @@ async function loadUsers() {
     try {
         const users = await apiRequest('admin-tasks/users'); 
         tableBody.innerHTML = '';
+        const roles = ['solo', 'band_member', 'band_admin', 'admin'];
+
         users.forEach(user => {
             const row = document.createElement('tr');
             row.className = 'border-b border-gray-700 hover:bg-gray-700/50';
             
-            const roleDisplay = user.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const roleOptions = roles.map(role => 
+                `<option value="${role}" ${user.role === role ? 'selected' : ''}>${role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>`
+            ).join('');
 
             row.innerHTML = `
                 <td class="p-3">${user.email}</td>
                 <td class="p-3 text-gray-400">${user.band_name || 'N/A'} (ID: ${user.band_id || 'N/A'})</td>
-                <td class="p-3">${roleDisplay}</td>
-                <td class="p-3 space-x-2">
-                    <button class="text-blue-400 hover:underline">Reassign Band</button>
+                <td class="p-3">
+                    <select class="form-select form-input text-sm" data-email="${user.email}">${roleOptions}</select>
+                </td>
+                <td class="p-3 space-x-2 whitespace-nowrap">
+                    <button class="btn btn-sm btn-secondary" data-action="save-role" data-email="${user.email}">Save</button>
+                    <button class="btn btn-sm" data-action="reassign" data-email="${user.email}">Reassign</button>
+                    <button class="btn btn-sm btn-danger" data-action="delete" data-email="${user.email}">Delete</button>
                 </td>
             `;
-            row.querySelector('button').addEventListener('click', () => openReassignModal(user.email));
             tableBody.appendChild(row);
         });
+
+        // Add event listeners after rows are created
+        tableBody.querySelectorAll('button[data-action="save-role"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const email = e.target.dataset.email;
+                const selectEl = tableBody.querySelector(`select[data-email="${email}"]`);
+                handleUpdateRole(email, selectEl.value);
+            });
+        });
+        tableBody.querySelectorAll('button[data-action="reassign"]').forEach(btn => {
+            btn.addEventListener('click', (e) => openReassignModal(e.target.dataset.email));
+        });
+        tableBody.querySelectorAll('button[data-action="delete"]').forEach(btn => {
+            btn.addEventListener('click', (e) => handleDeleteUser(e.target.dataset.email));
+        });
+
     } catch (error) {
         tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load users: ${error.message}</td></tr>`;
+    }
+}
+
+async function handleUpdateRole(email, newRole) {
+    if (!confirm(`Are you sure you want to change ${email}'s role to ${newRole}?`)) return;
+    try {
+        await apiRequest('admin-tasks/update-role', { email, newRole }, 'POST');
+        alert('Role updated successfully!');
+        loadUsers();
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
+}
+
+async function handleDeleteUser(email) {
+    if (!confirm(`ARE YOU SURE you want to permanently delete the user ${email}? This action cannot be undone.`)) return;
+    try {
+        await apiRequest('admin-tasks/delete-user', { email }, 'POST');
+        alert('User deleted successfully!');
+        loadUsers();
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
+}
+
+function openAddUserModal() {
+    document.getElementById('add-user-form').reset();
+    const bandSelect = document.getElementById('add-user-band');
+    bandSelect.innerHTML = allBands.map(band => `<option value="${band.id}">${band.band_name}</option>`).join('');
+    openModal('add-user-modal');
+}
+
+async function confirmAddUser(event) {
+    event.preventDefault();
+    const payload = {
+        firstName: document.getElementById('add-user-firstname').value,
+        lastName: document.getElementById('add-user-lastname').value,
+        email: document.getElementById('add-user-email').value,
+        role: document.getElementById('add-user-role').value,
+        bandId: document.getElementById('add-user-band').value,
+    };
+    try {
+        const result = await apiRequest('admin-tasks/add-user', payload, 'POST');
+        alert(`User created!\n\nIMPORTANT: Please provide the following temporary password to the user:\n\n${result.temporaryPassword}`);
+        closeModal('add-user-modal');
+        loadUsers();
+    } catch (error) {
+        alert(`Error: ${error.message}`);
     }
 }
 
