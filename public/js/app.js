@@ -132,7 +132,7 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     
     // --- THIS IS THE FIX ---
     this.el.setlistBtn?.addEventListener('click', this.openSetlistManager.bind(this));
-
+    
     this.el.closeSetlistModalBtn?.addEventListener('click', () => this.el.setlistModal.classList.add('hidden'));
     this.el.setlistSelector?.addEventListener('change', (e) => this.handleSetlistSelection(e.target.value));
     this.el.saveSetlistDetailsBtn?.addEventListener('click', this.handleSaveSetlistDetails.bind(this));
@@ -312,6 +312,7 @@ ProAnthemApp.prototype.handleSave = async function() {
     if (this.isDemo) {
         this.songData.title = this.el.titleInput.value || 'My Demo Song';
         this.songData.artist = this.el.artistInput.value || 'An Artist';
+        this.songData.duration = this.el.durationInput.value || null;
         const hasContent = this.songData.song_blocks.some(b => (b.content && b.content.trim() !== '') || (b.data && b.data.notes && b.data.notes.length > 0));
         if (!hasContent && !this.songData.title) {
             alert("Please add a title or some content before saving!");
