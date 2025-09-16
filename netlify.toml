@@ -1,32 +1,23 @@
 # This is the main configuration file for your Netlify site.
 
 [build]
-  # This tells Netlify where your serverless functions are located.
   functions = "netlify/functions"
-  # This tells Netlify which folder to publish as the live site.
   publish = "public"
 
 [[redirects]]
-  # --- THIS IS THE FIX ---
-  # This is a specific rule that must come BEFORE the generic /api/* rule.
-  # It catches any request starting with /api/public-band-page/...
-  from = "/api/public-band-page/*"
-  # ...and explicitly maps it to the single public-band-page function.
-  # The function itself will still get the full path to parse the slug.
-  to = "/.netlify/functions/public-band-page"
+  # --- FIX: Update the specific rule for the renamed function ---
+  from = "/api/bandpage/*"
+  to = "/.netlify/functions/bandpage"
   status = 200
 
 [[redirects]]
   # This is the generic rule for all other API calls.
-  # It will now only be used if the rule above doesn't match.
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
 [[redirects]]
   # This rule for the frontend remains correct.
-  # Any request to /bands/some-slug...
   from = "/bands/:slug"
-  # ...will be rewritten to serve the band-profile.html file.
   to = "/band-profile.html"
   status = 200
