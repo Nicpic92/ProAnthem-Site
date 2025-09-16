@@ -50,7 +50,8 @@ async function loadUsers() {
     try {
         const users = await apiRequest('admin-tasks/users'); 
         tableBody.innerHTML = '';
-        const roles = ['solo', 'band_member', 'band_admin', 'admin'];
+        // --- ADDED 'editor' to the list of roles ---
+        const roles = ['solo', 'band_member', 'editor', 'band_admin', 'admin'];
 
         users.forEach(user => {
             const row = document.createElement('tr');
