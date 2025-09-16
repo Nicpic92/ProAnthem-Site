@@ -1,11 +1,11 @@
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcryptjs'); // <-- ADD BCRYPTJS
-const crypto = require('crypto');   // <-- ADD CRYPTO for secure passwords
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-// Helper to generate a random password
+// Helper to generate a random password (no longer used for add-user, but good to keep)
 const generateTemporaryPassword = () => crypto.randomBytes(8).toString('hex');
 
 exports.handler = async (event) => {
@@ -14,14 +14,14 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    let adminEmail; // <-- Get the admin's email for security checks
+    let adminEmail;
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         if (decoded.user.role !== 'admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required' }) };
         }
-        adminEmail = decoded.user.email; // Store the admin's email
+        adminEmail = decoded.user.email;
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
@@ -37,20 +37,17 @@ exports.handler = async (event) => {
         const resource = path.split('/')[2];
 
         if (event.httpMethod === 'GET' && resource === 'users') {
-            // No changes here
             const query = `SELECT u.email, u.role, u.created_at, b.band_name, u.band_id FROM users u LEFT JOIN bands b ON u.band_id = b.id ORDER BY u.created_at DESC;`;
             const result = await client.query(query);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
         
         if (event.httpMethod === 'GET' && resource === 'bands') {
-            // No changes here
             const result = await client.query('SELECT id, band_name FROM bands ORDER BY band_name ASC');
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
         
         if (event.httpMethod === 'GET' && resource === 'songs') {
-            // No changes here
             const result = await client.query('SELECT s.id, s.title, s.artist, b.band_name FROM lyric_sheets s JOIN bands b on s.band_id = b.id ORDER BY b.band_name, s.title');
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
@@ -59,7 +56,6 @@ exports.handler = async (event) => {
             const body = JSON.parse(event.body);
 
             if (resource === 'reassign-user') {
-                // No changes here
                 const { email, newBandId } = body;
                 if (!email || !newBandId) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newBandId are required.' })};
                 await client.query('UPDATE users SET band_id = $1 WHERE email = $2', [newBandId, email]);
@@ -67,19 +63,16 @@ exports.handler = async (event) => {
             }
             
             if (resource === 'copy-song') {
-                // No changes here
                 const { songId, targetBandId } = body;
                 if (!songId || !targetBandId) return { statusCode: 400, body: JSON.stringify({ message: 'songId and targetBandId are required.' })};
                 await client.query('SELECT copy_song_to_band($1, $2)', [songId, targetBandId]);
                 return { statusCode: 200, body: JSON.stringify({ message: `Song copied successfully.`}) };
             }
 
-            // --- NEW: UPDATE USER ROLE ---
             if (resource === 'update-role') {
                 const { email, newRole } = body;
                 if (!email || !newRole) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRole are required.' })};
 
-                // Security: Prevent an admin from demoting themselves or another admin.
                 if (email.toLowerCase() === adminEmail.toLowerCase() && newRole !== 'admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Admins cannot change their own role.' })};
                 }
@@ -92,27 +85,33 @@ exports.handler = async (event) => {
                 return { statusCode: 200, body: JSON.stringify({ message: `User ${email}'s role updated to ${newRole}.`}) };
             }
 
-            // --- NEW: ADD NEW USER ---
             if (resource === 'add-user') {
                 const { email, firstName, lastName, role, bandId } = body;
                 if (!email || !firstName || !lastName || !role || !bandId) {
                     return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required to add a user.' })};
                 }
-                const tempPassword = generateTemporaryPassword();
+
+                // --- THIS IS THE FIX ---
+                // 1. Fetch the band_number from the bands table.
+                const { rows: [band] } = await client.query('SELECT band_number FROM bands WHERE id = $1', [bandId]);
+                if (!band) {
+                    return { statusCode: 404, body: JSON.stringify({ message: 'The selected band was not found.' })};
+                }
+                const tempPassword = band.band_number.toString(); // 2. Use the band_number as the password.
+
                 const password_hash = await bcrypt.hash(tempPassword, 10);
 
                 const query = `INSERT INTO users (email, password_hash, first_name, last_name, role, band_id, password_reset_required)
                                VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING email`;
                 await client.query(query, [email.toLowerCase(), password_hash, firstName, lastName, role, bandId]);
+                // 3. Return the band_number in the response.
                 return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.', temporaryPassword: tempPassword }) };
             }
 
-            // --- NEW: DELETE USER ---
             if (resource === 'delete-user') {
                 const { email } = body;
                 if (!email) return { statusCode: 400, body: JSON.stringify({ message: 'Email is required.' })};
 
-                // Security: Prevent admin from deleting themselves or another admin.
                 if (email.toLowerCase() === adminEmail.toLowerCase()) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Admins cannot delete their own account.' })};
                 }
@@ -129,7 +128,7 @@ exports.handler = async (event) => {
         return { statusCode: 404, body: JSON.stringify({ message: 'Admin task not found.' }) };
 
     } catch (error) {
-        if (error.code === '23505') { // Unique constraint violation (e.g., email already exists)
+        if (error.code === '23505') { 
             return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists.' }) };
         }
         console.error('API Error in /api/admin-tasks:', error);
