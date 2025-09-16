@@ -1,23 +1,15 @@
-# This is the main configuration file for your Netlify site.
-
 [build]
   functions = "netlify/functions"
   publish = "public"
 
 [[redirects]]
-  # --- FIX: Update the specific rule for the renamed function ---
-  from = "/api/bandpage/*"
-  to = "/.netlify/functions/bandpage"
-  status = 200
-
-[[redirects]]
-  # This is the generic rule for all other API calls.
+  # This single generic rule is now sufficient for all API calls.
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
 [[redirects]]
-  # This rule for the frontend remains correct.
+  # This rule for the frontend URL structure remains correct.
   from = "/bands/:slug"
   to = "/band-profile.html"
   status = 200
