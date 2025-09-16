@@ -59,11 +59,9 @@ exports.handler = async (event) => {
         if (event.httpMethod === 'POST') {
             const body = JSON.parse(event.body || '{}');
 
-            // --- NEW: Clone Setlist Endpoint ---
             if (setlistId && resourceType === 'clone') {
                 await client.query('BEGIN');
                 try {
-                    // 1. Get the original setlist's data
                     const { rows: [originalSetlist] } = await client.query(
                         'SELECT * FROM setlists WHERE id = $1 AND band_id = $2', 
                         [setlistId, bandId]
@@ -71,22 +69,22 @@ exports.handler = async (event) => {
                     if (!originalSetlist) {
                         throw new Error('Original setlist not found or access denied.');
                     }
+                    
+                    // --- UPDATED LOGIC ---
+                    // Use the provided new name, or fall back to the old behavior if it's missing.
+                    const newName = body.newName || `${originalSetlist.name} (Copy)`;
 
-                    // 2. Create the new setlist
-                    const newName = `${originalSetlist.name} (Copy)`;
                     const insertSetlistQuery = `INSERT INTO setlists (name, user_email, band_id, venue, event_date, notes, logo_url) 
                                                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
                     const { rows: [newSetlist] } = await client.query(insertSetlistQuery, [
                         newName, userEmail, bandId, originalSetlist.venue, originalSetlist.event_date, originalSetlist.notes, originalSetlist.logo_url
                     ]);
 
-                    // 3. Get the songs from the original setlist
                     const { rows: originalSongs } = await client.query(
                         'SELECT song_id, song_order FROM setlist_songs WHERE setlist_id = $1',
                         [setlistId]
                     );
 
-                    // 4. Insert the songs into the new setlist
                     if (originalSongs.length > 0) {
                         const values = originalSongs.map(song => `(${newSetlist.id}, ${song.song_id}, ${song.song_order})`).join(',');
                         const insertSongsQuery = `INSERT INTO setlist_songs (setlist_id, song_id, song_order) VALUES ${values}`;
