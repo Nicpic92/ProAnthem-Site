@@ -1,13 +1,16 @@
 // --- START OF FILE public/js/auth.js ---
 
-// This script now ONLY handles generic auth state, like the nav bar and access control.
-// Page-specific logic (like the login modal) is handled on the page itself.
+import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
+    // Re-establishes that this script handles the main login modal form
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+    }
 });
 
-// --- Core Auth & Session Functions ---
 export function getToken() { return localStorage.getItem('user_token'); }
 
 export function getUserPayload() {
@@ -43,75 +46,93 @@ function updateNav() {
         }
          buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
-        
         document.getElementById('logout-button')?.addEventListener('click', logout);
-
     } else {
         navAuthSection.innerHTML = `<button id="login-modal-button" class="btn btn-secondary">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
-            loginBtn.addEventListener('click', () => {
-                const authModal = document.getElementById('auth-modal');
-                if (authModal) {
-                    authModal.classList.remove('hidden');
-                    authModal.classList.add('flex');
-                }
-            });
+            loginBtn.addEventListener('click', () => openModal('login'));
         }
     }
 }
 
 export function checkAccess() {
-    const publicPages = [
-        '/', 
-        '/proanthem_index.html', '/proanthem_index',
-        '/pricing.html', '/pricing',
-        '/demo.html', '/demo',
-        '/construction.html', '/construction',
-        '/band-profile.html', '/band-profile',
-        '/admin.html', '/admin'
-    ];
-    
+    // ... (This function is correct and remains unchanged) ...
+    const publicPages = ['/', '/proanthem_index.html', '/proanthem_index', '/pricing.html', '/pricing', '/demo.html', '/demo', '/construction.html', '/construction', '/band-profile.html', '/band-profile', '/admin.html', '/admin'];
     const currentPath = window.location.pathname.toLowerCase();
-
-    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
-        return true; 
-    }
-
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) { return true; }
     const user = getUserPayload();
-    if (!user) {
-        window.location.href = '/proanthem_index.html';
-        return false;
-    }
-    
+    if (!user) { window.location.href = '/proanthem_index.html'; return false; }
     const subscriptionRoles = ['solo', 'band_admin'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
-    
     const hasValidSubscription = subscriptionRoles.includes(user.role) && validStatuses.includes(user.subscription_status);
     const isSystemAdmin = user.role === 'admin';
     const isBandMember = user.role === 'band_member';
-
-    if (currentPath.includes('projectanthem')) {
-        if (!hasValidSubscription && !isSystemAdmin && !isBandMember) {
-            window.location.href = '/pricing.html';
-            return false;
-        }
-    }
-    
-    if (currentPath.includes('band.html') || currentPath.includes('band')) {
-        if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') {
-            window.location.href = '/proanthem_index.html';
-            return false;
-        }
-    }
-    
+    if (currentPath.includes('projectanthem')) { if (!hasValidSubscription && !isSystemAdmin && !isBandMember) { window.location.href = '/pricing.html'; return false; } }
+    if (currentPath.includes('band.html') || currentPath.includes('band')) { if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') { window.location.href = '/proanthem_index.html'; return false; } }
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
-    
-    if (content && accessDenied) {
-        content.style.display = 'block';
-        accessDenied.style.display = 'none';
-    }
-
+    if (content && accessDenied) { content.style.display = 'block'; accessDenied.style.display = 'none'; }
     return true;
+}
+
+// --- THIS IS THE FIX ---
+// The login logic is restored here, with a proper try...catch block.
+async function handleLogin(event) {
+    event.preventDefault();
+    const loginError = document.getElementById('login-error');
+    loginError.textContent = 'Logging in...';
+    const form = event.target;
+    const payload = {
+        email: form.querySelector('#login-email').value,
+        password: form.querySelector('#login-password').value
+    };
+    try {
+        await performLogin(payload);
+    } catch(error) {
+        // This will now correctly catch the "Invalid credentials." error from performLogin
+        // and display it in the modal.
+        loginError.textContent = error.message;
+    }
+}
+
+export async function performLogin(credentials, redirectTo = null) {
+    try {
+        const result = await login(credentials); // This will throw on failure
+        if (result.token) {
+            localStorage.setItem('user_token', result.token);
+            if (redirectTo) {
+                window.location.href = redirectTo;
+                return;
+            }
+            const user = getUserPayload();
+            const specialRoles = ['admin', 'band_admin', 'band_member'];
+            const validStatuses = ['active', 'trialing', 'admin_granted'];
+            const hasSpecialRole = user && specialRoles.includes(user.role);
+            const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
+            const hasAccess = hasSpecialRole || hasValidSubscription;
+            window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+        } else {
+            throw new Error("Login failed: No token returned.");
+        }
+    } catch(error) {
+        throw error; // Re-throw the error to be caught by handleLogin
+    }
+}
+
+function openModal(view) {
+    const authModal = document.getElementById('auth-modal');
+    if(authModal) {
+        const loginView = document.getElementById('login-view');
+        if(view === 'login' && loginView) {
+            authModal.classList.remove('hidden'); 
+            authModal.classList.add('flex'); 
+            loginView.classList.remove('hidden');
+            const loginForm = document.getElementById('login-form');
+            if (loginForm && !loginForm.dataset.listenerAttached) {
+                 loginForm.addEventListener('submit', handleLogin);
+                 loginForm.dataset.listenerAttached = 'true';
+            }
+        }
+    }
 }
