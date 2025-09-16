@@ -7,12 +7,17 @@
     <title>Live Show - ProAnthem</title>
     <link rel="stylesheet" href="/css/style.css">
     <style>
-        body { background-color: #000; color: #fff; font-family: 'Courier New', Courier, monospace; }
-        .live-view { width: 100vw; height: 100vh; display: flex; flex-direction: column; padding: 2rem; }
-        .song-content { flex-grow: 1; overflow-y: auto; font-size: 2.5vw; line-height: 1.6; white-space: pre-wrap; }
+        body { background-color: #000; color: #fff; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+        .live-view { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+        .scroll-controls { flex-shrink: 0; display: flex; justify-content: center; align-items: center; gap: 1rem; padding: 0.5rem; background-color: #111; border-bottom: 1px solid #333; }
+        .scroll-controls input { background-color: #222; border: 1px solid #444; color: #fff; padding: 0.5rem; border-radius: 4px; width: 100px; text-align: center; }
+        .scroll-controls button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; }
+        .song-content-wrapper { flex-grow: 1; overflow-y: auto; font-size: 2.5vw; line-height: 1.6; white-space: pre-wrap; padding: 2rem; scroll-behavior: smooth; }
+        .song-content-wrapper::-webkit-scrollbar { display: none; } /* Hide scrollbar for cleaner look */
+        .song-content-wrapper { -ms-overflow-style: none; scrollbar-width: none; }
         .song-title { font-size: 4vw; font-weight: bold; margin-bottom: 1rem; color: #facc15; }
         .chord { color: #facc15; }
-        .footer-nav { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid #444; }
+        .footer-nav { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-top: 1px solid #444; }
         .nav-button { background: #222; border: 1px solid #555; padding: 1rem 2rem; cursor: pointer; border-radius: 8px; font-size: 2vw; }
         .next-song { text-align: right; }
         .next-song-label { font-size: 1.5vw; color: #aaa; }
@@ -21,7 +26,13 @@
 </head>
 <body>
     <div id="live-view" class="live-view">
-        <div id="song-content-wrapper" class="song-content">
+        <div class="scroll-controls">
+            <button id="scroll-toggle-btn">Start Scrolling</button>
+            <label for="duration-input">Duration:</label>
+            <input type="text" id="duration-input" placeholder="e.g., 4:30">
+            <button id="set-speed-btn">Set Speed</button>
+        </div>
+        <div id="song-content-wrapper" class="song-content-wrapper">
             <h1 id="song-title">Loading Show...</h1>
             <div id="song-content"></div>
         </div>
@@ -41,11 +52,20 @@
     <script type="module">
         import { getSetlist } from './js/api.js';
         import { getUserPayload } from './js/auth.js';
-        import { parseLineForRender, renderTransposedTab } from './js/modules/ui.js';
 
         let setlistData = {};
         let currentSongIndex = 0;
+        
+        // --- NEW: State variables for auto-scrolling ---
+        let isScrolling = false;
+        let scrollInterval = null;
+        let scrollSpeed = 1; // Pixels per interval
 
+        const contentWrapper = document.getElementById('song-content-wrapper');
+        const scrollToggleButton = document.getElementById('scroll-toggle-btn');
+        const setSpeedButton = document.getElementById('set-speed-btn');
+        const durationInput = document.getElementById('duration-input');
+        
         document.addEventListener('DOMContentLoaded', async () => {
             const user = getUserPayload();
             if (!user) {
@@ -62,26 +82,96 @@
 
             try {
                 setlistData = await getSetlist(setlistId);
-                // Simple note parsing for now, can be enhanced later
                 const parsedNotes = JSON.parse(setlistData.notes || '{"order": [], "notes": []}');
                 const allItemsMap = new Map();
                 (setlistData.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' }));
                 (parsedNotes.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
-                setlistData.orderedItems = parsedNotes.order.map(id => allItemsMap.get(id.toString())).filter(Boolean);
+                setlistData.orderedItems = (parsedNotes.order.length > 0 ? parsedNotes.order : (setlistData.songs || []).map(s => s.id))
+                    .map(id => allItemsMap.get(id.toString())).filter(Boolean);
 
                 renderSong(0);
                 
                 document.getElementById('prev-btn').addEventListener('click', prevSong);
                 document.getElementById('next-btn').addEventListener('click', nextSong);
+                
+                scrollToggleButton.addEventListener('click', toggleScroll);
+                setSpeedButton.addEventListener('click', calculateAndStartScroll);
+                
                 window.addEventListener('keydown', (e) => {
                     if (e.key === 'ArrowLeft') prevSong();
                     if (e.key === 'ArrowRight') nextSong();
+                    if (e.key === ' ') { // Spacebar to toggle scroll
+                        e.preventDefault(); // Prevent page from jumping
+                        toggleScroll();
+                    }
                 });
 
             } catch (error) {
                 document.getElementById('song-title').textContent = `Error: ${error.message}`;
             }
         });
+
+        function parseTimeToSeconds(timeStr) {
+            if (!timeStr || typeof timeStr !== 'string') return 0;
+            const parts = timeStr.split(':').map(Number);
+            if (parts.length === 2) return (parts[0] * 60) + (parts[1] || 0);
+            if (parts.length === 1) return parts[0];
+            return 0;
+        }
+
+        function calculateAndStartScroll() {
+            stopScroll();
+            const durationInSeconds = parseTimeToSeconds(durationInput.value);
+            if (durationInSeconds <= 0) {
+                alert("Please enter a valid duration (e.g., '3:45').");
+                return;
+            }
+
+            const totalScrollHeight = contentWrapper.scrollHeight - contentWrapper.clientHeight;
+            if (totalScrollHeight <= 0) return; // No need to scroll
+
+            // We'll update the scroll position 20 times per second for smoothness
+            const intervalMilliseconds = 50; // (1000ms / 20)
+            const totalIntervals = (durationInSeconds * 1000) / intervalMilliseconds;
+            
+            scrollSpeed = totalScrollHeight / totalIntervals;
+            
+            toggleScroll(); // Start scrolling immediately after setting the speed
+        }
+
+        function toggleScroll() {
+            if (isScrolling) {
+                stopScroll();
+            } else {
+                startScroll();
+            }
+        }
+        
+        function startScroll() {
+            if (scrollInterval) return; // Already running
+            
+            isScrolling = true;
+            scrollToggleButton.textContent = "Stop Scrolling";
+            
+            scrollInterval = setInterval(() => {
+                contentWrapper.scrollTop += scrollSpeed;
+                if (contentWrapper.scrollTop >= (contentWrapper.scrollHeight - contentWrapper.clientHeight)) {
+                    stopScroll(); // Stop when we reach the bottom
+                }
+            }, 50); // Run every 50ms
+        }
+
+        function stopScroll() {
+            clearInterval(scrollInterval);
+            scrollInterval = null;
+            isScrolling = false;
+            scrollToggleButton.textContent = "Start Scrolling";
+        }
+
+        function resetScroll() {
+            stopScroll();
+            contentWrapper.scrollTop = 0;
+        }
 
         function prevSong() {
             if (currentSongIndex > 0) {
@@ -97,33 +187,42 @@
 
         function renderSong(index) {
             currentSongIndex = index;
+            resetScroll(); // Reset scroll for the new song
+            
             const item = setlistData.orderedItems[index];
             const titleEl = document.getElementById('song-title');
             const contentEl = document.getElementById('song-content');
             
             if (item.type === 'song') {
                 titleEl.textContent = item.title;
+                durationInput.value = item.duration || ''; // Pre-fill duration if available
                 let contentHtml = '';
                 const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
                 songBlocks.forEach(block => {
-                    contentHtml += `\n--- ${block.label} ---\n`;
-                    if (block.type === 'lyrics') {
-                        contentHtml += (block.content || '').replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
+                    let blockToRender = block;
+                    if (block.type === 'reference') {
+                        blockToRender = songBlocks.find(b => b.id === block.originalId) || block;
+                    }
+                    contentHtml += `\n--- ${blockToRender.label} ---\n`;
+                    if (blockToRender.type === 'lyrics') {
+                        contentHtml += (blockToRender.content || '').replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
+                    } else if (blockToRender.type === 'drum_tab') {
+                        contentHtml += (blockToRender.content || '(Drum Tab Section)');
                     } else {
-                        // Simplified display for live mode
-                        contentHtml += `(${block.type.replace('_', ' ')} section)`;
+                        contentHtml += `(${blockToRender.type.replace('_', ' ')} section)`;
                     }
                 });
                 contentEl.innerHTML = contentHtml;
 
-            } else { // It's a note
+            } else { // It's a note or break
                 titleEl.textContent = `(${item.title})`;
+                durationInput.value = item.duration || '';
                 contentEl.innerHTML = '';
             }
             
             document.getElementById('current-song-index').textContent = `${index + 1} / ${setlistData.orderedItems.length}`;
             const nextItem = setlistData.orderedItems[index + 1];
-            document.getElementById('next-song-title').textContent = nextItem ? nextItem.title : 'End of Show';
+            document.getElementById('next-song-title').textContent = nextItem ? (nextItem.title || `(${nextItem.type})`) : 'End of Show';
         }
     </script>
 </body>
