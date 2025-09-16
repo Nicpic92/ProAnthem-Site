@@ -1,5 +1,3 @@
-<!-- START OF FILE public/proanthem_index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -163,16 +161,75 @@
         </div>
     </div>
 
-    <!-- *** THIS IS THE CORRECTED SECTION *** -->
+    <!-- This script handles generic auth tasks like the nav bar -->
     <script type="module" src="/js/auth.js"></script>
-    <script>
-        // Non-module scripts can stay here
+    
+    <!-- This script ONLY handles the logic for this specific page -->
+    <script type="module">
+        import { getUserPayload } from './js/auth.js';
+        import { login } from './js/api.js';
+
+        // --- LOGIN MODAL LOGIC ---
         const authModal = document.getElementById('auth-modal');
         const closeModalButton = document.getElementById('close-modal-button');
-        const closeModal = () => authModal.classList.add('hidden');
-        closeModalButton.addEventListener('click', closeModal);
-        authModal.addEventListener('click', (e) => { if (e.target === authModal) closeModal(); });
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
 
+        const closeModal = () => {
+            if (authModal) {
+                authModal.classList.add('hidden');
+                authModal.classList.remove('flex');
+            }
+        };
+
+        closeModalButton.addEventListener('click', closeModal);
+        authModal.addEventListener('click', (e) => { 
+            if (e.target === authModal) closeModal(); 
+        });
+        loginForm.addEventListener('submit', handleLogin);
+
+        async function performLogin(credentials, redirectTo = null) {
+            try {
+                const result = await login(credentials);
+                if (result.token) {
+                    localStorage.setItem('user_token', result.token);
+                    if (redirectTo) {
+                        window.location.href = redirectTo;
+                        return;
+                    }
+                    // After a successful login, check access to determine where to go.
+                    // We must re-get the payload from the new token.
+                    const user = getUserPayload();
+                    const specialRoles = ['admin', 'band_admin', 'band_member'];
+                    const validStatuses = ['active', 'trialing', 'admin_granted'];
+                    const hasSpecialRole = user && specialRoles.includes(user.role);
+                    const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
+                    const hasAccess = hasSpecialRole || hasValidSubscription;
+                    window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
+                } else {
+                    throw new Error("Login failed: No token returned.");
+                }
+            } catch (error) {
+                throw error; // Re-throw to be caught by handleLogin
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            loginError.textContent = 'Logging in...';
+            const payload = {
+                email: loginForm.querySelector('#login-email').value,
+                password: loginForm.querySelector('#login-password').value
+            };
+            try {
+                await performLogin(payload);
+            } catch(error) {
+                // Now this will correctly display the error in the modal
+                loginError.textContent = error.message;
+            }
+        }
+
+        // --- CONTACT FORM LOGIC ---
         const contactForm = document.getElementById('contact-form');
         const contactStatus = document.getElementById('contact-status');
         async function handleContactSubmit(event) {
@@ -203,5 +260,3 @@
     </script>
 </body>
 </html>
-
-<!-- END OF FILE public/proanthem_index.html -->
