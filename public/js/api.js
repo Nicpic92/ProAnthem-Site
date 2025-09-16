@@ -21,8 +21,12 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
         if (response.status === 204) return null;
         const responseData = await response.json();
         if (!response.ok) {
-            if (response.status === 401) {
+            // --- THIS IS THE FIX ---
+            // Only show the "session expired" alert if the error is NOT from the login endpoint itself.
+            if (response.status === 401 && endpoint !== 'login') {
                 alert('Your session has expired. Please log in again.');
+                // We need to find where logout is defined or define it here.
+                // For now, let's redirect manually to be safe.
                 localStorage.removeItem('user_token');
                 window.location.href = '/proanthem_index.html';
             }
