@@ -1,3 +1,6 @@
+import { getUserPayload } from './js/auth.js';
+import { apiRequest } from './js/api.js';
+
 let allBands = [];
 let allSongs = [];
 
@@ -11,8 +14,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('admin-content').style.display = 'block';
     
     try {
-        allBands = await apiRequest('admin-tasks/bands', null, 'GET');
-        allSongs = await apiRequest('admin-tasks/songs', null, 'GET');
+        allBands = await apiRequest('admin-tasks/bands');
+        allSongs = await apiRequest('admin-tasks/songs');
     } catch(e) {
         console.error("Failed to pre-fetch admin data", e);
         alert("Could not load initial admin data. Some features may not work.");
@@ -23,9 +26,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 function openModal(modalId) {
     document.getElementById(modalId).classList.remove('hidden');
+    document.getElementById(modalId).classList.add('flex'); // Use flex to center it
 }
 function closeModal(modalId) {
     document.getElementById(modalId).classList.add('hidden');
+    document.getElementById(modalId).classList.remove('flex');
 }
 
 async function loadUsers() {
@@ -39,16 +44,17 @@ async function loadUsers() {
             const row = document.createElement('tr');
             row.className = 'border-b border-gray-700 hover:bg-gray-700/50';
             
-            const roleDisplay = user.role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const roleDisplay = user.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
             row.innerHTML = `
                 <td class="p-3">${user.email}</td>
                 <td class="p-3 text-gray-400">${user.band_name || 'N/A'} (ID: ${user.band_id || 'N/A'})</td>
                 <td class="p-3">${roleDisplay}</td>
                 <td class="p-3 space-x-2">
-                    <button class="text-blue-400 hover:underline" onclick="openReassignModal('${user.email}')">Reassign Band</button>
+                    <button class="text-blue-400 hover:underline">Reassign Band</button>
                 </td>
             `;
+            row.querySelector('button').addEventListener('click', () => openReassignModal(user.email));
             tableBody.appendChild(row);
         });
     } catch (error) {
@@ -113,3 +119,7 @@ async function confirmCopySong() {
         alert(`Error: ${error.message}`);
     }
 }
+
+// Make functions globally available for inline onclick attributes
+window.openCopySongModal = openCopySongModal;
+window.closeModal = closeModal;
