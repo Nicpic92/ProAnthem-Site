@@ -7,7 +7,7 @@ function getToken() {
 }
 
 // Universal API request function
-async function apiRequest(endpoint, data = null, method = 'GET') {
+export async function apiRequest(endpoint, data = null, method = 'GET') {
     const token = getToken();
     const options = { method, headers: { 'Content-Type': 'application/json' } };
     if (token) {
@@ -61,7 +61,6 @@ export const changePassword = (payload) => apiRequest('band/change-password', pa
 export const createCheckoutSession = (plan) => apiRequest('stripe/create-checkout-session', { plan }, 'POST');
 export const createCustomerPortal = () => apiRequest('stripe/create-customer-portal', {}, 'POST');
 
-// --- FIX: Add specific exports for the Band Management page ---
 export const getBandDetails = () => apiRequest('band');
 export const getBandMembers = () => apiRequest('band/members');
 export const addBandMember = (data) => apiRequest('band/members', data, 'POST');
