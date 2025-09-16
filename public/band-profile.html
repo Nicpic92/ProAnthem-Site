@@ -62,13 +62,11 @@
 
                 if (!slug) throw new Error("No band slug found in URL.");
                 
-                // --- FIX: Changed the API call to use a query string parameter ---
                 const response = await fetch(`/api/bandpage?slug=${slug}`);
                 if (!response.ok) throw new Error(`API responded with status ${response.status}`);
                 
                 const data = await response.json();
 
-                // ... The rest of the script is correct and remains unchanged ...
                 document.title = `${data.profile.band_name} | ProAnthem`;
                 document.getElementById('band-name').textContent = data.profile.band_name;
                 const logoImg = document.getElementById('band-logo');
@@ -82,10 +80,17 @@
                 linksContainer.innerHTML = '';
                 const linkOrder = ['website', 'spotify', 'apple_music', 'youtube', 'instagram', 'facebook'];
                 linkOrder.forEach(key => {
-                    const url = data.profile.links[key];
+                    let url = data.profile.links[key];
                     if (url) {
                         const linkEl = document.createElement('a');
+                        
+                        // --- THIS IS THE FIX ---
+                        // Ensure the URL is absolute by adding https:// if it's missing.
+                        if (!/^https?:\/\//i.test(url)) {
+                            url = 'https://' + url;
+                        }
                         linkEl.href = url;
+                        
                         linkEl.target = '_blank';
                         linkEl.rel = 'noopener noreferrer';
                         linkEl.className = 'block w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-5 rounded-lg transition-colors shadow';
@@ -119,8 +124,12 @@
                         `;
 
                         if (event.external_url) {
+                            let ticketUrl = event.external_url;
+                            if (!/^https?:\/\//i.test(ticketUrl)) {
+                                ticketUrl = 'https://' + ticketUrl;
+                            }
                             const ticketLink = document.createElement('a');
-                            ticketLink.href = event.external_url;
+                            ticketLink.href = ticketUrl;
                             ticketLink.target = '_blank';
                             ticketLink.rel = 'noopener noreferrer';
                             ticketLink.className = 'mt-2 inline-block btn btn-primary text-sm';
