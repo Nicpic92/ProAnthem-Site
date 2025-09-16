@@ -1,5 +1,3 @@
-// --- START OF FILE public/js/app.js ---
-
 import { checkAccess, getUserPayload } from './auth.js';
 import * as api from './api.js';
 import * as UI from './modules/ui.js';
@@ -74,6 +72,7 @@ function ProAnthemApp(isDemo = false) {
     this.selectedNote = {};
     this.activeResize = {};
     this.isDraggingNote = false;
+    this.selectedVersionData = null; // For history modal
 
     this.CONSTANTS = {
         CLOUDINARY_CLOUD_NAME: "dawbku2eq",
@@ -143,7 +142,15 @@ function ProAnthemApp(isDemo = false) {
         startShowBtn: document.getElementById('start-show-btn'),
         addSongToSetlistSection: document.getElementById('add-song-to-setlist-section'),
         addSongSelect: document.getElementById('add-song-select'),
-        addSelectedSongBtn: document.getElementById('add-selected-song-btn')
+        addSelectedSongBtn: document.getElementById('add-selected-song-btn'),
+        historyBtn: document.getElementById('historyBtn'),
+        historyModal: document.getElementById('history-modal'),
+        closeHistoryModalBtn: document.getElementById('close-history-modal-btn'),
+        closeHistoryModalBtn2: document.getElementById('close-history-modal-btn-2'),
+        historyModalTitle: document.getElementById('history-modal-title'),
+        historyVersionList: document.getElementById('history-version-list'),
+        historyPreviewPane: document.getElementById('history-preview-pane'),
+        restoreVersionBtn: document.getElementById('restore-version-btn')
     };
 }
 
@@ -202,6 +209,10 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.importConfirmBtn?.addEventListener('click', this.handleImport.bind(this));
     this.el.startShowBtn?.addEventListener('click', this.handleStartShow.bind(this));
     this.el.addSelectedSongBtn?.addEventListener('click', this.handleAddSongFromBuilder.bind(this));
+    this.el.historyBtn?.addEventListener('click', this.openHistoryModal.bind(this));
+    this.el.closeHistoryModalBtn?.addEventListener('click', () => this.el.historyModal.classList.add('hidden'));
+    this.el.closeHistoryModalBtn2?.addEventListener('click', () => this.el.historyModal.classList.add('hidden'));
+    this.el.restoreVersionBtn?.addEventListener('click', this.handleRestoreVersion.bind(this));
 };
 
 ProAnthemApp.prototype.initializeDemoSong = function() {
@@ -400,7 +411,10 @@ ProAnthemApp.prototype.handleSave = async function() {
 };
 
 ProAnthemApp.prototype.loadSong = async function(id) {
-    if (!id || id === 'new') { this.initializeNewSong(true); return; }
+    if (!id || id === 'new') {
+        this.initializeNewSong(true);
+        return;
+    }
     this.setStatus('Loading song...');
     try {
         const data = await api.getSheet(id);
@@ -415,6 +429,7 @@ ProAnthemApp.prototype.loadSong = async function(id) {
         this.renderSongBlocks();
         this.setStatus('Song loaded.');
         this.updateSoundingKey();
+        this.el.historyBtn.disabled = false;
     } catch (error) {
         this.setStatus(`Error loading song: ${error.message}`, true);
         this.initializeNewSong(true);
@@ -422,6 +437,7 @@ ProAnthemApp.prototype.loadSong = async function(id) {
 };
 
 ProAnthemApp.prototype.initializeNewSong = async function(forceNew = false) {
+    this.el.historyBtn.disabled = true;
     const createBlankSong = () => {
         this.songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
         this.el.titleInput.value = '';
@@ -557,7 +573,53 @@ ProAnthemApp.prototype.handleImport = function() {
 ProAnthemApp.prototype.updateSoundingKey = function() { const capoFret = this.songData.capo || 0; let firstChord = null; for (const block of this.songData.song_blocks) { if (block.type === 'lyrics' && block.content) { const match = block.content.match(/\[([^\]]+)\]/); if (match) { firstChord = match[1]; break; } } } if (!firstChord) { this.el.soundingKeyDisplay.textContent = '-'; return; } const soundingKey = this.transposeChord(firstChord, capoFret); this.el.soundingKeyDisplay.textContent = soundingKey; };
 ProAnthemApp.prototype.openSetlistManager = async function() { if (!document.getElementById('tool-content')?.classList.contains('hidden')) { this.el.setlistModal.classList.remove('hidden'); try { const allSongs = this.isDemo ? [{id: 'demo-song', title: 'The ProAnthem Feature Tour', artist: 'The Dev Team'}] : await api.getSheets(); this.el.addSongSelect.innerHTML = '<option value="">-- Select a song to add --</option>'; allSongs.forEach(song => { const option = document.createElement('option'); option.value = song.id; option.textContent = `${song.title || 'Untitled'} (${song.artist || 'Unknown'})`; this.el.addSongSelect.appendChild(option); }); } catch (error) { this.setStatus('Failed to load song library.', true); } await this.loadSetlists(); this.handleSetlistSelection(null); } };
 ProAnthemApp.prototype.loadSetlists = async function(selectId = null) { try { const lists = this.isDemo ? [{id: 1, name: "Demo Setlist"}] : await api.getSetlists(); this.el.setlistSelector.innerHTML = '<option value="">-- Select a Setlist --</option>'; lists.forEach(list => { const option = document.createElement('option'); option.value = list.id; option.textContent = list.name; this.el.setlistSelector.appendChild(option); }); if (selectId) { this.el.setlistSelector.value = selectId; await this.handleSetlistSelection(selectId); } } catch (error) { this.setStatus('Failed to load setlists.', true); } };
-ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) { if (this.el.songsInSetlist.sortableInstance) { this.el.songsInSetlist.sortableInstance.destroy(); this.el.songsInSetlist.sortableInstance = null; } if (!setlistId) { this.el.currentSetlistTitle.textContent = 'Select a setlist'; this.el.setlistDetailsSection.classList.add('hidden'); this.el.setlistNoteForm.classList.add('hidden'); this.el.addSongToSetlistSection.classList.add('hidden'); this.el.songsInSetlist.innerHTML = ''; this.el.setlistTotalTime.textContent = ''; [this.el.addSongToSetlistBtn, this.el.addSelectedSongBtn, this.el.printSetlistBtn, this.el.printDrummerSetlistBtn, this.el.deleteSetlistBtn, this.el.startShowBtn, this.el.cloneSetlistBtn].forEach(b => b.disabled = true); return; } try { const setlist = this.isDemo ? {name: "Demo Setlist", songs: []} : await api.getSetlist(setlistId); this.el.currentSetlistTitle.textContent = setlist.name; document.getElementById('setlistVenue').value = setlist.venue || ''; document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : ''; document.getElementById('setlistLogoUrl').value = setlist.logo_url || ''; let extraData = { order: [], notes: [] }; try { const notesField = document.getElementById('setlistNotes'); notesField.value = setlist.notes || ''; const parsedNotes = JSON.parse(setlist.notes || '{}'); if (parsedNotes.order && Array.isArray(parsedNotes.notes)) extraData = parsedNotes; } catch (e) {} this.el.setlistDetailsSection.classList.remove('hidden'); this.el.setlistNoteForm.classList.remove('hidden'); this.el.addSongToSetlistSection.classList.remove('hidden'); this.el.songsInSetlist.innerHTML = ''; const allItemsMap = new Map(); (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' })); (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n)); const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => allItemsMap.get(id.toString())).filter(Boolean); orderedItems.forEach(item => { const li = document.createElement('li'); li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded cursor-grab'; const gripHandle = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical inline-block mr-2 text-gray-400" viewBox="0 0 16 16"><path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>`; if (item.type === 'song') { li.dataset.itemId = item.id; li.dataset.itemType = 'song'; const duration = item.duration || '0:00'; const keyInfo = this.getSongKeyInfo(item); li.dataset.duration = duration; li.innerHTML = `<div class="flex-grow"><span>${gripHandle}${item.title} - <em class="text-gray-400">${item.artist}</em></span><div class="text-xs text-indigo-300 ml-6">${keyInfo}</div></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } else { li.dataset.itemId = item.id; li.dataset.itemType = 'note'; const duration = item.duration || '0:00'; li.dataset.duration = duration; li.classList.add('bg-gray-750', 'border', 'border-dashed', 'border-gray-600'); li.innerHTML = `<div class="flex-grow"><span>${gripHandle}<em class="text-indigo-300">${item.title}</em></span></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } this.el.songsInSetlist.appendChild(li); }); this.recalculateSetlistTime(); this.el.songsInSetlist.sortableInstance = new Sortable(this.el.songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => this.saveSetlistOrderAndNotes() }); [this.el.addSongToSetlistBtn, this.el.addSelectedSongBtn, this.el.printSetlistBtn, this.el.printDrummerSetlistBtn, this.el.deleteSetlistBtn, this.el.startShowBtn, this.el.cloneSetlistBtn].forEach(b => { if(b) b.disabled = false; }); } catch (error) { this.setStatus(`Failed to load setlist details: ${error.message}`, true); } };
+
+ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) {
+    if (this.el.songsInSetlist.sortableInstance) { this.el.songsInSetlist.sortableInstance.destroy(); this.el.songsInSetlist.sortableInstance = null; }
+    
+    // --- THIS IS THE FIX (PART 1) ---
+    // This list now correctly includes ALL buttons that should be disabled when no setlist is selected.
+    const buttonsToManage = [this.el.addSongToSetlistBtn, this.el.addSelectedSongBtn, this.el.printSetlistBtn, this.el.printDrummerSetlistBtn, this.el.deleteSetlistBtn, this.el.startShowBtn, this.el.cloneSetlistBtn];
+
+    if (!setlistId) {
+        this.el.currentSetlistTitle.textContent = 'Select a setlist';
+        this.el.setlistDetailsSection.classList.add('hidden');
+        this.el.setlistNoteForm.classList.add('hidden');
+        this.el.addSongToSetlistSection.classList.add('hidden');
+        this.el.songsInSetlist.innerHTML = '';
+        this.el.setlistTotalTime.textContent = '';
+        buttonsToManage.forEach(b => { if(b) b.disabled = true; }); // Safely disable all buttons
+        return;
+    }
+    
+    try {
+        const setlist = this.isDemo ? {name: "Demo Setlist", songs: []} : await api.getSetlist(setlistId);
+        this.el.currentSetlistTitle.textContent = setlist.name;
+        document.getElementById('setlistVenue').value = setlist.venue || '';
+        document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
+        document.getElementById('setlistLogoUrl').value = setlist.logo_url || '';
+        let extraData = { order: [], notes: [] };
+        try { const notesField = document.getElementById('setlistNotes'); notesField.value = setlist.notes || ''; const parsedNotes = JSON.parse(setlist.notes || '{}'); if (parsedNotes.order && Array.isArray(parsedNotes.notes)) extraData = parsedNotes; } catch (e) {}
+        this.el.setlistDetailsSection.classList.remove('hidden');
+        this.el.setlistNoteForm.classList.remove('hidden');
+        this.el.addSongToSetlistSection.classList.remove('hidden');
+        this.el.songsInSetlist.innerHTML = '';
+        const allItemsMap = new Map(); (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' })); (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
+        const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => allItemsMap.get(id.toString())).filter(Boolean);
+        orderedItems.forEach(item => { const li = document.createElement('li'); li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded cursor-grab'; const gripHandle = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical inline-block mr-2 text-gray-400" viewBox="0 0 16 16"><path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>`; if (item.type === 'song') { li.dataset.itemId = item.id; li.dataset.itemType = 'song'; const duration = item.duration || '0:00'; const keyInfo = this.getSongKeyInfo(item); li.dataset.duration = duration; li.innerHTML = `<div class="flex-grow"><span>${gripHandle}${item.title} - <em class="text-gray-400">${item.artist}</em></span><div class="text-xs text-indigo-300 ml-6">${keyInfo}</div></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } else { li.dataset.itemId = item.id; li.dataset.itemType = 'note'; const duration = item.duration || '0:00'; li.dataset.duration = duration; li.classList.add('bg-gray-750', 'border', 'border-dashed', 'border-gray-600'); li.innerHTML = `<div class="flex-grow"><span>${gripHandle}<em class="text-indigo-300">${item.title}</em></span></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } this.el.songsInSetlist.appendChild(li); });
+        this.recalculateSetlistTime();
+        this.el.songsInSetlist.sortableInstance = new Sortable(this.el.songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => this.saveSetlistOrderAndNotes() });
+        
+        // --- THIS IS THE FIX (PART 2) ---
+        // This list now correctly includes ALL buttons that should be enabled.
+        buttonsToManage.forEach(b => { if(b) b.disabled = false; });
+        this.el.addSongToSetlistBtn.disabled = !this.songData.id; // Special case: only enable if a song is loaded
+
+    } catch (error) {
+        this.setStatus(`Failed to load setlist details: ${error.message}`, true);
+    }
+};
+
 ProAnthemApp.prototype.saveSetlistOrderAndNotes = async function() { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); this.recalculateSetlistTime(); return;} const setlistId = this.el.setlistSelector.value; if (!setlistId) return; this.setStatus('Saving setlist...'); const listItems = Array.from(this.el.songsInSetlist.children); const song_ids = [], notes = [], order = []; listItems.forEach(li => { const id = li.dataset.itemId; const type = li.dataset.itemType; order.push(id); if (type === 'song') { song_ids.push(id); } else if (type === 'note') { notes.push({ id: id, type: 'note', title: li.querySelector('em').textContent, duration: li.dataset.duration }); } }); const extraDataPayload = { order, notes }; document.getElementById('setlistNotes').value = JSON.stringify(extraDataPayload); try { await Promise.all([ api.updateSetlistSongOrder(setlistId, song_ids), this.handleSaveSetlistDetails() ]); this.setStatus('Setlist saved!', false); } catch (error) { this.setStatus(`Error saving setlist: ${error.message}`, true); await this.handleSetlistSelection(setlistId); } finally { this.recalculateSetlistTime(); } };
 ProAnthemApp.prototype.handleSaveSetlistDetails = async function() { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); return;} const setlistId = this.el.setlistSelector.value; if (!setlistId) return; const payload = { name: this.el.currentSetlistTitle.textContent, venue: document.getElementById('setlistVenue').value, event_date: document.getElementById('setlistDate').value, logo_url: document.getElementById('setlistLogoUrl').value, notes: document.getElementById('setlistNotes').value }; try { await api.updateSetlistDetails(setlistId, payload); this.setStatus('Setlist details saved!', false); } catch (error) { this.setStatus(`Error saving details: ${error.message}`, true); } };
 ProAnthemApp.prototype.handleCreateSetlist = async function() { if(this.isDemo) {this.setStatus('Setlists not saved in demo.'); return;} const name = this.el.newSetlistInput.value.trim(); if (!name) return alert('Please enter a name for the new setlist.'); try { const newSetlist = await api.createSetlist({ name }); this.el.newSetlistInput.value = ''; this.setStatus('Setlist created!', false); await this.loadSetlists(newSetlist.id); } catch (error) { this.setStatus(`Error creating setlist: ${error.message}`, true); } };
