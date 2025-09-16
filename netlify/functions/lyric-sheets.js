@@ -36,8 +36,35 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ message: 'Invalid ID format.' }) };
         }
 
+        // --- NEW: Variables to handle /versions sub-routes ---
+        const resourceType = pathParts.length > 3 ? pathParts[3] : null;
+        const versionId = pathParts.length > 4 ? parseInt(pathParts[4], 10) : null;
+
         if (id) { // Operations on a specific lyric sheet
             if (event.httpMethod === 'GET') {
+                // --- NEW: Logic to handle version history fetching ---
+                if (resourceType === 'versions') {
+                    // Route: GET /api/lyric-sheets/:id/versions/:versionId (Get one specific version)
+                    if (versionId) {
+                        const query = `SELECT v.* FROM lyric_sheet_versions v
+                                       JOIN lyric_sheets ls ON v.lyric_sheet_id = ls.id
+                                       WHERE v.id = $1 AND ls.band_id = $2`;
+                        const { rows: [version] } = await client.query(query, [versionId, bandId]);
+                        if (!version) return { statusCode: 404, body: JSON.stringify({ message: 'Version not found or access denied.' })};
+                        return { statusCode: 200, body: JSON.stringify(version) };
+                    }
+                    
+                    // Route: GET /api/lyric-sheets/:id/versions (Get list of all versions)
+                    const query = `SELECT v.id, v.version_number, v.updated_by_email, v.created_at 
+                                   FROM lyric_sheet_versions v
+                                   JOIN lyric_sheets ls ON v.lyric_sheet_id = ls.id
+                                   WHERE v.lyric_sheet_id = $1 AND ls.band_id = $2
+                                   ORDER BY v.version_number DESC`;
+                    const { rows } = await client.query(query, [id, bandId]);
+                    return { statusCode: 200, body: JSON.stringify(rows) };
+                }
+
+                // Default Route: GET /api/lyric-sheets/:id (Get the current live version)
                 const result = await client.query('SELECT * FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 if (result.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied' }) };
                 
@@ -48,11 +75,10 @@ exports.handler = async (event) => {
                 
                 return { statusCode: 200, body: JSON.stringify(sheet) };
             }
+
             if (event.httpMethod === 'PUT') {
-                // --- VERSIONING LOGIC IMPLEMENTED HERE ---
                 await client.query('BEGIN');
                 try {
-                    // 1. Get the current state of the song before updating
                     const { rows: [currentSheet] } = await client.query(
                         'SELECT * FROM lyric_sheets WHERE id = $1 AND band_id = $2 FOR UPDATE',
                         [id, bandId]
@@ -62,14 +88,12 @@ exports.handler = async (event) => {
                         throw new Error('Song not found or access denied.');
                     }
 
-                    // 2. Determine the next version number
                     const { rows: [lastVersion] } = await client.query(
                         'SELECT MAX(version_number) as max_version FROM lyric_sheet_versions WHERE lyric_sheet_id = $1',
                         [id]
                     );
                     const nextVersionNumber = (lastVersion.max_version || 0) + 1;
 
-                    // 3. Archive the current state into the versions table
                     const archiveQuery = `
                         INSERT INTO lyric_sheet_versions (
                             lyric_sheet_id, version_number, title, artist, audio_url, song_blocks,
@@ -82,7 +106,6 @@ exports.handler = async (event) => {
                         currentSheet.capo, currentSheet.transpose, currentSheet.duration, userEmail
                     ]);
 
-                    // 4. Now, update the live record with the new data
                     const { title, artist, audio_url, song_blocks, tuning, capo, transpose, duration } = JSON.parse(event.body);
                     const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
                     
@@ -113,7 +136,6 @@ exports.handler = async (event) => {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to delete songs.' }) };
                 }
                 
-                // Deleting the main sheet will cascade and delete all its versions due to the foreign key constraint.
                 await client.query('DELETE FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 return { statusCode: 204, body: '' };
             }
