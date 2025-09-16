@@ -9,11 +9,14 @@
     <style>
         body { background-color: #000; color: #fff; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
         .live-view { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
-        .scroll-controls { flex-shrink: 0; display: flex; justify-content: center; align-items: center; gap: 1rem; padding: 0.5rem; background-color: #111; border-bottom: 1px solid #333; }
+        .top-controls { display: flex; justify-content: space-between; align-items: stretch; background-color: #111; border-bottom: 1px solid #333; }
+        .scroll-controls, .view-controls { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem; }
+        .view-controls { border-left: 1px solid #333; }
+        .control-button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; }
+        .control-button.active { background-color: #3b82f6; border-color: #2563eb; }
         .scroll-controls input { background-color: #222; border: 1px solid #444; color: #fff; padding: 0.5rem; border-radius: 4px; width: 100px; text-align: center; }
-        .scroll-controls button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; }
         .song-content-wrapper { flex-grow: 1; overflow-y: auto; font-size: 2.5vw; line-height: 1.6; white-space: pre-wrap; padding: 2rem; scroll-behavior: smooth; }
-        .song-content-wrapper::-webkit-scrollbar { display: none; } /* Hide scrollbar for cleaner look */
+        .song-content-wrapper::-webkit-scrollbar { display: none; }
         .song-content-wrapper { -ms-overflow-style: none; scrollbar-width: none; }
         .song-title { font-size: 4vw; font-weight: bold; margin-bottom: 1rem; color: #facc15; }
         .chord { color: #facc15; }
@@ -26,11 +29,18 @@
 </head>
 <body>
     <div id="live-view" class="live-view">
-        <div class="scroll-controls">
-            <button id="scroll-toggle-btn">Start Scrolling</button>
-            <label for="duration-input">Duration:</label>
-            <input type="text" id="duration-input" placeholder="e.g., 4:30">
-            <button id="set-speed-btn">Set Speed</button>
+        <div class="top-controls">
+            <div class="scroll-controls">
+                <button id="scroll-toggle-btn" class="control-button">Start Scrolling</button>
+                <label for="duration-input">Duration:</label>
+                <input type="text" id="duration-input" placeholder="e.g., 4:30">
+                <button id="set-speed-btn" class="control-button">Set Speed</button>
+            </div>
+            <div class="view-controls">
+                <button id="view-full-btn" class="control-button active" data-view="full">Full Mix</button>
+                <button id="view-vocal-btn" class="control-button" data-view="vocal">Vocalist</button>
+                <button id="view-drum-btn" class="control-button" data-view="drum">Drummer</button>
+            </div>
         </div>
         <div id="song-content-wrapper" class="song-content-wrapper">
             <h1 id="song-title">Loading Show...</h1>
@@ -56,15 +66,18 @@
         let setlistData = {};
         let currentSongIndex = 0;
         
-        // --- NEW: State variables for auto-scrolling ---
         let isScrolling = false;
         let scrollInterval = null;
-        let scrollSpeed = 1; // Pixels per interval
+        let scrollSpeed = 1;
+
+        // --- NEW: State variable for view mode ---
+        let currentViewMode = 'full'; 
 
         const contentWrapper = document.getElementById('song-content-wrapper');
         const scrollToggleButton = document.getElementById('scroll-toggle-btn');
         const setSpeedButton = document.getElementById('set-speed-btn');
         const durationInput = document.getElementById('duration-input');
+        const viewButtons = document.querySelectorAll('.view-controls .control-button');
         
         document.addEventListener('DOMContentLoaded', async () => {
             const user = getUserPayload();
@@ -89,19 +102,28 @@
                 setlistData.orderedItems = (parsedNotes.order.length > 0 ? parsedNotes.order : (setlistData.songs || []).map(s => s.id))
                     .map(id => allItemsMap.get(id.toString())).filter(Boolean);
 
-                renderSong(0);
+                renderSong(currentSongIndex);
                 
                 document.getElementById('prev-btn').addEventListener('click', prevSong);
                 document.getElementById('next-btn').addEventListener('click', nextSong);
                 
                 scrollToggleButton.addEventListener('click', toggleScroll);
                 setSpeedButton.addEventListener('click', calculateAndStartScroll);
+
+                viewButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        currentViewMode = button.dataset.view;
+                        viewButtons.forEach(btn => btn.classList.remove('active'));
+                        button.classList.add('active');
+                        renderSong(currentSongIndex);
+                    });
+                });
                 
                 window.addEventListener('keydown', (e) => {
                     if (e.key === 'ArrowLeft') prevSong();
                     if (e.key === 'ArrowRight') nextSong();
-                    if (e.key === ' ') { // Spacebar to toggle scroll
-                        e.preventDefault(); // Prevent page from jumping
+                    if (e.key === ' ') {
+                        e.preventDefault();
                         toggleScroll();
                     }
                 });
@@ -126,17 +148,12 @@
                 alert("Please enter a valid duration (e.g., '3:45').");
                 return;
             }
-
             const totalScrollHeight = contentWrapper.scrollHeight - contentWrapper.clientHeight;
-            if (totalScrollHeight <= 0) return; // No need to scroll
-
-            // We'll update the scroll position 20 times per second for smoothness
-            const intervalMilliseconds = 50; // (1000ms / 20)
+            if (totalScrollHeight <= 0) return;
+            const intervalMilliseconds = 50;
             const totalIntervals = (durationInSeconds * 1000) / intervalMilliseconds;
-            
             scrollSpeed = totalScrollHeight / totalIntervals;
-            
-            toggleScroll(); // Start scrolling immediately after setting the speed
+            toggleScroll();
         }
 
         function toggleScroll() {
@@ -148,17 +165,16 @@
         }
         
         function startScroll() {
-            if (scrollInterval) return; // Already running
-            
+            if (scrollInterval) return;
             isScrolling = true;
             scrollToggleButton.textContent = "Stop Scrolling";
-            
+            scrollToggleButton.classList.add('active');
             scrollInterval = setInterval(() => {
                 contentWrapper.scrollTop += scrollSpeed;
                 if (contentWrapper.scrollTop >= (contentWrapper.scrollHeight - contentWrapper.clientHeight)) {
-                    stopScroll(); // Stop when we reach the bottom
+                    stopScroll();
                 }
-            }, 50); // Run every 50ms
+            }, 50);
         }
 
         function stopScroll() {
@@ -166,6 +182,7 @@
             scrollInterval = null;
             isScrolling = false;
             scrollToggleButton.textContent = "Start Scrolling";
+            scrollToggleButton.classList.remove('active');
         }
 
         function resetScroll() {
@@ -187,7 +204,7 @@
 
         function renderSong(index) {
             currentSongIndex = index;
-            resetScroll(); // Reset scroll for the new song
+            resetScroll();
             
             const item = setlistData.orderedItems[index];
             const titleEl = document.getElementById('song-title');
@@ -195,26 +212,41 @@
             
             if (item.type === 'song') {
                 titleEl.textContent = item.title;
-                durationInput.value = item.duration || ''; // Pre-fill duration if available
+                durationInput.value = item.duration || '';
                 let contentHtml = '';
-                const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
+                let songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
+
+                // --- NEW: Filter blocks based on view mode ---
+                if (currentViewMode === 'vocal') {
+                    songBlocks = songBlocks.filter(block => block.type === 'lyrics' || block.type === 'reference');
+                } else if (currentViewMode === 'drum') {
+                    songBlocks = songBlocks.filter(block => block.type !== 'tab');
+                }
+
                 songBlocks.forEach(block => {
                     let blockToRender = block;
                     if (block.type === 'reference') {
-                        blockToRender = songBlocks.find(b => b.id === block.originalId) || block;
+                        blockToRender = (typeof item.song_blocks === 'string' ? JSON.parse(item.song_blocks) : item.song_blocks).find(b => b.id === block.originalId) || block;
                     }
+
                     contentHtml += `\n--- ${blockToRender.label} ---\n`;
+                    let blockContent = blockToRender.content || '';
+
                     if (blockToRender.type === 'lyrics') {
-                        contentHtml += (blockToRender.content || '').replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
+                        // For drummers, remove chord annotations
+                        if (currentViewMode === 'drum') {
+                             blockContent = blockContent.replace(/\[([^\]]+)\]/g, '');
+                        }
+                        contentHtml += blockContent.replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
                     } else if (blockToRender.type === 'drum_tab') {
-                        contentHtml += (blockToRender.content || '(Drum Tab Section)');
-                    } else {
-                        contentHtml += `(${blockToRender.type.replace('_', ' ')} section)`;
+                        contentHtml += blockContent || '(Drum Tab Section)';
+                    } else if (blockToRender.type === 'tab') {
+                         contentHtml += '(Guitar Tab Section)';
                     }
                 });
                 contentEl.innerHTML = contentHtml;
 
-            } else { // It's a note or break
+            } else {
                 titleEl.textContent = `(${item.title})`;
                 durationInput.value = item.duration || '';
                 contentEl.innerHTML = '';
