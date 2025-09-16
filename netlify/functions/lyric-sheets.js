@@ -10,13 +10,13 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    let userEmail, bandId, userRole;
+    let userEmail, bandId, userRole; // <-- userRole is now available
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userEmail = decoded.user.email;
         bandId = decoded.user.band_id;
-        userRole = decoded.user.role;
+        userRole = decoded.user.role; // <-- Get role from token
         if (!bandId) throw new Error("Token is missing band_id.");
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
@@ -36,15 +36,12 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ message: 'Invalid ID format.' }) };
         }
 
-        // --- NEW: Variables to handle /versions sub-routes ---
         const resourceType = pathParts.length > 3 ? pathParts[3] : null;
         const versionId = pathParts.length > 4 ? parseInt(pathParts[4], 10) : null;
 
         if (id) { // Operations on a specific lyric sheet
             if (event.httpMethod === 'GET') {
-                // --- NEW: Logic to handle version history fetching ---
                 if (resourceType === 'versions') {
-                    // Route: GET /api/lyric-sheets/:id/versions/:versionId (Get one specific version)
                     if (versionId) {
                         const query = `SELECT v.* FROM lyric_sheet_versions v
                                        JOIN lyric_sheets ls ON v.lyric_sheet_id = ls.id
@@ -54,7 +51,6 @@ exports.handler = async (event) => {
                         return { statusCode: 200, body: JSON.stringify(version) };
                     }
                     
-                    // Route: GET /api/lyric-sheets/:id/versions (Get list of all versions)
                     const query = `SELECT v.id, v.version_number, v.updated_by_email, v.created_at 
                                    FROM lyric_sheet_versions v
                                    JOIN lyric_sheets ls ON v.lyric_sheet_id = ls.id
@@ -64,7 +60,6 @@ exports.handler = async (event) => {
                     return { statusCode: 200, body: JSON.stringify(rows) };
                 }
 
-                // Default Route: GET /api/lyric-sheets/:id (Get the current live version)
                 const result = await client.query('SELECT * FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 if (result.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied' }) };
                 
@@ -75,7 +70,6 @@ exports.handler = async (event) => {
                 
                 return { statusCode: 200, body: JSON.stringify(sheet) };
             }
-
             if (event.httpMethod === 'PUT') {
                 await client.query('BEGIN');
                 try {
@@ -132,6 +126,8 @@ exports.handler = async (event) => {
                 }
             }
             if (event.httpMethod === 'DELETE') {
+                // --- PERMISSION CHECK ADDED ---
+                // Only admins and band_admins can delete songs. Editors and members cannot.
                 if (userRole !== 'admin' && userRole !== 'band_admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to delete songs.' }) };
                 }
