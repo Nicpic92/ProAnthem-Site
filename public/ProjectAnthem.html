@@ -176,11 +176,15 @@
                 </div>
                 <ul id="songsInSetlist" class="space-y-2"></ul>
             </div>
-            <div class="flex justify-end gap-2 flex-wrap">
+            <!-- --- THIS IS THE FIX --- -->
+            <div class="flex justify-between items-center gap-2 flex-wrap pt-4 border-t border-gray-700">
                 <button id="deleteSetlistBtn" class="btn btn-danger" disabled>Delete Setlist</button>
-                <button id="printDrummerSetlistBtn" class="btn btn-secondary" disabled>Print for Drummer</button>
-                <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Full Band</button>
-                <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song to Setlist</button>
+                <div class="flex justify-end gap-2 flex-wrap">
+                    <button id="printDrummerSetlistBtn" class="btn btn-secondary" disabled>Print for Drummer</button>
+                    <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Full Band</button>
+                    <button id="start-show-btn" class="btn btn-secondary" disabled>Start Show</button>
+                    <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song</button>
+                </div>
             </div>
         </div>
     </div>
