@@ -1,3 +1,5 @@
+// --- START OF FILE netlify/functions/setlists.js ---
+
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -16,7 +18,7 @@ exports.handler = async (event) => {
         bandId = decoded.user.band_id;
         if (!bandId) throw new Error("Token is missing band_id.");
     } catch (err) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
+        return { statusCode: 401, body: JSON.stringify({ message: `Invalid or expired token: ${err.message}` }) };
     }
 
     const client = new Client({
@@ -55,7 +57,51 @@ exports.handler = async (event) => {
             }
         }
         if (event.httpMethod === 'POST') {
-            const body = JSON.parse(event.body);
+            const body = JSON.parse(event.body || '{}');
+
+            // --- NEW: Clone Setlist Endpoint ---
+            if (setlistId && resourceType === 'clone') {
+                await client.query('BEGIN');
+                try {
+                    // 1. Get the original setlist's data
+                    const { rows: [originalSetlist] } = await client.query(
+                        'SELECT * FROM setlists WHERE id = $1 AND band_id = $2', 
+                        [setlistId, bandId]
+                    );
+                    if (!originalSetlist) {
+                        throw new Error('Original setlist not found or access denied.');
+                    }
+
+                    // 2. Create the new setlist
+                    const newName = `${originalSetlist.name} (Copy)`;
+                    const insertSetlistQuery = `INSERT INTO setlists (name, user_email, band_id, venue, event_date, notes, logo_url) 
+                                                VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
+                    const { rows: [newSetlist] } = await client.query(insertSetlistQuery, [
+                        newName, userEmail, bandId, originalSetlist.venue, originalSetlist.event_date, originalSetlist.notes, originalSetlist.logo_url
+                    ]);
+
+                    // 3. Get the songs from the original setlist
+                    const { rows: originalSongs } = await client.query(
+                        'SELECT song_id, song_order FROM setlist_songs WHERE setlist_id = $1',
+                        [setlistId]
+                    );
+
+                    // 4. Insert the songs into the new setlist
+                    if (originalSongs.length > 0) {
+                        const values = originalSongs.map(song => `(${newSetlist.id}, ${song.song_id}, ${song.song_order})`).join(',');
+                        const insertSongsQuery = `INSERT INTO setlist_songs (setlist_id, song_id, song_order) VALUES ${values}`;
+                        await client.query(insertSongsQuery);
+                    }
+                    
+                    await client.query('COMMIT');
+                    return { statusCode: 201, body: JSON.stringify(newSetlist) };
+                } catch (e) {
+                    await client.query('ROLLBACK');
+                    console.error('Clone Setlist Error:', e);
+                    return { statusCode: 500, body: JSON.stringify({ message: `Failed to clone setlist: ${e.message}` }) };
+                }
+            }
+            
             if (setlistId && resourceType === 'songs') {
                 await client.query('BEGIN');
                 try {
@@ -75,7 +121,7 @@ exports.handler = async (event) => {
                     await client.query('ROLLBACK');
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Setlist or song does not belong to the band.' }) };
                 }
-            } else {
+            } else if (!setlistId) {
                 const query = 'INSERT INTO setlists (name, user_email, band_id) VALUES ($1, $2, $3) RETURNING *';
                 const result = await client.query(query, [body.name, userEmail, bandId]);
                 return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
