@@ -1,29 +1,24 @@
-# --- START OF FILE netlify.toml ---
+# This is the main configuration file for your Netlify site.
 
 [build]
+  # This tells Netlify where your serverless functions are located.
   functions = "netlify/functions"
+  # This tells Netlify which folder to publish as the live site.
   publish = "public"
 
-# RULE 1: API calls must always work.
-# This rule proxies any /api/ request to your Netlify functions.
 [[redirects]]
+  # This rule handles all your API calls. Any request to /api/*
+  # will be forwarded to the corresponding Netlify function.
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
-# RULE 2: Band Profile Public Pages.
-# This routes all public band pages to the correct HTML file.
 [[redirects]]
-  from = "/bands/*"
+  # --- THIS IS THE FIX ---
+  # This rule handles the public band profile pages.
+  # Any request to /bands/some-slug...
+  from = "/bands/:slug"
+  # ...will be rewritten to serve the band-profile.html file.
   to = "/band-profile.html"
+  # Status 200 means it's a rewrite, not a redirect. The URL in the browser bar stays the same.
   status = 200
-
-# RULE 3: Main Homepage Rule.
-# This ensures that visiting the root of your site serves the main index page.
-# This is a fallback that's good practice to have.
-[[redirects]]
-  from = "/"
-  to = "/proanthem_index.html"
-  status = 200
-
-# --- END OF FILE netlify.toml ---
