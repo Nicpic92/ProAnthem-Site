@@ -50,9 +50,7 @@
         <p>Powered by <a href="/proanthem_index.html" class="text-blue-500 hover:underline">ProAnthem</a></p>
     </footer>
 
-    <!-- *** THIS IS THE CORRECTED SECTION *** -->
     <script type="module">
-        // This page is self-contained and uses the public API, no auth needed.
         document.addEventListener('DOMContentLoaded', async () => {
             const loadingEl = document.getElementById('loading-state');
             const errorEl = document.getElementById('error-state');
@@ -64,7 +62,8 @@
 
                 if (!slug) throw new Error("No band slug found in URL.");
                 
-                const response = await fetch(`/api/public-band-page/${slug}`);
+                // --- FIX: Update the fetch URL to the new, simpler function name ---
+                const response = await fetch(`/api/bandpage/${slug}`);
                 if (!response.ok) throw new Error(`API responded with status ${response.status}`);
                 
                 const data = await response.json();
@@ -84,69 +83,4 @@
                 linkOrder.forEach(key => {
                     const url = data.profile.links[key];
                     if (url) {
-                        const linkEl = document.createElement('a');
-                        linkEl.href = url;
-                        linkEl.target = '_blank';
-                        linkEl.rel = 'noopener noreferrer';
-                        linkEl.className = 'block w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-5 rounded-lg transition-colors shadow';
-                        linkEl.textContent = key.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        linksContainer.appendChild(linkEl);
-                    }
-                });
-
-                document.getElementById('band-bio').textContent = data.profile.bio || 'No bio available.';
-
-                const eventsList = document.getElementById('events-list');
-                eventsList.innerHTML = '';
-                if (data.events && data.events.length > 0) {
-                    data.events.forEach(event => {
-                        const eventDate = new Date(event.event_date);
-                        const eventEl = document.createElement('div');
-                        eventEl.className = 'flex flex-col md:flex-row gap-4 items-start';
-                        
-                        const dateBox = document.createElement('div');
-                        dateBox.className = 'flex-shrink-0 text-center bg-gray-100 rounded-lg p-3 w-full md:w-24 shadow';
-                        dateBox.innerHTML = `
-                            <p class="text-red-600 font-bold text-lg">${eventDate.toLocaleString('default', { month: 'short' }).toUpperCase()}</p>
-                            <p class="font-extrabold text-3xl">${eventDate.getDate()}</p>
-                        `;
-
-                        const infoBox = document.createElement('div');
-                        infoBox.innerHTML = `
-                            <h3 class="font-bold text-xl">${event.title}</h3>
-                            <p class="text-gray-400">${event.venue_name || 'Venue TBD'}</p>
-                            <p class="text-sm text-gray-400 mt-1">${eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                        `;
-
-                        if (event.external_url) {
-                            const ticketLink = document.createElement('a');
-                            ticketLink.href = event.external_url;
-                            ticketLink.target = '_blank';
-                            ticketLink.rel = 'noopener noreferrer';
-                            ticketLink.className = 'mt-2 inline-block btn btn-primary text-sm';
-                            ticketLink.textContent = 'More Info / Tickets';
-                            infoBox.appendChild(ticketLink);
-                        }
-
-                        eventEl.appendChild(dateBox);
-                        eventEl.appendChild(infoBox);
-                        eventsList.appendChild(eventEl);
-                    });
-                } else {
-                    eventsList.innerHTML = '<p class="text-gray-400">No upcoming shows scheduled.</p>';
-                }
-
-                loadingEl.classList.add('hidden');
-                contentEl.classList.remove('hidden');
-
-            } catch (err) {
-                console.error("Failed to load band profile:", err);
-                loadingEl.classList.add('hidden');
-                errorEl.classList.remove('hidden');
-            }
-        });
-    </script>
-</body>
-</html>
-
-<!-- END OF FILE public/band-profile.html -->
+                    
