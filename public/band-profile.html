@@ -62,11 +62,37 @@
 
                 if (!slug) throw new Error("No band slug found in URL.");
                 
-                const response = await fetch(`/api/bandpage?slug=${slug}`);
-                if (!response.ok) throw new Error(`API responded with status ${response.status}`);
+                // --- THIS IS THE FIX ---
+                // Add a cache-busting parameter to the URL to ensure we get a fresh response.
+                const cacheBust = new Date().getTime();
+                const response = await fetch(`/api/bandpage?slug=${slug}&_=${cacheBust}`);
                 
-                const data = await response.json();
+                if (!response.ok) {
+                    if (response.status === 404) {
+                         // If it fails, it might be a casing issue. The backend is case-insensitive,
+                         // but this makes the frontend more resilient to any strange redirect behavior.
+                        console.log("Initial slug failed, trying lowercase version...");
+                        const lowerCaseResponse = await fetch(`/api/bandpage?slug=${slug.toLowerCase()}&_=${cacheBust}`);
+                        if (!lowerCaseResponse.ok) {
+                             throw new Error(`API responded with status ${lowerCaseResponse.status}`);
+                        }
+                        const data = await lowerCaseResponse.json();
+                        renderPage(data); // Call a separate render function
+                    } else {
+                        throw new Error(`API responded with status ${response.status}`);
+                    }
+                } else {
+                    const data = await response.json();
+                    renderPage(data); // Call a separate render function
+                }
 
+            } catch (err) {
+                console.error("Failed to load band profile:", err);
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+            }
+
+            function renderPage(data) {
                 document.title = `${data.profile.band_name} | ProAnthem`;
                 document.getElementById('band-name').textContent = data.profile.band_name;
                 const logoImg = document.getElementById('band-logo');
@@ -83,14 +109,10 @@
                     let url = data.profile.links[key];
                     if (url) {
                         const linkEl = document.createElement('a');
-                        
-                        // --- THIS IS THE FIX ---
-                        // Ensure the URL is absolute by adding https:// if it's missing.
                         if (!/^https?:\/\//i.test(url)) {
                             url = 'https://' + url;
                         }
                         linkEl.href = url;
-                        
                         linkEl.target = '_blank';
                         linkEl.rel = 'noopener noreferrer';
                         linkEl.className = 'block w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold py-3 px-5 rounded-lg transition-colors shadow';
@@ -147,11 +169,6 @@
 
                 loadingEl.classList.add('hidden');
                 contentEl.classList.remove('hidden');
-
-            } catch (err) {
-                console.error("Failed to load band profile:", err);
-                loadingEl.classList.add('hidden');
-                errorEl.classList.remove('hidden');
             }
         });
     </script>
