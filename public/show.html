@@ -12,7 +12,10 @@
         .top-controls { display: flex; justify-content: space-between; align-items: stretch; background-color: #111; border-bottom: 1px solid #333; }
         .scroll-controls, .view-controls { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem; }
         .view-controls { border-left: 1px solid #333; }
-        .control-button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; }
+        
+        /* --- CSS FIX: Make button text readable --- */
+        .control-button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; color: #fff; }
+        
         .control-button.active { background-color: #3b82f6; border-color: #2563eb; }
         .scroll-controls input { background-color: #222; border: 1px solid #444; color: #fff; padding: 0.5rem; border-radius: 4px; width: 100px; text-align: center; }
         .song-content-wrapper { flex-grow: 1; overflow-y: auto; font-size: 2.5vw; line-height: 1.6; white-space: pre-wrap; padding: 2rem; scroll-behavior: smooth; }
@@ -21,7 +24,10 @@
         .song-title { font-size: 4vw; font-weight: bold; margin-bottom: 1rem; color: #facc15; }
         .chord { color: #facc15; }
         .footer-nav { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-top: 1px solid #444; }
-        .nav-button { background: #222; border: 1px solid #555; padding: 1rem 2rem; cursor: pointer; border-radius: 8px; font-size: 2vw; }
+        
+        /* --- CSS FIX: Make button text readable --- */
+        .nav-button { background: #222; border: 1px solid #555; padding: 1rem 2rem; cursor: pointer; border-radius: 8px; font-size: 2vw; color: #fff; }
+        
         .next-song { text-align: right; }
         .next-song-label { font-size: 1.5vw; color: #aaa; }
         .next-song-title { font-size: 2.5vw; color: #ddd; }
@@ -70,7 +76,6 @@
         let scrollInterval = null;
         let scrollSpeed = 1;
 
-        // --- NEW: State variable for view mode ---
         let currentViewMode = 'full'; 
 
         const contentWrapper = document.getElementById('song-content-wrapper');
@@ -132,6 +137,25 @@
                 document.getElementById('song-title').textContent = `Error: ${error.message}`;
             }
         });
+        
+        // --- JAVASCRIPT FIX: Helper function to parse chords ---
+        function parseLineForRender(rawLine) {
+            if (!rawLine || !rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; // Use &nbsp; for empty lines to maintain spacing
+            let chordLine = ""; 
+            let lyricLine = "";
+            const parts = rawLine.split(/(\[[^\]]+\])/g);
+            for (const part of parts) {
+                if (part.startsWith('[') && part.endsWith(']')) {
+                    const chordName = part.slice(1, -1);
+                    chordLine += chordName;
+                    lyricLine += ' '.repeat(chordName.length);
+                } else {
+                    lyricLine += part;
+                    chordLine += ' '.repeat(part.length);
+                }
+            }
+            return { chordLine: chordLine.trimEnd() || '&nbsp;', lyricLine: lyricLine.trimEnd() || '&nbsp;' };
+        }
 
         function parseTimeToSeconds(timeStr) {
             if (!timeStr || typeof timeStr !== 'string') return 0;
@@ -216,7 +240,6 @@
                 let contentHtml = '';
                 let songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
 
-                // --- NEW: Filter blocks based on view mode ---
                 if (currentViewMode === 'vocal') {
                     songBlocks = songBlocks.filter(block => block.type === 'lyrics' || block.type === 'reference');
                 } else if (currentViewMode === 'drum') {
@@ -229,15 +252,24 @@
                         blockToRender = (typeof item.song_blocks === 'string' ? JSON.parse(item.song_blocks) : item.song_blocks).find(b => b.id === block.originalId) || block;
                     }
 
-                    contentHtml += `\n--- ${blockToRender.label} ---\n`;
+                    contentHtml += `\n--- ${blockToRender.label} ---\n\n`;
                     let blockContent = blockToRender.content || '';
 
                     if (blockToRender.type === 'lyrics') {
-                        // For drummers, remove chord annotations
-                        if (currentViewMode === 'drum') {
-                             blockContent = blockContent.replace(/\[([^\]]+)\]/g, '');
-                        }
-                        contentHtml += blockContent.replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
+                        blockContent.split('\n').forEach(line => {
+                            let lineToParse = line;
+                            // For drummers, strip chords before parsing
+                            if (currentViewMode === 'drum') {
+                                lineToParse = lineToParse.replace(/\[([^\]]+)\]/g, '');
+                            }
+                            const parsed = parseLineForRender(lineToParse);
+                            if (parsed.chordLine.trim() !== '&nbsp;') {
+                                contentHtml += `<div class="chord">${parsed.chordLine}</div>`;
+                            }
+                            contentHtml += `<div>${parsed.lyricLine}</div>`;
+                        });
+                        contentHtml += '\n';
+
                     } else if (blockToRender.type === 'drum_tab') {
                         contentHtml += blockContent || '(Drum Tab Section)';
                     } else if (blockToRender.type === 'tab') {
