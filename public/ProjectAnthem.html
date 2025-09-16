@@ -144,11 +144,18 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="setlistSelector" class="block text-sm font-medium text-gray-300 mb-1">Select Setlist</label>
-                    <select id="setlistSelector" class="form-select"></select>
+                    <div class="flex gap-2">
+                        <select id="setlistSelector" class="form-select flex-grow"></select>
+                        <!-- --- NEW BUTTON --- -->
+                        <button id="clone-setlist-btn" class="btn btn-secondary" disabled>Clone</button>
+                    </div>
                 </div>
                 <div>
                     <label for="newSetlistInput" class="block text-sm font-medium text-gray-300 mb-1">Or Create New</label>
-                    <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="newSetlistInput" class="form-input">
+                        <button id="createSetlistBtn" class="btn btn-primary">Create</button>
+                    </div>
                 </div>
             </div>
             <div id="setlistDetailsSection" class="hidden space-y-3 p-4 border border-gray-600 rounded-lg">
