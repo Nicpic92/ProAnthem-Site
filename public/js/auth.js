@@ -59,34 +59,61 @@ function updateNav() {
 export function checkAccess() {
     const publicPages = ['/', '/proanthem_index.html', '/proanthem_index', '/pricing.html', '/pricing', '/demo.html', '/demo', '/construction.html', '/construction', '/band-profile.html', '/band-profile', '/admin.html', '/admin'];
     const currentPath = window.location.pathname.toLowerCase();
-    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) { return true; }
+
+    // Public pages are always accessible
+    if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
+        return true;
+    }
+
     const user = getUserPayload();
-    if (!user) { window.location.href = '/proanthem_index.html'; return false; }
-    const subscriptionRoles = ['solo', 'band_admin'];
+    if (!user) {
+        window.location.href = '/proanthem_index.html';
+        return false;
+    }
+
+    // --- THIS IS THE REWRITTEN AND FIXED LOGIC ---
+    // Rule 1: System administrators always have access.
+    if (user.role === 'admin') {
+        const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
+        if (content) {
+            content.style.display = 'block';
+            content.classList.remove('hidden');
+        }
+        return true;
+    }
+    
+    // Rule 2: For all other users, their token's subscription status must be valid.
+    // This correctly handles solo users, band_admins, and band_members who inherit their admin's 'admin_granted' status.
     const validStatuses = ['active', 'trialing', 'admin_granted'];
-    const hasValidSubscription = subscriptionRoles.includes(user.role) && validStatuses.includes(user.subscription_status);
-    const isSystemAdmin = user.role === 'admin';
-    const isBandMember = user.role === 'band_member';
-    if (currentPath.includes('projectanthem')) { if (!hasValidSubscription && !isSystemAdmin && !isBandMember) { window.location.href = '/pricing.html'; return false; } }
-    if (currentPath.includes('band.html') || currentPath.includes('band')) { if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') { window.location.href = '/proanthem_index.html'; return false; } }
+    const hasValidStatus = validStatuses.includes(user.subscription_status);
+
+    const isToolPage = currentPath.includes('projectanthem');
+    const isBandPage = currentPath.includes('band.html') || currentPath.includes('band');
+
+    if (isToolPage && !hasValidStatus) {
+        window.location.href = '/pricing.html';
+        return false;
+    }
+    
+    // Rule 3: The band page requires being part of a band (any role).
+    if (isBandPage && user.role !== 'band_admin' && user.role !== 'band_member') {
+        window.location.href = '/proanthem_index.html';
+        return false;
+    }
+
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    // --- THIS IS THE FIX ---
-    // The original code only set the display style, leaving the `hidden` class in place,
-    // which caused the logic for the "Show Builder" button to fail.
-    // This new version ensures the `hidden` class is removed, making the DOM state consistent.
-    if (content && accessDenied) { 
-        content.style.display = 'block'; 
+    if (content && accessDenied) {
+        content.style.display = 'block';
         content.classList.remove('hidden');
-        accessDenied.style.display = 'none'; 
+        accessDenied.style.display = 'none';
     }
     
     return true;
 }
 
-// --- THIS IS THE FIX ---
-// The login logic is restored here, with a proper try...catch block.
+
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -99,8 +126,6 @@ async function handleLogin(event) {
     try {
         await performLogin(payload);
     } catch(error) {
-        // This will now correctly catch the "Invalid credentials." error from performLogin
-        // and display it in the modal.
         loginError.textContent = error.message;
     }
 }
@@ -115,11 +140,9 @@ export async function performLogin(credentials, redirectTo = null) {
                 return;
             }
             const user = getUserPayload();
-            const specialRoles = ['admin', 'band_admin', 'band_member'];
             const validStatuses = ['active', 'trialing', 'admin_granted'];
-            const hasSpecialRole = user && specialRoles.includes(user.role);
-            const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
-            const hasAccess = hasSpecialRole || hasValidSubscription;
+            const hasAccess = user.role === 'admin' || validStatuses.includes(user.subscription_status);
+            
             window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
         } else {
             throw new Error("Login failed: No token returned.");
