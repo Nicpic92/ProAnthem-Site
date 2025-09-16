@@ -18,8 +18,6 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
         if (response.status === 204) return null;
         const responseData = await response.json();
         if (!response.ok) {
-            // The function's only job is to throw the error message.
-            // The calling script (auth.js) will decide how to handle it.
             throw new Error(responseData.message || `API Error: ${response.status}`);
         }
         return responseData;
@@ -44,6 +42,8 @@ export const addSongToSetlist = (setlistId, songId) => apiRequest(`setlists/${se
 export const removeSongFromSetlist = (setlistId, songId) => apiRequest(`setlists/${setlistId}/songs/${songId}`, null, 'DELETE');
 export const updateSetlistDetails = (id, data) => apiRequest(`setlists/${id}`, data, 'PUT');
 export const updateSetlistSongOrder = (id, song_ids) => apiRequest(`setlists/${id}/songs`, { song_ids }, 'PUT');
+// --- THIS IS THE NEW FUNCTION ---
+export const cloneSetlist = (id, newName) => apiRequest(`setlists/${id}/clone`, { newName }, 'POST');
 export const login = (credentials) => apiRequest('login', credentials, 'POST');
 export const signup = (payload) => apiRequest('signup', payload, 'POST');
 export const changePassword = (payload) => apiRequest('band/change-password', payload, 'POST');
