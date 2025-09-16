@@ -1,16 +1,14 @@
-// --- START OF FILE netlify/functions/band-profile.js ---
-
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
+    // ... authentication logic (unchanged) ...
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
-
     let decodedToken;
     try {
         const token = authHeader.split(' ')[1];
@@ -18,7 +16,6 @@ exports.handler = async (event) => {
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
-
     const { band_id: bandId, role: userRole } = decodedToken.user;
     if (!bandId) {
         return { statusCode: 400, body: JSON.stringify({ message: 'User is not associated with a band.' }) };
@@ -58,28 +55,37 @@ exports.handler = async (event) => {
                     }
                 }
 
+                // --- NEW: Sanitize photo gallery data ---
+                // Ensure it's an array of non-empty strings before saving
+                const photoGallery = Array.isArray(p.photo_gallery) 
+                    ? JSON.stringify(p.photo_gallery.filter(url => typeof url === 'string' && url.trim() !== '')) 
+                    : '[]';
+
                 const query = `
                     UPDATE bands SET
                         slug = $1, logo_url = $2, hero_image_url = $3, bio = $4,
                         contact_public_email = $5, contact_booking_email = $6,
                         link_website = $7, link_spotify = $8, link_apple_music = $9,
                         link_youtube = $10, link_instagram = $11, link_facebook = $12,
-                        press_kit_enabled = $13, band_name = $14
-                    WHERE id = $15 RETURNING *`;
+                        press_kit_enabled = $13, band_name = $14,
+                        photo_gallery = $15 -- <-- ADDED NEW FIELD
+                    WHERE id = $16 RETURNING *`;
                 const values = [
                     slugToSave, p.logo_url, p.hero_image_url, p.bio,
                     p.contact_public_email, p.contact_booking_email,
                     p.link_website, p.link_spotify, p.link_apple_music,
                     p.link_youtube, p.link_instagram, p.link_facebook,
-                    pressKitEnabled,
-                    p.band_name, bandId
+                    pressKitEnabled, p.band_name, 
+                    photoGallery, // <-- ADDED NEW VALUE
+                    bandId
                 ];
                 const { rows: [updatedProfile] } = await client.query(query, values);
                 await client.end();
                 return { statusCode: 200, body: JSON.stringify(updatedProfile) };
             }
         }
-
+        
+        // ... Events logic remains unchanged ...
         if (resource === 'events') {
             if (event.httpMethod === 'GET') {
                 const { rows } = await client.query('SELECT * FROM events WHERE band_id = $1 ORDER BY event_date ASC', [bandId]);
