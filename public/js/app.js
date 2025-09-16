@@ -1,3 +1,5 @@
+// --- START OF FILE public/js/app.js ---
+
 import { checkAccess, getUserPayload } from './auth.js';
 import * as api from './api.js';
 import * as UI from './modules/ui.js';
@@ -72,7 +74,6 @@ function ProAnthemApp(isDemo = false) {
     this.selectedNote = {};
     this.activeResize = {};
     this.isDraggingNote = false;
-    this.selectedVersionData = null; // For history modal
 
     this.CONSTANTS = {
         CLOUDINARY_CLOUD_NAME: "dawbku2eq",
@@ -142,15 +143,7 @@ function ProAnthemApp(isDemo = false) {
         startShowBtn: document.getElementById('start-show-btn'),
         addSongToSetlistSection: document.getElementById('add-song-to-setlist-section'),
         addSongSelect: document.getElementById('add-song-select'),
-        addSelectedSongBtn: document.getElementById('add-selected-song-btn'),
-        historyBtn: document.getElementById('historyBtn'),
-        historyModal: document.getElementById('history-modal'),
-        closeHistoryModalBtn: document.getElementById('close-history-modal-btn'),
-        closeHistoryModalBtn2: document.getElementById('close-history-modal-btn-2'),
-        historyModalTitle: document.getElementById('history-modal-title'),
-        historyVersionList: document.getElementById('history-version-list'),
-        historyPreviewPane: document.getElementById('history-preview-pane'),
-        restoreVersionBtn: document.getElementById('restore-version-btn')
+        addSelectedSongBtn: document.getElementById('add-selected-song-btn')
     };
 }
 
@@ -209,10 +202,6 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.importConfirmBtn?.addEventListener('click', this.handleImport.bind(this));
     this.el.startShowBtn?.addEventListener('click', this.handleStartShow.bind(this));
     this.el.addSelectedSongBtn?.addEventListener('click', this.handleAddSongFromBuilder.bind(this));
-    this.el.historyBtn?.addEventListener('click', this.openHistoryModal.bind(this));
-    this.el.closeHistoryModalBtn?.addEventListener('click', () => this.el.historyModal.classList.add('hidden'));
-    this.el.closeHistoryModalBtn2?.addEventListener('click', () => this.el.historyModal.classList.add('hidden'));
-    this.el.restoreVersionBtn?.addEventListener('click', this.handleRestoreVersion.bind(this));
 };
 
 ProAnthemApp.prototype.initializeDemoSong = function() {
@@ -429,7 +418,6 @@ ProAnthemApp.prototype.loadSong = async function(id) {
         this.renderSongBlocks();
         this.setStatus('Song loaded.');
         this.updateSoundingKey();
-        this.el.historyBtn.disabled = false;
     } catch (error) {
         this.setStatus(`Error loading song: ${error.message}`, true);
         this.initializeNewSong(true);
@@ -437,7 +425,6 @@ ProAnthemApp.prototype.loadSong = async function(id) {
 };
 
 ProAnthemApp.prototype.initializeNewSong = async function(forceNew = false) {
-    this.el.historyBtn.disabled = true;
     const createBlankSong = () => {
         this.songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
         this.el.titleInput.value = '';
@@ -578,7 +565,6 @@ ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) {
     if (this.el.songsInSetlist.sortableInstance) { this.el.songsInSetlist.sortableInstance.destroy(); this.el.songsInSetlist.sortableInstance = null; }
     
     // --- THIS IS THE FIX (PART 1) ---
-    // This list now correctly includes ALL buttons that should be disabled when no setlist is selected.
     const buttonsToManage = [this.el.addSongToSetlistBtn, this.el.addSelectedSongBtn, this.el.printSetlistBtn, this.el.printDrummerSetlistBtn, this.el.deleteSetlistBtn, this.el.startShowBtn, this.el.cloneSetlistBtn];
 
     if (!setlistId) {
@@ -588,7 +574,7 @@ ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) {
         this.el.addSongToSetlistSection.classList.add('hidden');
         this.el.songsInSetlist.innerHTML = '';
         this.el.setlistTotalTime.textContent = '';
-        buttonsToManage.forEach(b => { if(b) b.disabled = true; }); // Safely disable all buttons
+        buttonsToManage.forEach(b => { if(b) b.disabled = true; });
         return;
     }
     
@@ -611,9 +597,8 @@ ProAnthemApp.prototype.handleSetlistSelection = async function(setlistId) {
         this.el.songsInSetlist.sortableInstance = new Sortable(this.el.songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', onEnd: () => this.saveSetlistOrderAndNotes() });
         
         // --- THIS IS THE FIX (PART 2) ---
-        // This list now correctly includes ALL buttons that should be enabled.
         buttonsToManage.forEach(b => { if(b) b.disabled = false; });
-        this.el.addSongToSetlistBtn.disabled = !this.songData.id; // Special case: only enable if a song is loaded
+        this.el.addSongToSetlistBtn.disabled = !this.songData.id;
 
     } catch (error) {
         this.setStatus(`Failed to load setlist details: ${error.message}`, true);
