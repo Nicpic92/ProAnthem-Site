@@ -1,4 +1,4 @@
-// --- START OF FILE netlify/functions/public-band-page.js ---
+// --- START OF FILE netlify/functions/bandpage.js ---
 
 const { Client } = require('pg');
 
@@ -33,6 +33,8 @@ exports.handler = async (event) => {
         const { rows: [band] } = await client.query(bandQuery, [slug]);
 
         if (!band) {
+            // --- FIX: Close connection before returning ---
+            await client.end();
             return { statusCode: 404, body: JSON.stringify({ message: 'Band profile not found or is not public.' }) };
         }
 
@@ -69,19 +71,20 @@ exports.handler = async (event) => {
             events: events
         };
         
+        // --- FIX: Close connection before returning ---
+        await client.end();
         return {
             statusCode: 200,
             body: JSON.stringify(responsePayload)
         };
 
     } catch (error) {
-        console.error('API Error in /api/public-band-page:', error);
-        return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
-    } finally {
+        console.error('API Error in /api/bandpage:', error);
+        // --- FIX: Ensure connection is closed even on error ---
         if (client) {
             await client.end();
         }
-    }
+        return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
+    } 
+    // --- FIX: The problematic 'finally' block has been removed ---
 };
-
-// --- END OF FILE netlify/functions/public-band-page.js ---
