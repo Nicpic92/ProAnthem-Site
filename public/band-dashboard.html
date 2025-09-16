@@ -1,0 +1,162 @@
+<!-- START OF FILE public/band-dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Band Dashboard - ProAnthem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="tool flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+        <a href="/proanthem_index.html" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold">ProAnthem</h1>
+        </a>
+        <div id="nav-auth-section">
+             <!-- Populated by auth script -->
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12 flex-grow">
+        <div id="dashboard-content" style="display: none;">
+            <div class="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-8">
+                 <div>
+                    <h1 id="band-name-header" class="text-4xl font-bold">Band Dashboard</h1>
+                    <p id="welcome-message" class="text-lg text-gray-400 mt-2">Welcome, [User Name]!</p>
+                 </div>
+                 <div class="flex gap-4">
+                    <a href="/band.html" class="btn btn-secondary">Band Settings & Members</a>
+                    <a href="/ProjectAnthem.html" class="btn btn-primary">Go to Tool</a>
+                 </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Announcements Section -->
+                <div class="lg:col-span-2 bg-gray-900 p-8 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-bold mb-4">Band Announcements</h2>
+                    <div id="announcements-view" class="text-gray-300 whitespace-pre-wrap prose prose-invert max-w-none">
+                        <!-- Read-only view populated here -->
+                    </div>
+                    <div id="announcements-edit" class="hidden admin-only">
+                        <textarea id="announcements-textarea" class="form-textarea w-full h-64" placeholder="Write announcements for your band here..."></textarea>
+                        <div class="text-right mt-4">
+                            <button id="save-announcements-btn" class="btn btn-primary">Save Announcements</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Events Section -->
+                <div class="bg-gray-900 p-8 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-bold mb-4">Upcoming Events</h2>
+                    <div id="events-list" class="space-y-4">
+                        <!-- Events will be populated here -->
+                    </div>
+                    <a href="/band.html" class="text-indigo-400 hover:text-indigo-300 mt-6 inline-block">View Full Calendar →</a>
+                </div>
+            </div>
+
+        </div>
+
+        <div id="access-denied" class="text-center py-20" style="display: none;">
+            <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
+            <p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p>
+            <a href="/ProjectAnthem.html" class="btn btn-primary mt-6">Return to the Tool</a>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script type="module">
+        import { getUserPayload, checkAccess } from './js/auth.js';
+        import { apiRequest } from './js/api.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!checkAccess()) return;
+            
+            const user = getUserPayload();
+            if (!user || !user.band_id) {
+                document.getElementById('dashboard-content').style.display = 'none';
+                document.getElementById('access-denied').style.display = 'block';
+                return;
+            }
+            
+            initializeDashboard(user);
+        });
+
+        async function initializeDashboard(user) {
+            document.getElementById('dashboard-content').style.display = 'block';
+            document.getElementById('welcome-message').textContent = `Welcome, ${user.name}!`;
+
+            const isAdmin = user.role === 'admin' || user.role === 'band_admin';
+
+            try {
+                const data = await apiRequest('band-dashboard');
+
+                // Populate Header
+                document.getElementById('band-name-header').textContent = `${data.band.band_name} Dashboard`;
+
+                // Populate Announcements
+                const announcementsView = document.getElementById('announcements-view');
+                const announcementsEdit = document.getElementById('announcements-edit');
+                const announcementsTextarea = document.getElementById('announcements-textarea');
+                
+                announcementsView.textContent = data.band.announcements || 'No announcements yet.';
+                announcementsTextarea.value = data.band.announcements || '';
+                
+                if (isAdmin) {
+                    announcementsEdit.classList.remove('hidden');
+                    document.getElementById('save-announcements-btn').addEventListener('click', saveAnnouncements);
+                }
+
+                // Populate Events
+                const eventsList = document.getElementById('events-list');
+                eventsList.innerHTML = '';
+                if (data.events && data.events.length > 0) {
+                    data.events.forEach(event => {
+                        const eventEl = document.createElement('div');
+                        eventEl.className = 'p-3 bg-gray-800/50 rounded-lg';
+                        const eventDate = new Date(event.event_date);
+                        eventEl.innerHTML = `
+                            <p class="font-bold">${event.title}</p>
+                            <p class="text-sm text-gray-400">${eventDate.toLocaleString()}</p>
+                        `;
+                        eventsList.appendChild(eventEl);
+                    });
+                } else {
+                    eventsList.innerHTML = '<p class="text-gray-400">No upcoming events.</p>';
+                }
+
+            } catch (error) {
+                alert(`Error loading dashboard: ${error.message}`);
+            }
+        }
+
+        async function saveAnnouncements() {
+            const btn = document.getElementById('save-announcements-btn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+            
+            const newContent = document.getElementById('announcements-textarea').value;
+            
+            try {
+                await apiRequest('band-dashboard/announcements', { content: newContent }, 'PUT');
+                document.getElementById('announcements-view').textContent = newContent || 'No announcements yet.';
+                alert('Announcements saved!');
+            } catch (error) {
+                alert(`Failed to save: ${error.message}`);
+            } finally {
+                btn.textContent = 'Save Announcements';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
