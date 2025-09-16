@@ -89,8 +89,8 @@ function ProAnthemApp(isDemo = false) {
         importBtn: document.getElementById('importBtn'), importModal: document.getElementById('import-modal'), importTextarea: document.getElementById('import-textarea'), importConfirmBtn: document.getElementById('import-confirm-btn'), importCancelBtn: document.getElementById('import-cancel-btn'),
         setlistNoteForm: document.getElementById('setlistNoteForm'), newSetlistNoteInput: document.getElementById('newSetlistNoteInput'), addSetlistNoteBtn: document.getElementById('addSetlistNoteBtn'),
         resetDemoBtn: document.getElementById('resetDemoBtn'),
-        newSetlistNoteDuration: document.getElementById('newSetlistNoteDuration'), // <-- NEW
-        setlistTotalTime: document.getElementById('setlistTotalTime') // <-- NEW
+        newSetlistNoteDuration: document.getElementById('newSetlistNoteDuration'),
+        setlistTotalTime: document.getElementById('setlistTotalTime')
     };
 }
 
@@ -129,7 +129,10 @@ ProAnthemApp.prototype.attachEventListeners = function() {
     this.el.recordBtn?.addEventListener('click', this.startRecording.bind(this));
     this.el.stopBtn?.addEventListener('click', this.stopRecording.bind(this));
     this.el.songSelector?.addEventListener('change', () => this.loadSong(this.el.songSelector.value));
+    
+    // --- THIS IS THE FIX ---
     this.el.setlistBtn?.addEventListener('click', this.openSetlistManager.bind(this));
+
     this.el.closeSetlistModalBtn?.addEventListener('click', () => this.el.setlistModal.classList.add('hidden'));
     this.el.setlistSelector?.addEventListener('change', (e) => this.handleSetlistSelection(e.target.value));
     this.el.saveSetlistDetailsBtn?.addEventListener('click', this.handleSaveSetlistDetails.bind(this));
