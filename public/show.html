@@ -1,0 +1,130 @@
+<!-- START OF FILE public/show.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Show - ProAnthem</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body { background-color: #000; color: #fff; font-family: 'Courier New', Courier, monospace; }
+        .live-view { width: 100vw; height: 100vh; display: flex; flex-direction: column; padding: 2rem; }
+        .song-content { flex-grow: 1; overflow-y: auto; font-size: 2.5vw; line-height: 1.6; white-space: pre-wrap; }
+        .song-title { font-size: 4vw; font-weight: bold; margin-bottom: 1rem; color: #facc15; }
+        .chord { color: #facc15; }
+        .footer-nav { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding-top: 1rem; border-top: 1px solid #444; }
+        .nav-button { background: #222; border: 1px solid #555; padding: 1rem 2rem; cursor: pointer; border-radius: 8px; font-size: 2vw; }
+        .next-song { text-align: right; }
+        .next-song-label { font-size: 1.5vw; color: #aaa; }
+        .next-song-title { font-size: 2.5vw; color: #ddd; }
+    </style>
+</head>
+<body>
+    <div id="live-view" class="live-view">
+        <div id="song-content-wrapper" class="song-content">
+            <h1 id="song-title">Loading Show...</h1>
+            <div id="song-content"></div>
+        </div>
+        <div class="footer-nav">
+            <button id="prev-btn" class="nav-button">← Prev</button>
+            <div id="current-song-info" class="text-center">
+                 <div id="current-song-index"></div>
+            </div>
+            <div class="next-song">
+                <div class="next-song-label">Next Up:</div>
+                <div id="next-song-title" class="next-song-title"></div>
+            </div>
+            <button id="next-btn" class="nav-button">Next →</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { getSetlist } from './js/api.js';
+        import { getUserPayload } from './js/auth.js';
+        import { parseLineForRender, renderTransposedTab } from './js/modules/ui.js';
+
+        let setlistData = {};
+        let currentSongIndex = 0;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const user = getUserPayload();
+            if (!user) {
+                window.location.href = '/proanthem_index.html';
+                return;
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            const setlistId = params.get('id');
+            if (!setlistId) {
+                document.getElementById('song-title').textContent = 'Error: No Setlist ID provided.';
+                return;
+            }
+
+            try {
+                setlistData = await getSetlist(setlistId);
+                // Simple note parsing for now, can be enhanced later
+                const parsedNotes = JSON.parse(setlistData.notes || '{"order": [], "notes": []}');
+                const allItemsMap = new Map();
+                (setlistData.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' }));
+                (parsedNotes.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
+                setlistData.orderedItems = parsedNotes.order.map(id => allItemsMap.get(id.toString())).filter(Boolean);
+
+                renderSong(0);
+                
+                document.getElementById('prev-btn').addEventListener('click', prevSong);
+                document.getElementById('next-btn').addEventListener('click', nextSong);
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'ArrowLeft') prevSong();
+                    if (e.key === 'ArrowRight') nextSong();
+                });
+
+            } catch (error) {
+                document.getElementById('song-title').textContent = `Error: ${error.message}`;
+            }
+        });
+
+        function prevSong() {
+            if (currentSongIndex > 0) {
+                renderSong(currentSongIndex - 1);
+            }
+        }
+
+        function nextSong() {
+            if (currentSongIndex < setlistData.orderedItems.length - 1) {
+                renderSong(currentSongIndex + 1);
+            }
+        }
+
+        function renderSong(index) {
+            currentSongIndex = index;
+            const item = setlistData.orderedItems[index];
+            const titleEl = document.getElementById('song-title');
+            const contentEl = document.getElementById('song-content');
+            
+            if (item.type === 'song') {
+                titleEl.textContent = item.title;
+                let contentHtml = '';
+                const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
+                songBlocks.forEach(block => {
+                    contentHtml += `\n--- ${block.label} ---\n`;
+                    if (block.type === 'lyrics') {
+                        contentHtml += (block.content || '').replace(/\[([^\]]+)\]/g, '<span class="chord">[$1]</span>');
+                    } else {
+                        // Simplified display for live mode
+                        contentHtml += `(${block.type.replace('_', ' ')} section)`;
+                    }
+                });
+                contentEl.innerHTML = contentHtml;
+
+            } else { // It's a note
+                titleEl.textContent = `(${item.title})`;
+                contentEl.innerHTML = '';
+            }
+            
+            document.getElementById('current-song-index').textContent = `${index + 1} / ${setlistData.orderedItems.length}`;
+            const nextItem = setlistData.orderedItems[index + 1];
+            document.getElementById('next-song-title').textContent = nextItem ? nextItem.title : 'End of Show';
+        }
+    </script>
+</body>
+</html>
