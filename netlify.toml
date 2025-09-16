@@ -3,13 +3,11 @@
   publish = "public"
 
 [[redirects]]
-  # This single generic rule is now sufficient for all API calls.
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
 [[redirects]]
-  # This rule for the frontend URL structure remains correct.
   from = "/bands/:slug"
   to = "/band-profile.html"
   status = 200
