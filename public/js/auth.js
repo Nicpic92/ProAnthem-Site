@@ -1,11 +1,12 @@
 // --- START OF FILE public/js/auth.js ---
 
-import { login } from './api.js';
+import { login, signup } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
     const loginForm = document.getElementById('login-form');
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
+    // --- FIX: The signup form is now handled by pricing.html's own script ---
 });
 
 // --- Core Auth & Session Functions ---
@@ -36,7 +37,6 @@ function updateNav() {
 
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-secondary">Tool</a>`;
-        // This logic is correct: only admins see the Manage Band button.
         if (user.role === 'admin' || user.role === 'band_admin') {
              buttonHtml = `<a href="/band.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
         }
@@ -80,44 +80,27 @@ export function checkAccess() {
         return false;
     }
     
-    // --- THIS IS THE FIX ---
-    // The previous logic was flawed. This is the correct way to check permissions.
-
-    // 1. Define roles that have subscription-based access (can use the main tool)
     const subscriptionRoles = ['solo', 'band_admin'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     
-    // 2. Determine if the user has a valid subscription
     const hasValidSubscription = subscriptionRoles.includes(user.role) && validStatuses.includes(user.subscription_status);
-    
-    // 3. System admins always have access
     const isSystemAdmin = user.role === 'admin';
-
-    // 4. Invited band members have special access
     const isBandMember = user.role === 'band_member';
 
-    // Check access for the main tool page
     if (currentPath.includes('projectanthem')) {
-        if (hasValidSubscription || isSystemAdmin || isBandMember) {
-            // All these roles can use the tool
-        } else {
-            // User's subscription is inactive, redirect them to pricing
+        if (!hasValidSubscription && !isSystemAdmin && !isBandMember) {
             window.location.href = '/pricing.html';
             return false;
         }
     }
     
-    // Check access for the band management page
     if (currentPath.includes('band.html') || currentPath.includes('band')) {
-        // Any member of a band can VIEW the band page
         if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') {
-            window.location.href = '/projectanthem_index.html'; // Or show an error
+            window.location.href = '/proanthem_index.html';
             return false;
         }
     }
     
-    // If we've reached this point, the user is authorized for the page they are on.
-    // Now, we just show/hide the content vs the access denied message.
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
