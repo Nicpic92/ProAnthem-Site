@@ -59,8 +59,9 @@
                     <h2 class="text-3xl font-bold">Solo</h2>
                     <p class="text-gray-400 mt-2">For the individual songwriter and performer.</p>
                     <div class="my-6">
-                        <span class="text-5xl font-bold">$10</span>
-                        <span class="text-gray-400">/ month</span>
+                        <!-- --- THIS IS THE FIX --- -->
+                        <span class="text-5xl font-bold">$3.50</span>
+                        <span class="text-gray-400">/ week</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
                         <li class="flex"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Unlimited Songs & Setlists</li>
@@ -75,8 +76,9 @@
                     <h2 class="text-3xl font-bold">Band</h2>
                     <p class="text-gray-400 mt-2">Unlock collaboration for your entire team.</p>
                      <div class="my-6">
-                        <span class="text-5xl font-bold">$25</span>
-                        <span class="text-gray-400">/ month</span>
+                        <!-- --- THIS IS THE FIX --- -->
+                        <span class="text-5xl font-bold">$8.00</span>
+                        <span class="text-gray-400">/ week</span>
                     </div>
                     <ul class="space-y-4 text-gray-300 flex-grow">
                         <li class="flex items-center"><svg class="w-5 h-5 text-green-500 mr-2 feature-check" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><strong>Everything in Solo, plus:</strong></li>
@@ -101,23 +103,17 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
-    <!-- This first script still loads auth.js to handle the nav bar -->
     <script type="module" src="/js/auth.js"></script>
-
-    <!-- This self-contained module now handles all logic for THIS PAGE ONLY -->
     <script type="module">
         import { getUserPayload, performLogin } from './js/auth.js';
         import { signup, createCheckoutSession, createCustomerPortal } from './js/api.js';
 
         const stripe = Stripe('pk_live_51Ryc5tGbxgsv5aJ6w9YDK0tE0XVnCz1XspXdarf3DYoE7g7YXLut87vm2AUsAjVmHwXTnE6ZXalKohb17u3mA8wa008pR7uPYA');
-
-        // --- DOM Elements ---
+        const statusMessage = document.getElementById('status-message');
         const signupView = document.getElementById('signup-view');
         const pricingView = document.getElementById('pricing-view');
         const signupForm = document.getElementById('signup-form');
-        const statusMessage = document.getElementById('status-message');
         
-        // --- Page Logic ---
         function initializePage() {
             const user = getUserPayload();
             
@@ -135,7 +131,6 @@
                 statusMessage.classList.add('text-yellow-400');
             }
 
-            // Add event listeners
             signupForm.addEventListener('submit', handleSignup);
             document.getElementById('checkout-solo').addEventListener('click', () => startCheckout('solo'));
             document.getElementById('checkout-band').addEventListener('click', () => startCheckout('band'));
@@ -198,7 +193,6 @@
             }
         }
 
-        // --- Run Initialization ---
         document.addEventListener('DOMContentLoaded', initializePage);
     </script>
 </body>
