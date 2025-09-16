@@ -3,11 +3,11 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
-    // ... (authentication logic is unchanged)
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
+
     let userEmail, bandId;
     try {
         const token = authHeader.split(' ')[1];
@@ -33,7 +33,7 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: JSON.stringify({ message: 'Invalid ID format.' }) };
         }
 
-        if (id) {
+        if (id) { // Operations on a specific lyric sheet
             if (event.httpMethod === 'GET') {
                 const result = await client.query('SELECT * FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 if (result.rows.length === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied' }) };
@@ -46,19 +46,25 @@ exports.handler = async (event) => {
                 return { statusCode: 200, body: JSON.stringify(sheet) };
             }
             if (event.httpMethod === 'PUT') {
-                const { title, artist, audio_url, song_blocks, tuning, capo, transpose, duration } = JSON.parse(event.body); // <-- ADD duration
+                const { title, artist, audio_url, song_blocks, tuning, capo, transpose, duration } = JSON.parse(event.body);
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
                 
                 const query = `
                     UPDATE lyric_sheets 
                     SET 
-                        title = $1, artist = $2, audio_url = $3, song_blocks = $4, 
-                        tuning = $5, capo = $6, transpose = $7, duration = $8, -- <-- ADD duration
+                        title = $1, 
+                        artist = $2, 
+                        audio_url = $3, 
+                        song_blocks = $4, 
+                        tuning = $5, 
+                        capo = $6, 
+                        transpose = $7, 
+                        duration = $8, 
                         updated_at = NOW() 
-                    WHERE id = $9 AND band_id = $10
+                    WHERE id = $9 AND band_id = $10 
                     RETURNING *`;
                 
-                const result = await client.query(query, [title, artist, audio_url, songBlocksJson, tuning, capo, transpose, duration, id, bandId]); // <-- ADD duration
+                const result = await client.query(query, [title, artist, audio_url, songBlocksJson, tuning, capo, transpose, duration, id, bandId]);
                 
                 if (result.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Sheet not found or access denied.' })};
                 return { statusCode: 200, body: JSON.stringify(result.rows[0]) };
@@ -67,25 +73,25 @@ exports.handler = async (event) => {
                 await client.query('DELETE FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
                 return { statusCode: 204, body: '' };
             }
-        } else {
+        } else { // Operations on the collection
             if (event.httpMethod === 'GET') {
-                // Return more data for the setlist builder view
                 const result = await client.query('SELECT id, title, artist, updated_at, duration, capo, tuning, transpose FROM lyric_sheets WHERE band_id = $1 ORDER BY updated_at DESC', [bandId]);
                 return { statusCode: 200, body: JSON.stringify(result.rows) };
             }
             if (event.httpMethod === 'POST') {
-                const { title, artist, song_blocks, audio_url, tuning, capo, transpose, duration } = JSON.parse(event.body); // <-- ADD duration
+                const { title, artist, song_blocks, audio_url, tuning, capo, transpose, duration } = JSON.parse(event.body);
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
+
                 const newTuning = tuning ?? 'E_STANDARD';
                 const newCapo = capo ?? 0;
                 const newTranspose = transpose ?? 0;
 
                 const query = `
                     INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks, audio_url, tuning, capo, transpose, duration) 
-                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) -- <-- ADD duration
+                    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
                     RETURNING *`;
 
-                const result = await client.query(query, [title, artist, userEmail, bandId, songBlocksJson, audio_url, newTuning, newCapo, newTranspose, duration]); // <-- ADD duration
+                const result = await client.query(query, [title, artist, userEmail, bandId, songBlocksJson, audio_url, newTuning, newCapo, newTranspose, duration]);
                 
                 return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
             }
