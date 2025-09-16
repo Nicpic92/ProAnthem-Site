@@ -1,3 +1,5 @@
+// --- START OF FILE login.js ---
+
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -41,22 +43,25 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE MODIFIED LOGIC BLOCK ---
-        if (user.role === 'admin') {
-            // Admins always have access, no checks needed.
-            subStatus = 'active'; // Assign a valid status for consistency.
+        // --- THIS IS THE REWRITTEN AND FIXED LOGIC BLOCK ---
+
+        // Rule 1: Always respect a manually granted admin status.
+        // This prevents the system from overwriting a grant with 'inactive' after a Stripe check.
+        if (user.subscription_status === 'admin_granted') {
+            subStatus = 'admin_granted';
+        } else if (user.role === 'admin') {
+            // Rule 2: System admins always have access.
+            subStatus = 'active'; 
         } else if (user.role === 'band_member') {
-            // For a band member, we check their band admin's status.
+            // Rule 3: For a band member, check their band admin's status.
             const { rows: [bandAdmin] } = await client.query(
                 `SELECT subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
                 [user.band_id]
             );
 
             if (bandAdmin && bandAdmin.subscription_status === 'admin_granted') {
-                // If the admin has been granted access, the whole band gets it.
                 subStatus = 'admin_granted';
             } else if (bandAdmin && bandAdmin.stripe_customer_id) {
-                // Otherwise, check the admin's Stripe subscription status.
                 const subscriptions = await stripe.subscriptions.list({
                     customer: bandAdmin.stripe_customer_id,
                     status: 'all',
@@ -64,11 +69,10 @@ exports.handler = async (event) => {
                 });
                 subStatus = subscriptions.data.length > 0 ? subscriptions.data[0].status : 'inactive';
             } else {
-                // If there's no admin or they have no Stripe ID, the band is inactive.
                 subStatus = 'inactive';
             }
         } else {
-            // This is for 'solo' or 'band_admin' users whose access depends on their own subscription.
+            // Rule 4: For 'solo' or 'band_admin', their access depends on their own Stripe subscription.
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -105,8 +109,8 @@ exports.handler = async (event) => {
                     subStatus = newStatus;
                 }
             } else {
-                // User has no Stripe ID, so they are inactive unless manually granted access.
-                subStatus = user.subscription_status === 'admin_granted' ? 'admin_granted' : 'inactive';
+                // User has no Stripe ID and no grant, so they are inactive.
+                subStatus = 'inactive';
             }
         }
         
