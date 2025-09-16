@@ -4,7 +4,6 @@ import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
-    // This script now only handles the generic login modal form, not page-specific forms.
     const loginForm = document.getElementById('login-form');
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
 });
@@ -37,6 +36,7 @@ function updateNav() {
 
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-secondary">Tool</a>`;
+        // This logic is correct: only admins see the Manage Band button.
         if (user.role === 'admin' || user.role === 'band_admin') {
              buttonHtml = `<a href="/band.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
         }
@@ -64,7 +64,8 @@ export function checkAccess() {
         '/pricing.html', '/pricing',
         '/demo.html', '/demo',
         '/construction.html', '/construction',
-        '/band-profile.html', '/band-profile'
+        '/band-profile.html', '/band-profile',
+        '/admin.html', '/admin'
     ];
     
     const currentPath = window.location.pathname.toLowerCase();
@@ -79,35 +80,51 @@ export function checkAccess() {
         return false;
     }
     
-    const specialRoles = ['admin', 'band_admin', 'band_member'];
+    // --- THIS IS THE FIX ---
+    // The previous logic was flawed. This is the correct way to check permissions.
+
+    // 1. Define roles that have subscription-based access (can use the main tool)
+    const subscriptionRoles = ['solo', 'band_admin'];
     const validStatuses = ['active', 'trialing', 'admin_granted'];
     
-    const hasSpecialRole = specialRoles.includes(user.role);
-    const hasValidSubscription = validStatuses.includes(user.subscription_status);
-    const hasAccess = hasSpecialRole || hasValidSubscription;
+    // 2. Determine if the user has a valid subscription
+    const hasValidSubscription = subscriptionRoles.includes(user.role) && validStatuses.includes(user.subscription_status);
     
+    // 3. System admins always have access
+    const isSystemAdmin = user.role === 'admin';
+
+    // 4. Invited band members have special access
+    const isBandMember = user.role === 'band_member';
+
+    // Check access for the main tool page
+    if (currentPath.includes('projectanthem')) {
+        if (hasValidSubscription || isSystemAdmin || isBandMember) {
+            // All these roles can use the tool
+        } else {
+            // User's subscription is inactive, redirect them to pricing
+            window.location.href = '/pricing.html';
+            return false;
+        }
+    }
+    
+    // Check access for the band management page
+    if (currentPath.includes('band.html') || currentPath.includes('band')) {
+        // Any member of a band can VIEW the band page
+        if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') {
+            window.location.href = '/projectanthem_index.html'; // Or show an error
+            return false;
+        }
+    }
+    
+    // If we've reached this point, the user is authorized for the page they are on.
+    // Now, we just show/hide the content vs the access denied message.
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (!content || !accessDenied) return true;
+    if (content) content.style.display = 'block';
+    if (accessDenied) accessDenied.style.display = 'none';
 
-    if (hasAccess) {
-        accessDenied.classList.add('hidden');
-        content.classList.remove('hidden');
-        content.style.display = 'block'; 
-        return true;
-    } else {
-        accessDenied.classList.remove('hidden');
-        content.classList.add('hidden');
-        content.style.display = 'none';
-        
-        const accessDeniedLink = accessDenied.querySelector('a');
-        if (accessDeniedLink) {
-            accessDeniedLink.textContent = 'Manage Subscription';
-            accessDeniedLink.href = '/pricing.html';
-        }
-        return false;
-    }
+    return true;
 }
 
 async function handleLogin(event) {
@@ -126,7 +143,6 @@ async function handleLogin(event) {
     }
 }
 
-// This function is now EXPORTED so other pages (like pricing.html) can use it.
 export async function performLogin(credentials, redirectTo = null) {
     try {
         const result = await login(credentials);
@@ -138,7 +154,6 @@ export async function performLogin(credentials, redirectTo = null) {
                 return;
             }
             
-            // --- FIX: Restored robust redirect logic ---
             const user = getUserPayload();
             const specialRoles = ['admin', 'band_admin', 'band_member'];
             const validStatuses = ['active', 'trialing', 'admin_granted'];
