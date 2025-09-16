@@ -57,7 +57,6 @@ function updateNav() {
 }
 
 export function checkAccess() {
-    // ... (This function is correct and remains unchanged) ...
     const publicPages = ['/', '/proanthem_index.html', '/proanthem_index', '/pricing.html', '/pricing', '/demo.html', '/demo', '/construction.html', '/construction', '/band-profile.html', '/band-profile', '/admin.html', '/admin'];
     const currentPath = window.location.pathname.toLowerCase();
     if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) { return true; }
@@ -72,7 +71,17 @@ export function checkAccess() {
     if (currentPath.includes('band.html') || currentPath.includes('band')) { if (!isSystemAdmin && !isBandMember && user.role !== 'band_admin') { window.location.href = '/proanthem_index.html'; return false; } }
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
-    if (content && accessDenied) { content.style.display = 'block'; accessDenied.style.display = 'none'; }
+    
+    // --- THIS IS THE FIX ---
+    // The original code only set the display style, leaving the `hidden` class in place,
+    // which caused the logic for the "Show Builder" button to fail.
+    // This new version ensures the `hidden` class is removed, making the DOM state consistent.
+    if (content && accessDenied) { 
+        content.style.display = 'block'; 
+        content.classList.remove('hidden');
+        accessDenied.style.display = 'none'; 
+    }
+    
     return true;
 }
 
