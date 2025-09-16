@@ -33,7 +33,6 @@
                  <h2 class="text-2xl font-bold mb-4">Super Admin Tools</h2>
                  <div class="flex gap-4">
                     <button onclick="openCopySongModal()" class="btn btn-secondary">Copy a Song</button>
-                    <!-- NEW: ADD USER BUTTON -->
                     <button id="add-user-btn" class="btn btn-primary">Add New User</button>
                  </div>
             </div>
@@ -100,7 +99,6 @@
         </div>
     </div>
     
-    <!-- NEW: ADD USER MODAL -->
     <div id="add-user-modal" class="modal-overlay hidden items-center justify-center">
         <div class="modal-content">
             <h2 class="text-2xl font-bold">Add New User</h2>
@@ -114,8 +112,8 @@
                     <label for="add-user-role" class="block text-sm font-medium">Role</label>
                     <select id="add-user-role" class="form-select mt-1 w-full">
                         <option value="solo">Solo</option>
-                        <option value="band_admin">Band Admin</option>
                         <option value="band_member">Band Member</option>
+                        <option value="band_admin">Band Admin</option>
                         <option value="admin">Admin</option>
                     </select>
                 </div>
