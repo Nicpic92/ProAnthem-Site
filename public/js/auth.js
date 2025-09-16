@@ -1,12 +1,11 @@
 // --- START OF FILE public/js/auth.js ---
 
-import { login, signup } from './api.js';
+import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
     const loginForm = document.getElementById('login-form');
     if (loginForm) loginForm.addEventListener('submit', handleLogin);
-    // --- FIX: The signup form is now handled by pricing.html's own script ---
 });
 
 // --- Core Auth & Session Functions ---
@@ -127,6 +126,9 @@ async function handleLogin(event) {
 }
 
 export async function performLogin(credentials, redirectTo = null) {
+    // --- THIS IS THE FIX ---
+    // The error from api.js needs to be caught and re-thrown here
+    // so that handleLogin can catch it and display it in the UI.
     try {
         const result = await login(credentials);
         if (result.token) {
@@ -150,6 +152,7 @@ export async function performLogin(credentials, redirectTo = null) {
             throw new Error("Login failed: No token returned.");
         }
     } catch(error) {
+        // Re-throw the error so the calling function (handleLogin) can catch it.
         throw error;
     }
 }
