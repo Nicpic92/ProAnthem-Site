@@ -45,13 +45,8 @@ exports.handler = async (event) => {
                 return { statusCode: 401, body: JSON.stringify({ message: 'Current password is incorrect.' })};
             }
             const new_password_hash = await bcrypt.hash(newPassword, 10);
-            await client.query('UPDATE users SET password_hash = $1 WHERE email = $2', [new_password_hash, userEmail]);
+            await client.query('UPDATE users SET password_hash = $1, password_reset_required = FALSE WHERE email = $2', [new_password_hash, userEmail]);
             return { statusCode: 200, body: JSON.stringify({ message: "Password updated successfully." }) };
-        }
-
-        // Role check for band management tasks
-        if (userRole !== 'band_admin' && userRole !== 'admin') {
-            return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission for this action.' })};
         }
         
         if (event.httpMethod === 'GET' && !resource) {
@@ -66,7 +61,12 @@ exports.handler = async (event) => {
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
 
-        // *** THIS IS THE REPLACED SECTION ***
+        // --- PERMISSION CHECK FOR ADMIN ACTIONS ---
+        // For any action beyond this point (POST, DELETE), the user must be a band_admin or admin.
+        if (userRole !== 'band_admin' && userRole !== 'admin') {
+            return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission for this action.' })};
+        }
+
         if (event.httpMethod === 'POST' && resource === 'members') {
             const { firstName, lastName, email } = JSON.parse(event.body);
             if (!firstName || !lastName || !email) {
@@ -75,28 +75,23 @@ exports.handler = async (event) => {
 
             const lowerCaseEmail = email.toLowerCase();
 
-            // Check if a user with this email already exists anywhere
             const { rows: [existingUser] } = await client.query('SELECT 1 FROM users WHERE email = $1', [lowerCaseEmail]);
             if (existingUser) {
                 return { statusCode: 409, body: JSON.stringify({ message: 'A user with this email already exists.' }) };
             }
             
-            // Check for an existing pending invite for this email in this band
             const { rows: [existingInvite] } = await client.query('SELECT 1 FROM band_invites WHERE band_id = $1 AND email = $2 AND status = \'pending\'', [bandId, lowerCaseEmail]);
             if(existingInvite) {
                 return { statusCode: 409, body: JSON.stringify({ message: 'An invitation for this email has already been sent.' }) };
             }
 
-            // Generate a secure, random token for the invite link
             const inviteToken = crypto.randomBytes(32).toString('hex');
 
-            // Store the invite in the new table
             const insertQuery = `
                 INSERT INTO band_invites (band_id, email, token)
                 VALUES ($1, $2, $3)`;
             await client.query(insertQuery, [bandId, lowerCaseEmail, inviteToken]);
             
-            // Construct the invite link to send to the user
             const inviteLink = `${process.env.SITE_URL}/pricing.html?invite_token=${inviteToken}`;
             
             return { 
@@ -128,5 +123,3 @@ exports.handler = async (event) => {
         if(client) await client.end();
     }
 };
-
-// --- END OF FILE netlify/functions/band.js ---
