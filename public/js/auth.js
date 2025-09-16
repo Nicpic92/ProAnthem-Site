@@ -1,11 +1,10 @@
 // --- START OF FILE public/js/auth.js ---
 
-import { login } from './api.js';
+// This script now ONLY handles generic auth state, like the nav bar and access control.
+// Page-specific logic (like the login modal) is handled on the page itself.
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
-    const loginForm = document.getElementById('login-form');
-    if (loginForm) loginForm.addEventListener('submit', handleLogin);
 });
 
 // --- Core Auth & Session Functions ---
@@ -51,7 +50,13 @@ function updateNav() {
         navAuthSection.innerHTML = `<button id="login-modal-button" class="btn btn-secondary">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
-            loginBtn.addEventListener('click', () => openModal('login'));
+            loginBtn.addEventListener('click', () => {
+                const authModal = document.getElementById('auth-modal');
+                if (authModal) {
+                    authModal.classList.remove('hidden');
+                    authModal.classList.add('flex');
+                }
+            });
         }
     }
 }
@@ -103,73 +108,10 @@ export function checkAccess() {
     const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content');
     const accessDenied = document.getElementById('access-denied');
     
-    if (content) content.style.display = 'block';
-    if (accessDenied) accessDenied.style.display = 'none';
+    if (content && accessDenied) {
+        content.style.display = 'block';
+        accessDenied.style.display = 'none';
+    }
 
     return true;
-}
-
-async function handleLogin(event) {
-    event.preventDefault();
-    const loginError = document.getElementById('login-error');
-    loginError.textContent = 'Logging in...';
-    const form = event.target;
-    const payload = {
-        email: form.querySelector('#login-email').value,
-        password: form.querySelector('#login-password').value
-    };
-    try {
-        await performLogin(payload);
-    } catch(error) {
-        loginError.textContent = error.message;
-    }
-}
-
-export async function performLogin(credentials, redirectTo = null) {
-    // --- THIS IS THE FIX ---
-    // The error from api.js needs to be caught and re-thrown here
-    // so that handleLogin can catch it and display it in the UI.
-    try {
-        const result = await login(credentials);
-        if (result.token) {
-            localStorage.setItem('user_token', result.token);
-            
-            if (redirectTo) {
-                window.location.href = redirectTo;
-                return;
-            }
-            
-            const user = getUserPayload();
-            const specialRoles = ['admin', 'band_admin', 'band_member'];
-            const validStatuses = ['active', 'trialing', 'admin_granted'];
-            const hasSpecialRole = user && specialRoles.includes(user.role);
-            const hasValidSubscription = user && validStatuses.includes(user.subscription_status);
-            const hasAccess = hasSpecialRole || hasValidSubscription;
-            
-            window.location.href = hasAccess ? '/ProjectAnthem.html' : '/pricing.html';
-
-        } else {
-            throw new Error("Login failed: No token returned.");
-        }
-    } catch(error) {
-        // Re-throw the error so the calling function (handleLogin) can catch it.
-        throw error;
-    }
-}
-
-function openModal(view) {
-    const authModal = document.getElementById('auth-modal');
-    if(authModal) {
-        const loginView = document.getElementById('login-view');
-        if(view === 'login' && loginView) {
-            authModal.classList.remove('hidden'); 
-            authModal.classList.add('flex'); 
-            loginView.classList.remove('hidden');
-            const loginForm = document.getElementById('login-form');
-            if (loginForm && !loginForm.dataset.listenerAttached) {
-                 loginForm.addEventListener('submit', handleLogin);
-                 loginForm.dataset.listenerAttached = 'true';
-            }
-        }
-    }
 }
