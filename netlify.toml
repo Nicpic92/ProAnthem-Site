@@ -7,18 +7,26 @@
   publish = "public"
 
 [[redirects]]
-  # This rule handles all your API calls. Any request to /api/*
-  # will be forwarded to the corresponding Netlify function.
+  # --- THIS IS THE FIX ---
+  # This is a specific rule that must come BEFORE the generic /api/* rule.
+  # It catches any request starting with /api/public-band-page/...
+  from = "/api/public-band-page/*"
+  # ...and explicitly maps it to the single public-band-page function.
+  # The function itself will still get the full path to parse the slug.
+  to = "/.netlify/functions/public-band-page"
+  status = 200
+
+[[redirects]]
+  # This is the generic rule for all other API calls.
+  # It will now only be used if the rule above doesn't match.
   from = "/api/*"
   to = "/.netlify/functions/:splat"
   status = 200
 
 [[redirects]]
-  # --- THIS IS THE FIX ---
-  # This rule handles the public band profile pages.
+  # This rule for the frontend remains correct.
   # Any request to /bands/some-slug...
   from = "/bands/:slug"
   # ...will be rewritten to serve the band-profile.html file.
   to = "/band-profile.html"
-  # Status 200 means it's a rewrite, not a redirect. The URL in the browser bar stays the same.
   status = 200
