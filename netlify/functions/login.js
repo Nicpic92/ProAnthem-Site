@@ -41,18 +41,34 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE CORRECTED LOGIC BLOCK ---
-        // These roles are managed manually or by invitation, not by Stripe payments directly.
-        // We should trust the database role for these users and not try to change it based on a subscription.
-        const nonStripeManagedRoles = ['admin', 'band_member'];
+        // --- THIS IS THE MODIFIED LOGIC BLOCK ---
+        if (user.role === 'admin') {
+            // Admins always have access, no checks needed.
+            subStatus = 'active'; // Assign a valid status for consistency.
+        } else if (user.role === 'band_member') {
+            // For a band member, we check their band admin's status.
+            const { rows: [bandAdmin] } = await client.query(
+                `SELECT subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
+                [user.band_id]
+            );
 
-        if (nonStripeManagedRoles.includes(user.role)) {
-            // Do nothing. Trust the role assigned in the database.
-            // This prevents an invited 'band_member' from having their role changed,
-            // and protects admins.
+            if (bandAdmin && bandAdmin.subscription_status === 'admin_granted') {
+                // If the admin has been granted access, the whole band gets it.
+                subStatus = 'admin_granted';
+            } else if (bandAdmin && bandAdmin.stripe_customer_id) {
+                // Otherwise, check the admin's Stripe subscription status.
+                const subscriptions = await stripe.subscriptions.list({
+                    customer: bandAdmin.stripe_customer_id,
+                    status: 'all',
+                    limit: 1,
+                });
+                subStatus = subscriptions.data.length > 0 ? subscriptions.data[0].status : 'inactive';
+            } else {
+                // If there's no admin or they have no Stripe ID, the band is inactive.
+                subStatus = 'inactive';
+            }
         } else {
-            // This user's role IS managed by their subscription (e.g., 'solo', 'band_admin').
-            // We verify their status with Stripe.
+            // This is for 'solo' or 'band_admin' users whose access depends on their own subscription.
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -62,41 +78,35 @@ exports.handler = async (event) => {
 
                 let newStatus = 'inactive';
                 let newPlan = null;
-                // Start by assuming the role WILL NOT CHANGE unless a subscription dictates it.
                 let newRole = user.role; 
 
                 if (subscriptions.data.length > 0) {
                     const sub = subscriptions.data[0];
-                    // Trust the status from Stripe ('trialing', 'active', 'canceled', etc.)
                     newStatus = sub.status;
                     const priceId = sub.items.data[0].price.id;
 
-                    // Determine plan and role based on the Stripe Price ID
                     if (priceId === BAND_PLAN_PRICE_ID) {
                         newPlan = 'band';
-                        newRole = 'band_admin'; // A paying user on a band plan is the admin.
+                        newRole = 'band_admin';
                     } else if (priceId === SOLO_PLAN_PRICE_ID) {
                         newPlan = 'solo';
                         newRole = 'solo';
                     }
                 }
                 
-                // Only update the database if something has changed.
                 if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || newRole !== user.role) {
                     await client.query(
                         'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
                         [newStatus, newPlan, newRole, user.email]
                     );
-                    // Update local variables to reflect the change for the token payload
                     subStatus = newStatus;
                     userRole = newRole;
                 } else {
-                    // If nothing changed, still ensure the local variables are up-to-date from Stripe
                     subStatus = newStatus;
                 }
             } else {
-                // User has no Stripe ID, so they are inactive (unless they have a special role).
-                subStatus = 'inactive';
+                // User has no Stripe ID, so they are inactive unless manually granted access.
+                subStatus = user.subscription_status === 'admin_granted' ? 'admin_granted' : 'inactive';
             }
         }
         
