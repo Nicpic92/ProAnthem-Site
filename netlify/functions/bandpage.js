@@ -22,7 +22,7 @@ exports.handler = async (event) => {
                 link_website, link_spotify, link_apple_music,
                 link_youtube, link_instagram, link_facebook,
                 press_kit_enabled, id,
-                photo_gallery -- <-- ADDED NEW FIELD
+                photo_gallery
             FROM bands 
             WHERE LOWER(slug) = LOWER($1) AND press_kit_enabled = TRUE`;
         
@@ -50,7 +50,7 @@ exports.handler = async (event) => {
                 bio: band.bio,
                 contact: { public: band.contact_public_email, booking: band.contact_booking_email },
                 links: { website: band.link_website, spotify: band.link_spotify, apple_music: band.link_apple_music, youtube: band.link_youtube, instagram: band.link_instagram, facebook: band.link_facebook },
-                photo_gallery: band.photo_gallery || [] // <-- ADDED NEW FIELD
+                photo_gallery: band.photo_gallery || []
             },
             events: events
         };
