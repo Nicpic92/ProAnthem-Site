@@ -30,8 +30,10 @@
                     <h1 id="band-name-header" class="text-4xl font-bold">Band Dashboard</h1>
                     <p id="welcome-message" class="text-lg text-gray-400 mt-2">Welcome, [User Name]!</p>
                  </div>
-                 <div class="flex gap-4">
+                 <div class="flex flex-wrap gap-4">
                     <a href="/band.html" class="btn btn-secondary">Band Settings & Members</a>
+                    <!-- THIS IS THE NEW LINK -->
+                    <a href="/stage-plot-editor.html" class="btn btn-secondary">Stage Plots & Riders</a>
                     <a href="/ProjectAnthem.html" class="btn btn-primary">Go to Tool</a>
                  </div>
             </div>
@@ -74,6 +76,7 @@
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
     </footer>
 
+    <script type="module" src="/js/auth.js"></script>
     <script type="module">
         import { getUserPayload, checkAccess } from './js/auth.js';
         import { apiRequest } from './js/api.js';
@@ -100,10 +103,8 @@
             try {
                 const data = await apiRequest('band-dashboard');
 
-                // Populate Header
                 document.getElementById('band-name-header').textContent = `${data.band.band_name} Dashboard`;
 
-                // Populate Announcements
                 const announcementsView = document.getElementById('announcements-view');
                 const announcementsEdit = document.getElementById('announcements-edit');
                 const announcementsTextarea = document.getElementById('announcements-textarea');
@@ -116,7 +117,6 @@
                     document.getElementById('save-announcements-btn').addEventListener('click', saveAnnouncements);
                 }
 
-                // Populate Events
                 const eventsList = document.getElementById('events-list');
                 eventsList.innerHTML = '';
                 if (data.events && data.events.length > 0) {
@@ -160,3 +160,4 @@
     </script>
 </body>
 </html>
+<!-- END OF FILE public/band-dashboard.html -->
