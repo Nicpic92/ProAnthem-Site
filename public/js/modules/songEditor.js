@@ -1,37 +1,51 @@
 // --- START OF FILE public/js/modules/songEditor.js ---
 
-import * as api from '../api.js';
 import * as UI from './ui.js';
-import * as Fretboard from './fretboard.js';
+import * as songDataManager from './songDataManager.js';
+import * as fretboardController from './fretboardController.js';
 import * as drumEditor from './drumEditor.js';
+import * as audioManager from './audioManager.js';
+import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
-let songData = {};
 let chordQueue = [];
 let chordQueueIndex = 0;
 let lastFocusedLyricsBlock = null;
-let mediaRecorder = null;
-let audioChunks = [];
-let fretSelectionContext = {};
-let selectedNote = {};
 let activeResize = {};
-let isDraggingNote = false;
-
-// --- CONSTANTS ---
-const CONSTANTS = {
-    CLOUDINARY_CLOUD_NAME: "dawbku2eq",
-    CLOUDINARY_UPLOAD_PRESET: "project-anthem-unsigned",
-    TUNINGS: { E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, D_STANDARD: { name: "D Standard", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'D'] }, DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } },
-    STRING_CONFIG: { 6: { height: 180, stringSpacing: 28 }, 7: { height: 210, stringSpacing: 28 }, 8: { height: 240, stringSpacing: 28 } },
-    FRETBOARD_CONFIG: { frets: 24, width: 8000, nutWidth: 15, fretSpacing: 80, dotFrets: [3, 5, 7, 9, 12, 15, 17, 19, 21, 24], dotRadius: 5, noteRadius: 11 },
-    SHARP_SCALE: ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#']
-};
 
 // --- DOM ELEMENTS ---
 const el = {};
+
+// --- INITIALIZATION ---
+export function init(isDemoMode) {
+    isDemo = isDemoMode;
+    cacheDOMElements();
+    attachEventListeners();
+    
+    // Initialize sub-modules
+    fretboardController.init(renderSong); 
+    audioManager.init(handleRecordingFinished);
+
+    UI.populateTuningSelector(el.tuningSelector, { E_STANDARD: { name: "E Standard" }, EB_STANDARD: { name: "Eb Standard" }, D_STANDARD: { name: "D Standard" }, DROP_D: { name: "Drop D" }, DROP_C: { name: "Drop C" } });
+
+    if (isDemo) {
+        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
+        loadChords(); // Load demo chords
+        renderSong();
+        if (el.recordBtn) el.recordBtn.disabled = true;
+    } else {
+        loadChords();
+        songDataManager.loadInitialSong()
+            .then(renderSong)
+            .catch(error => {
+                renderSong();
+                UI.setStatus(el.statusMessage, error.message, true);
+            });
+    }
+}
 
 function cacheDOMElements() {
     el.titleInput = document.getElementById('titleInput');
@@ -55,14 +69,7 @@ function cacheDOMElements() {
     el.chordQueueDiv = document.getElementById('chordQueue');
     el.clearQueueBtn = document.getElementById('clearQueueBtn');
     el.recordBtn = document.getElementById('recordBtn');
-    el.stopBtn = document.getElementById('stopBtn');
-    el.recordingStatus = document.getElementById('recordingStatus');
     el.deleteAudioBtn = document.getElementById('deleteAudioBtn');
-    el.fretSelectionModal = document.getElementById('fret-selection-modal');
-    el.fretNumberSelector = document.getElementById('fret-number-selector');
-    el.addFretBtn = document.getElementById('add-fret-btn');
-    el.cancelFretBtn = document.getElementById('cancel-fret-btn');
-    el.soundingKeyDisplay = document.getElementById('soundingKeyDisplay');
     el.importBtn = document.getElementById('importBtn');
     el.importModal = document.getElementById('import-modal');
     el.importTextarea = document.getElementById('import-textarea');
@@ -70,247 +77,78 @@ function cacheDOMElements() {
     el.importCancelBtn = document.getElementById('import-cancel-btn');
     el.resetDemoBtn = document.getElementById('resetDemoBtn');
     el.historyBtn = document.getElementById('historyBtn');
-    // --- NEW: Cache the notation palette element ---
     el.notationPalette = document.getElementById('notation-palette');
 }
 
-
-// --- INITIALIZATION ---
-export function init(isDemoMode) {
-    isDemo = isDemoMode;
-    cacheDOMElements();
-    attachEventListeners();
-    UI.populateTuningSelector(el.tuningSelector, CONSTANTS.TUNINGS);
-    // --- NEW: Set up the notation palette ---
-    setupNotationPalette();
-
-    if (isDemo) {
-        loadDemoChords();
-        initializeDemoSong();
-        if (el.recordBtn) el.recordBtn.disabled = true;
-    } else {
-        loadChords();
-        UI.loadSheetList(el.songSelector, api).then(() => initializeNewSong(false));
-    }
-}
-
 function attachEventListeners() {
-    el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) initializeDemoSong(); });
-    [el.tuningSelector, el.capoFretInput].forEach(elem => elem?.addEventListener('input', () => { songData.tuning = el.tuningSelector.value; songData.capo = parseInt(el.capoFretInput.value, 10) || 0; renderSongBlocks(); updateSoundingKey(); }));
+    // Top-level input listeners
+    el.titleInput?.addEventListener('input', () => songDataManager.updateSongField('title', el.titleInput.value));
+    el.artistInput?.addEventListener('input', () => songDataManager.updateSongField('artist', el.artistInput.value));
+    el.durationInput?.addEventListener('input', () => songDataManager.updateSongField('duration', el.durationInput.value));
+
+    // Demo and song selection
+    el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) { songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA); renderSong(); }});
+    el.songSelector?.addEventListener('change', () => handleLoadSong(el.songSelector.value));
+
+    // Musical settings
+    [el.tuningSelector, el.capoFretInput].forEach(elem => elem?.addEventListener('input', handleMusicalSettingsChange));
     el.transposeUpBtn?.addEventListener('click', () => handleTranspose(1));
     el.transposeDownBtn?.addEventListener('click', () => handleTranspose(-1));
+
+    // Main buttons
     el.saveBtn?.addEventListener('click', handleSave);
     el.deleteBtn?.addEventListener('click', handleDelete);
+
+    // Chord palette and queue
     el.addChordBtn?.addEventListener('click', handleAddChord);
     el.newChordInput?.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
     el.clearQueueBtn?.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; UI.renderChordQueue(el.chordQueueDiv, el.clearQueueBtn, chordQueue, chordQueueIndex); });
+
+    // Block container interactions
     el.songBlocksContainer?.addEventListener('focusin', (e) => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
-    el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; updateBlockData(blockId, 'content', e.target.value); updateSoundingKey(); } });
-    el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
-    document.addEventListener('mousemove', (e) => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } if (isDraggingNote && selectedNote.blockId) { const block = songData.song_blocks.find(b => b.id === selectedNote.blockId); const note = block?.data?.notes[selectedNote.noteIndex]; if (note) { const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`); const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG); if (clickData) { note.position = clickData.position; note.string = clickData.string; drawNotesOnFretboard(selectedNote.blockId); } } } });
-    document.addEventListener('mouseup', () => { if (activeResize.element) { const newHeight = activeResize.element.offsetHeight; updateBlockData(activeResize.blockId, null, null, newHeight); activeResize = { element: null, startY: 0, startHeight: 0 }; document.body.style.cursor = ''; } if(isDraggingNote) { isDraggingNote = false; renderPreview(); } });
-    el.songBlocksContainer?.addEventListener('change', (e) => { if (e.target.dataset.action === 'change-strings') { const blockId = e.target.closest('.song-block').dataset.blockId; const block = songData.song_blocks.find(b => b.id === blockId); if (block) { block.strings = parseInt(e.target.value, 10); drawFretboard(blockId); } } });
+    el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; songDataManager.updateBlockData(blockId, 'content', e.target.value, null); renderPreview(); updateSoundingKey(); } });
     el.songBlocksContainer?.addEventListener('click', handleSongBlockClick);
-    document.addEventListener('keydown', handleDeleteNote);
     el.addBlockButtonsContainer?.addEventListener('click', handleAddBlockClick);
-    el.recordBtn?.addEventListener('click', startRecording);
-    el.stopBtn?.addEventListener('click', stopRecording);
-    el.songSelector?.addEventListener('change', () => loadSong(el.songSelector.value));
-    el.addFretBtn?.addEventListener('click', confirmFretSelection);
-    el.cancelFretBtn?.addEventListener('click', () => el.fretSelectionModal.classList.add('hidden'));
+    
+    // Resize Handle Logic
+    el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
+    document.addEventListener('mousemove', (e) => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } });
+    document.addEventListener('mouseup', () => { if (activeResize.element) { songDataManager.updateBlockData(activeResize.blockId, null, null, activeResize.element.offsetHeight); activeResize = {}; document.body.style.cursor = ''; } });
+    
+    // Audio
     el.deleteAudioBtn?.addEventListener('click', handleDeleteAudio);
+
+    // Import
     el.importBtn?.addEventListener('click', () => { el.importTextarea.value = ''; el.importModal.classList.remove('hidden'); });
     el.importCancelBtn?.addEventListener('click', () => el.importModal.classList.add('hidden'));
     el.importConfirmBtn?.addEventListener('click', handleImport);
-    el.historyBtn?.addEventListener('click', () => openHistoryModal(songData, renderPreview, (id) => loadSong(id), renderTransposedTabForHistory));
+
+    // History
+    el.historyBtn?.addEventListener('click', () => openHistoryModal(songDataManager.getSongData(), renderPreview, handleLoadSong, renderTransposedTabForHistory));
+
+    // Notation Palette
+    setupNotationPalette();
 }
 
-// --- NEW: Function to handle notation palette logic ---
-function setupNotationPalette() {
-    el.notationPalette?.addEventListener('click', (e) => {
-        const button = e.target.closest('button');
-        if (!button) return;
-
-        const notation = button.dataset.notation;
-        const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
-        if (block && block.data.notes[selectedNote.noteIndex]) {
-            const currentNote = block.data.notes[selectedNote.noteIndex];
-            // If the same notation is clicked again, remove it. Otherwise, set it.
-            currentNote.notation = currentNote.notation === notation ? null : notation;
-            
-            // For notations that need a target fret (like bends), open a prompt.
-            if (notation === 'b') {
-                const targetFret = prompt("Bend to which fret?", (currentNote.fret - ((CONSTANTS.TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo)) + 2);
-                if (targetFret !== null && !isNaN(targetFret)) {
-                    currentNote.bend_target = parseInt(targetFret, 10);
-                }
-            } else {
-                delete currentNote.bend_target; // remove bend target if other notation is selected
-            }
-            
-            drawNotesOnFretboard(selectedNote.blockId);
-            renderPreview();
-        }
-    });
-}
-
-export function reloadSong(id) {
-    loadSong(id);
-}
-
-
-// --- CORE SONG LOGIC ---
-
-function initializeDemoSong() {
-    songData = { 
-        id: 'demo-song', title: 'The ProAnthem Feature Tour', artist: 'The Dev Team', audio_url: null, duration: '4:15',
-        song_blocks: [
-            { id: 'block_1', type: 'lyrics', label: 'Lyrics & Chords', content: '[G]Just type your lyrics [D]in this space,\nPut [Em]chords in brackets, [C]right in place.\nThe [G]preview updates, [D]as you go,\nA [C]perfect layout for your [G]show.', height: 140 },
-            { id: 'block_2', type: 'tab', label: 'Guitar Riff Example', strings: 6, data: { notes: [{string: 3, fret: 5, position: 200}, {string: 3, fret: 7, position: 350, notation: 'h'}, {string: 2, fret: 5, position: 500}, {string: 2, fret: 7, position: 650, notation: 'p'}]}, editMode: false }
-        ],
-        tuning: 'E_STANDARD', capo: 0, transpose: 0
-    };
-    el.titleInput.value = songData.title;
-    el.artistInput.value = songData.artist;
-    el.durationInput.value = songData.duration;
-    updateMusicalSettingsUI();
-    renderSongBlocks();
-    updateSoundingKey();
-    UI.setStatus(el.statusMessage, 'Demo loaded. Your changes will not be saved.');
-}
-
-async function initializeNewSong(forceNew = false) {
-    el.historyBtn.disabled = true;
-    const createBlankSong = () => {
-        const initialDrumTab = drumEditor.DEFAULT_INSTRUMENTS
-            .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
-            .join('\n');
-            
-        songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'drum_tab', label: 'Drums 1', content: initialDrumTab }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
-        el.titleInput.value = '';
-        el.artistInput.value = '';
-        el.durationInput.value = '';
-        if (el.songSelector) el.songSelector.value = 'new';
-        document.getElementById('audioPlayerContainer')?.classList.add('hidden');
-        document.getElementById('audioPlayer')?.setAttribute('src', '');
-        updateMusicalSettingsUI();
-        renderSongBlocks();
-        updateSoundingKey();
-        updateSetlistSongContext(songData);
-    };
-
-    if (forceNew) { createBlankSong(); return; }
-    try {
-        const songs = await api.getSheets();
-        if (songs && songs.length > 0) {
-            await loadSong(songs[0].id);
-            if (el.songSelector) el.songSelector.value = songs[0].id;
-        } else {
-            createBlankSong();
-        }
-    } catch (e) {
-        createBlankSong();
-        UI.setStatus(el.statusMessage, 'Could not load songs. Starting new.', true);
-    }
-}
-
-async function loadSong(id) {
-    if (!id || id === 'new') {
-        initializeNewSong(true);
-        return;
-    }
-    UI.setStatus(el.statusMessage, 'Loading song...');
-    try {
-        const data = await api.getSheet(id);
-        songData = { id: data.id, title: data.title || '', artist: data.artist || '', duration: data.duration, audio_url: data.audio_url, song_blocks: Array.isArray(data.song_blocks) ? data.song_blocks : [], tuning: data.tuning ?? 'E_STANDARD', capo: data.capo ?? 0, transpose: data.transpose ?? 0 };
-        el.titleInput.value = songData.title;
-        el.artistInput.value = songData.artist;
-        el.durationInput.value = songData.duration || '';
-        const audioPlayerContainer = document.getElementById('audioPlayerContainer');
-        const audioPlayer = document.getElementById('audioPlayer');
-        if (songData.audio_url) { audioPlayerContainer.classList.remove('hidden'); audioPlayer.src = songData.audio_url; } else { audioPlayerContainer.classList.add('hidden'); audioPlayer.src = ''; }
-        updateMusicalSettingsUI();
-        renderSongBlocks();
-        UI.setStatus(el.statusMessage, 'Song loaded.');
-        updateSoundingKey();
-        el.historyBtn.disabled = false;
-        updateSetlistSongContext(songData);
-    } catch (error) {
-        UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
-        initializeNewSong(true);
-    }
-}
-
-async function handleSave() {
-    if (isDemo) {
-        songData.title = el.titleInput.value || 'My Demo Song';
-        songData.artist = el.artistInput.value || 'An Artist';
-        songData.duration = el.durationInput.value || null;
-        const hasContent = songData.song_blocks.some(b => (b.content && b.content.trim() !== '') || (b.data && b.data.notes && b.data.notes.length > 0));
-        if (!hasContent && !songData.title) {
-            alert("Please add a title or some content before saving!");
-            return;
-        }
-        alert("Let's save your work! We'll take you to the signup page. Your song will be waiting for you in your new account.");
-        localStorage.setItem('pendingSong', JSON.stringify(songData));
-        window.location.href = '/pricing.html';
-        return;
-    }
-
-    el.saveBtn.disabled = true;
-    UI.setStatus(el.statusMessage, 'Saving...');
-    try {
-        songData.title = el.titleInput.value || 'Untitled';
-        songData.artist = el.artistInput.value || 'Unknown Artist';
-        songData.duration = el.durationInput.value || null;
-        const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData);
-        songData.id = savedSong.id;
-        UI.setStatus(el.statusMessage, 'Saved successfully!');
-        if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
-            await UI.loadSheetList(el.songSelector, api, savedSong.id);
-        } else {
-            el.songSelector.querySelector(`option[value="${savedSong.id}"]`).textContent = songData.title;
-            el.songSelector.value = savedSong.id;
-        }
-        el.historyBtn.disabled = false;
-        updateSetlistSongContext(songData);
-    } catch (error) {
-        UI.setStatus(el.statusMessage, `Save failed: ${error.message}`, true);
-    } finally {
-        el.saveBtn.disabled = false;
-    }
-}
-
-async function handleDelete() {
-    if (isDemo) { UI.setStatus(el.statusMessage, 'Deleting is disabled in the demo.', true); return; }
-    if (!songData.id) { UI.setStatus(el.statusMessage, "Cannot delete an unsaved song.", true); return; }
-    if (confirm(`Are you sure you want to delete "${songData.title}"?`)) {
-        try {
-            UI.setStatus(el.statusMessage, 'Deleting...');
-            await api.deleteSheet(songData.id);
-            UI.setStatus(el.statusMessage, 'Song deleted.');
-            await UI.loadSheetList(el.songSelector, api);
-            await initializeNewSong();
-        } catch (e) {
-            UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
-        }
-    }
-}
-
-
-// --- RENDERING & UI LOGIC ---
-
-function renderSongBlocks() {
-    UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block), initializeSortable);
+/**
+ * The main render function for the entire editor. Called whenever state changes.
+ */
+function renderSong() {
+    const songData = songDataManager.getSongData();
+    updateUIFromData(songData);
     
+    UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, UI.createBlockElement, initializeSortable);
+    
+    // After blocks are rendered, initialize interactive components within them
     songData.song_blocks.forEach(block => {
         if (block.type === 'tab') {
-            drawFretboard(block.id);
+            fretboardController.drawFretboard(block.id);
         } else if (block.type === 'drum_tab') {
             const container = document.getElementById(`drum-editor-${block.id}`);
             if (container) {
                 drumEditor.createEditor(container, block.content, (newContent) => {
-                    updateBlockData(block.id, 'content', newContent);
+                    songDataManager.updateBlockData(block.id, 'content', newContent);
+                    renderPreview();
                 });
             }
         }
@@ -318,72 +156,262 @@ function renderSongBlocks() {
 
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
     renderPreview();
+    updateSoundingKey();
+    updateSetlistSongContext(songData);
 }
 
-function renderPreview() {
-    UI.renderPreview(el.livePreview, songData.song_blocks, (block) => renderTransposedTab(block));
+/**
+ * Updates all the simple form inputs and UI elements from the songData object.
+ * @param {object} songData 
+ */
+function updateUIFromData(songData) {
+    el.titleInput.value = songData.title;
+    el.artistInput.value = songData.artist;
+    el.durationInput.value = songData.duration || '';
+
+    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+    const audioPlayer = document.getElementById('audioPlayer');
+    if (songData.audio_url) {
+        audioPlayerContainer.classList.remove('hidden');
+        audioPlayer.src = songData.audio_url;
+    } else {
+        audioPlayerContainer.classList.add('hidden');
+        audioPlayer.src = '';
+    }
+
+    el.tuningSelector.value = songData.tuning;
+    el.capoFretInput.value = songData.capo;
+    const steps = songData.transpose;
+    el.transposeStatus.textContent = steps > 0 ? `+${steps}` : String(steps);
+    el.historyBtn.disabled = !songData.id;
 }
 
-function updateMusicalSettingsUI() {
-    if (el.tuningSelector) el.tuningSelector.value = songData.tuning;
-    if (el.capoFretInput) el.capoFretInput.value = songData.capo;
-    if (el.transposeStatus) {
-        const steps = songData.transpose;
-        el.transposeStatus.textContent = steps > 0 ? `+${steps}` : steps;
+
+// --- EVENT HANDLER FUNCTIONS ---
+
+async function handleLoadSong(id) {
+    if (!id) return;
+    UI.setStatus(el.statusMessage, 'Loading song...');
+    try {
+        await songDataManager.loadSong(id);
+        if (el.songSelector.value !== id) {
+            el.songSelector.value = id;
+        }
+        renderSong();
+        UI.setStatus(el.statusMessage, 'Song loaded.');
+    } catch (error) {
+        UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
+        await songDataManager.loadSong('new');
+        renderSong();
     }
 }
 
-// --- FRETBOARD LOGIC (GLUE FUNCTIONS) ---
-
-function drawFretboard(blockId) {
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (!block || block.type !== 'tab') return;
-
-    Fretboard.drawFretboard(
-        blockId,
-        block.strings,
-        CONSTANTS.TUNINGS,
-        CONSTANTS.STRING_CONFIG,
-        CONSTANTS.FRETBOARD_CONFIG,
-        drawNotesOnFretboard,
-        attachFretboardListeners
-    );
+async function handleSave() {
+    el.saveBtn.disabled = true;
+    UI.setStatus(el.statusMessage, 'Saving...');
+    try {
+        const savedSong = await songDataManager.saveSong(isDemo);
+        if (savedSong) { // saveSong returns null in demo mode
+            UI.setStatus(el.statusMessage, 'Saved successfully!');
+            // If it was a new song, refresh the song list to include it
+            if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
+                await UI.loadSheetList(el.songSelector, api, savedSong.id);
+            }
+            renderSong(); // Re-render to update things like the history button
+        }
+    } catch (error) {
+        UI.setStatus(el.statusMessage, `Save failed: ${error.message}`, true);
+    } finally {
+        if (!isDemo) el.saveBtn.disabled = false;
+    }
 }
 
-function drawNotesOnFretboard(blockId) {
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (!block || block.type !== 'tab') return;
+async function handleDelete() {
+    if (isDemo) { UI.setStatus(el.statusMessage, 'Deleting is disabled in the demo.', true); return; }
+    const songData = songDataManager.getSongData();
+    if (!songData.id) { UI.setStatus(el.statusMessage, "Cannot delete an unsaved song.", true); return; }
+
+    if (confirm(`Are you sure you want to delete "${songData.title}"?`)) {
+        try {
+            UI.setStatus(el.statusMessage, 'Deleting...');
+            await songDataManager.deleteSong();
+            UI.setStatus(el.statusMessage, 'Song deleted.');
+            await UI.loadSheetList(el.songSelector, api);
+            renderSong();
+        } catch (e) {
+            UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
+        }
+    }
+}
+
+function handleMusicalSettingsChange() {
+    songDataManager.updateSongField('tuning', el.tuningSelector.value);
+    songDataManager.updateSongField('capo', parseInt(el.capoFretInput.value, 10) || 0);
+    renderSong();
+}
+
+function handleTranspose(amount) {
+    const songData = songDataManager.getSongData();
+    songDataManager.updateSongField('transpose', songData.transpose + amount);
     
-    Fretboard.drawNotesOnFretboard(
-        blockId,
-        block.data?.notes,
-        selectedNote,
-        block.strings,
-        songData.tuning,
-        songData.capo,
-        CONSTANTS.TUNINGS,
-        CONSTANTS.STRING_CONFIG,
-        CONSTANTS.FRETBOARD_CONFIG
-    );
+    songData.song_blocks.forEach(block => {
+        if (block.type === 'lyrics' && block.content) {
+            block.content = block.content.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`);
+        }
+    });
+    renderSong();
 }
 
-function attachFretboardListeners(svgEl) {
-    svgEl.addEventListener('click', handleFretboardClick);
-    svgEl.addEventListener('mousedown', handleNoteMouseDown);
+function handleAddBlockClick(e) {
+    const target = e.target;
+    const songData = songDataManager.getSongData();
+    const songBlocks = songData.song_blocks;
+
+    if (target.id === 'insert-ref-btn') {
+        document.getElementById('ref-dropdown').classList.toggle('hidden');
+        return;
+    }
+
+    if (target.closest('#ref-dropdown')) {
+        const originalId = target.dataset.originalId;
+        const originalBlock = songBlocks.find(b => b.id === originalId);
+        if(originalBlock) {
+            songBlocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId });
+            renderSong();
+        }
+        document.getElementById('ref-dropdown').classList.add('hidden');
+        return;
+    }
+
+    if (target.dataset.action === 'add') {
+        const type = target.dataset.type;
+        const baseLabel = target.textContent.trim().replace('+', '').trim();
+        const count = songBlocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
+        const label = `${baseLabel} ${count}`;
+        const newBlock = { id: `block_${Date.now()}`, type, label };
+
+        if (type === 'lyrics') { newBlock.content = ''; newBlock.height = 100; }
+        if (type === 'tab') { newBlock.data = { notes: [] }; newBlock.strings = 6; newBlock.editMode = false; }
+        if (type === 'drum_tab') {
+            newBlock.content = drumEditor.DEFAULT_INSTRUMENTS
+                .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
+                .join('\n');
+        }
+        
+        songBlocks.push(newBlock);
+        renderSong();
+    }
 }
 
-// --- CHORD & PALETTE LOGIC ---
+function handleSongBlockClick(e) {
+    const blockEl = e.target.closest('.song-block');
+    if (!blockEl) return;
+    const blockId = blockEl.dataset.blockId;
+    
+    // Chord Queue Placement
+    if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
+        e.preventDefault();
+        const textarea = e.target;
+        const chordToPlace = chordQueue[chordQueueIndex];
+        const t = `[${chordToPlace}]`;
+        const p = textarea.selectionStart;
+        textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p);
+        textarea.focus();
+        textarea.setSelectionRange(p + t.length, p + t.length);
+        
+        chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length;
+        songDataManager.updateBlockData(blockId, 'content', textarea.value, null);
+        renderPreview();
+        UI.renderChordQueue(el.chordQueueDiv, el.clearQueueBtn, chordQueue, chordQueueIndex);
+        return;
+    }
+
+    // Action Buttons in Header
+    const action = e.target.dataset.action;
+    if (action) {
+        const songData = songDataManager.getSongData();
+        const block = songData.song_blocks.find(b => b.id === blockId);
+
+        if (action === 'delete') {
+            if (confirm('Are you sure?')) {
+                const newBlocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId);
+                songDataManager.setSongBlocks(newBlocks);
+                renderSong();
+            }
+        } else if (action === 'rename') {
+            const newLabel = prompt('Enter new label:', block.label);
+            if (newLabel) {
+                block.label = newLabel;
+                renderSong();
+            }
+        } else if (action === 'edit-tab') {
+            block.editMode = !block.editMode;
+            if (!block.editMode) {
+                fretboardController.resetSelection();
+            }
+            renderSong();
+        }
+    }
+}
+
+function handleImport() {
+    const pastedText = el.importTextarea.value;
+    if (!pastedText.trim()) {
+        alert('Please paste some song text to import.');
+        return;
+    }
+    const result = parsePastedSong(pastedText);
+    if (result.blocks.length > 0) {
+        const newSongData = {
+            ...songDataManager.getSongData(), // keep capo, tuning etc if possible
+            id: null,
+            title: 'Imported Song',
+            artist: '',
+            duration: '',
+            audio_url: null,
+            song_blocks: result.blocks,
+            ...result.metadata
+        };
+        songDataManager.replaceSongData(newSongData);
+        el.songSelector.value = 'new';
+        renderSong();
+        UI.setStatus(el.statusMessage, 'Song imported successfully! Remember to save.');
+    } else {
+        UI.setStatus(el.statusMessage, 'Could not find any content to import.', true);
+    }
+    el.importModal.classList.add('hidden');
+}
+
+async function handleDeleteAudio() {
+    if (confirm('Are you sure you want to permanently delete this voice memo?')) {
+        songDataManager.updateSongField('audio_url', null);
+        try {
+            await handleSave(); // Save the change
+            renderSong();
+            UI.setStatus(el.statusMessage, 'Recording deleted.', false);
+        } catch (error) {
+            UI.setStatus(el.statusMessage, `Failed to delete recording: ${error.message}`, true);
+        }
+    }
+}
+
+function handleRecordingFinished(audioUrl) {
+    songDataManager.updateSongField('audio_url', audioUrl);
+    handleSave(); // Automatically save the song after a successful recording upload
+    renderSong();
+}
+
+
+// --- CHORD AND MUSIC THEORY LOGIC ---
 
 async function loadChords() {
+    const api = isDemo ? null : await import('../api.js');
     try {
-        const chords = await api.getChords();
+        const chords = isDemo 
+            ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
+            : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { UI.setStatus(el.statusMessage, 'Failed to load chords.', true); }
-}
-
-function loadDemoChords() {
-    const demoChords = ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}));
-    UI.renderChordPalette(el.chordPalette, demoChords, handleChordClick);
 }
 
 async function handleAddChord() {
@@ -391,6 +419,7 @@ async function handleAddChord() {
     const name = el.newChordInput.value.trim();
     if (!name) return;
     try {
+        const api = await import('../api.js');
         await api.createChord({ name });
         el.newChordInput.value = '';
         UI.setStatus(el.statusMessage, `'${name}' added.`);
@@ -410,52 +439,37 @@ function handleChordClick(event, name) {
         lastFocusedLyricsBlock.value = lastFocusedLyricsBlock.value.slice(0, p) + t + lastFocusedLyricsBlock.value.slice(p); 
         lastFocusedLyricsBlock.focus(); 
         lastFocusedLyricsBlock.setSelectionRange(p + t.length, p + t.length); 
-        updateBlockData(lastFocusedLyricsBlock.closest('.song-block').dataset.blockId, 'content', lastFocusedLyricsBlock.value); 
-    }
-}
-
-
-// --- EVENT HANDLERS & HELPERS ---
-
-function updateBlockData(blockId, field, value, height) {
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (block) {
-        if (field !== null) block[field] = value;
-        if (height !== null) block.height = height;
+        
+        const blockId = lastFocusedLyricsBlock.closest('.song-block').dataset.blockId;
+        songDataManager.updateBlockData(blockId, 'content', lastFocusedLyricsBlock.value, null);
         renderPreview();
     }
 }
 
-function handleTranspose(amount) {
-    songData.transpose += amount;
-    updateMusicalSettingsUI();
-    songData.song_blocks.forEach(block => {
-        if (block.type === 'lyrics' && block.content) {
-            block.content = block.content.replace(/\[([^\]]+)\]/g, (match, chord) => `[${transposeChord(chord, amount)}]`);
-        }
-    });
-    renderSongBlocks();
-}
-
 function transposeChord(chord, amount) {
+    const SHARP_SCALE = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
     const regex = /^([A-G][b#]?)(.*)/;
     const match = chord.match(regex);
     if (!match) return chord;
+
     let note = match[1];
-    let index = CONSTANTS.SHARP_SCALE.indexOf(note);
+    let index = SHARP_SCALE.indexOf(note);
     if (index === -1) {
         const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'};
         note = flatNotes[note] || note;
-        index = CONSTANTS.SHARP_SCALE.indexOf(note);
+        index = SHARP_SCALE.indexOf(note);
     }
     if (index === -1) return chord;
+    
     const newIndex = (index + amount + 12) % 12;
-    return CONSTANTS.SHARP_SCALE[newIndex] + match[2];
+    return SHARP_SCALE[newIndex] + match[2];
 }
 
 function updateSoundingKey() {
+    const songData = songDataManager.getSongData();
     const capoFret = songData.capo || 0;
     let firstChord = null;
+
     for (const block of songData.song_blocks) {
         if (block.type === 'lyrics' && block.content) {
             const match = block.content.match(/\[([^\]]+)\]/);
@@ -465,13 +479,17 @@ function updateSoundingKey() {
             }
         }
     }
+
     if (!firstChord) {
-        el.soundingKeyDisplay.textContent = '-';
+        document.getElementById('soundingKeyDisplay').textContent = '-';
         return;
     }
     const soundingKey = transposeChord(firstChord, capoFret);
-    el.soundingKeyDisplay.textContent = soundingKey;
+    document.getElementById('soundingKeyDisplay').textContent = soundingKey;
 }
+
+
+// --- UTILITY AND RENDER CALLBACKS ---
 
 function initializeSortable() {
     if (el.songBlocksContainer.sortableInstance) {
@@ -481,6 +499,7 @@ function initializeSortable() {
         animation: 150,
         handle: '.block-header',
         onEnd: (evt) => {
+            const songData = songDataManager.getSongData();
             const [movedItem] = songData.song_blocks.splice(evt.oldIndex, 1);
             songData.song_blocks.splice(evt.newIndex, 0, movedItem);
             renderPreview();
@@ -488,151 +507,43 @@ function initializeSortable() {
     });
 }
 
-function handleFretboardClick(e) {
-    const svg = e.currentTarget;
-    const blockId = svg.id.replace('fretboard-svg-', '');
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (!block || !block.editMode) return;
+function setupNotationPalette() {
+    el.notationPalette?.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (!button) return;
 
-    // --- NEW: If we clicked outside a note, deselect the current note ---
-    if (!e.target.classList.contains('fretboard-note')) {
-        if (selectedNote.blockId) {
-            const oldBlockId = selectedNote.blockId;
-            selectedNote = {};
-            drawNotesOnFretboard(oldBlockId);
-            el.notationPalette.classList.add('hidden');
+        const notation = button.dataset.notation;
+        const songData = songDataManager.getSongData();
+        const selected = fretboardController.getSelectedNote();
+        const block = songData.song_blocks.find(b => b.id === selected.blockId);
+
+        if (block && block.data.notes[selected.noteIndex]) {
+            const currentNote = block.data.notes[selected.noteIndex];
+            currentNote.notation = currentNote.notation === notation ? null : notation;
+
+            if (notation === 'b') {
+                const targetFret = prompt("Bend to which fret?", (currentNote.fret - (songData.capo)) + 2);
+                if (targetFret !== null && !isNaN(targetFret)) {
+                    currentNote.bend_target = parseInt(targetFret, 10);
+                }
+            } else {
+                delete currentNote.bend_target;
+            }
+            renderSong();
         }
-    }
-    // --- END NEW ---
-
-    if (e.target.classList.contains('fretboard-note')) return;
-
-    const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG);
-    if (clickData) {
-        fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
-        el.fretSelectionModal.style.left = `${e.clientX + 10}px`;
-        el.fretSelectionModal.style.top = `${e.clientY + 10}px`;
-        el.fretNumberSelector.innerHTML = [...Array(CONSTANTS.FRETBOARD_CONFIG.frets + 1).keys()].map(f => `<option value="${f}">${f}</option>`).join('');
-        el.fretNumberSelector.value = clickData.fret;
-        el.fretSelectionModal.classList.remove('hidden');
-    }
+    });
 }
 
-function handleNoteMouseDown(e) {
-    if (!e.target.classList.contains('fretboard-note')) return;
-    const svg = e.currentTarget;
-    const blockId = svg.id.replace('fretboard-svg-', '');
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (!block || !block.editMode) return;
-
-    const noteIndex = parseInt(e.target.dataset.noteIndex, 10);
-    if (selectedNote.blockId === blockId && selectedNote.noteIndex === noteIndex) {
-        isDraggingNote = true;
-    } else {
-        selectedNote = { blockId, noteIndex };
-    }
-    drawNotesOnFretboard(blockId);
-
-    // --- NEW: Show and position the notation palette ---
-    const noteElement = e.target;
-    const noteRect = noteElement.getBoundingClientRect();
-    el.notationPalette.style.left = `${noteRect.right + 10}px`;
-    el.notationPalette.style.top = `${noteRect.top}px`;
-    el.notationPalette.classList.remove('hidden');
+function renderPreview() {
+    const songData = songDataManager.getSongData();
+    UI.renderPreview(el.livePreview, songData.song_blocks, renderTransposedTab);
 }
 
-function handleSongBlockClick(e) {
-    const blockEl = e.target.closest('.song-block');
-    if (!blockEl) return;
-    const blockId = blockEl.dataset.blockId;
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
-        e.preventDefault();
-        const textarea = e.target;
-        const chordToPlace = chordQueue[chordQueueIndex];
-        const t = `[${chordToPlace}]`;
-        const p = textarea.selectionStart;
-        textarea.value = textarea.value.slice(0, p) + t + textarea.value.slice(p);
-        textarea.focus();
-        const newPos = p + t.length;
-        textarea.setSelectionRange(newPos, newPos);
-        chordQueueIndex = (chordQueueIndex + 1) % chordQueue.length;
-        updateBlockData(blockId, 'content', textarea.value);
-        UI.renderChordQueue(el.chordQueueDiv, el.clearQueueBtn, chordQueue, chordQueueIndex);
-    } else if (e.target.dataset.action === 'delete') {
-        if (confirm('Are you sure?')) {
-            songData.song_blocks = songData.song_blocks.filter(b => b.id !== blockId && b.originalId !== blockId);
-            renderSongBlocks();
-        }
-    } else if (e.target.dataset.action === 'rename') {
-        const newLabel = prompt('Enter new label:', block.label);
-        if (newLabel) {
-            block.label = newLabel;
-            renderSongBlocks();
-        }
-    } else if (e.target.dataset.action === 'edit-tab') {
-        const button = e.target;
-        block.editMode = !block.editMode;
-        button.textContent = block.editMode ? 'Done Editing' : 'Edit';
-        button.classList.toggle('btn-secondary');
-        button.classList.toggle('btn-edit-mode');
-        if (!block.editMode && selectedNote.blockId === blockId) {
-            selectedNote = {};
-            drawNotesOnFretboard(blockId);
-            el.notationPalette.classList.add('hidden');
-        }
-    }
+function renderTransposedTab(tabBlock) {
+    const songData = songDataManager.getSongData();
+    return Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
 }
 
-function handleAddBlockClick(e) {
-    const target = e.target;
-    if (target.id === 'insert-ref-btn') {
-        document.getElementById('ref-dropdown').classList.toggle('hidden');
-    } else if (target.closest('#ref-dropdown')) {
-        const originalId = target.dataset.originalId;
-        const originalBlock = songData.song_blocks.find(b => b.id === originalId);
-        if(originalBlock) {
-            songData.song_blocks.push({ id: `block_${Date.now()}`, type: 'reference', label: `Reference to ${originalBlock.label}`, originalId: originalId });
-            renderSongBlocks();
-        }
-        document.getElementById('ref-dropdown').classList.add('hidden');
-    } else if (target.dataset.action === 'add') {
-        const type = target.dataset.type;
-        const baseLabel = target.textContent.trim().replace('+', '').trim();
-        const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
-        const label = `${baseLabel} ${count}`;
-        const newBlock = { id: `block_${Date.now()}`, type, label };
-        if (type === 'lyrics') {
-            newBlock.content = '';
-            newBlock.height = 100;
-        } else if (type === 'drum_tab') {
-            newBlock.content = drumEditor.DEFAULT_INSTRUMENTS
-                .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
-                .join('\n');
-        } else if (type === 'tab') {
-            newBlock.data = { notes: [] };
-            newBlock.strings = 6;
-            newBlock.editMode = false;
-        }
-        songData.song_blocks.push(newBlock);
-        renderSongBlocks();
-    }
+function renderTransposedTabForHistory(tabBlock, historyData) {
+     return Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
-
-function handleDeleteNote(e) {
-    if (!selectedNote.blockId || selectedNote.noteIndex === undefined) return;
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-        e.preventDefault();
-        const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
-        if (block?.data?.notes?.[selectedNote.noteIndex]) {
-            block.data.notes.splice(selectedNote.noteIndex, 1);
-            const oldBlockId = selectedNote.blockId;
-            selectedNote = {};
-            el.notationPalette.classList.add('hidden');
-            drawNotesOnFretboard(oldBlockId);
-            renderPreview();
-        }
-    }
-}
-
-// ... (The rest of the file remains the same)
