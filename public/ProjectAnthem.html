@@ -1,3 +1,4 @@
+<!-- START OF FILE public/ProjectAnthem.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -245,7 +246,6 @@
         </div>
     </div>
 
-    <!-- *** NEW: Notation Palette for Tab Editor *** -->
     <div id="notation-palette" class="hidden absolute z-50 bg-gray-900 border border-gray-600 rounded-lg shadow-xl p-2 flex flex-col gap-1">
         <button class="btn btn-sm btn-secondary" data-notation="h" title="Hammer-on">h</button>
         <button class="btn btn-sm btn-secondary" data-notation="p" title="Pull-off">p</button>
@@ -255,9 +255,15 @@
         <button class="btn btn-sm btn-secondary" data-notation="~" title="Vibrato">~</button>
     </div>
 
+    <!-- NEW: HIDDEN DIV FOR THE CHORD DIAGRAM POPUP -->
+    <div id="chord-diagram-popup" class="hidden absolute z-50 w-32 h-40 p-2 bg-white rounded-lg shadow-2xl border border-gray-400 pointer-events-none">
+        <!-- SVG will be injected here by JavaScript -->
+    </div>
+
     <script type="module" src="/js/auth.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script type="module" src="/js/main.js"></script>
 </body>
 </html>
+<!-- END OF FILE public/ProjectAnthem.html -->
