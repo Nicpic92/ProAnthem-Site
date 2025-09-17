@@ -39,8 +39,6 @@ function updateNav() {
     if (user) {
         let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-secondary">Tool</a>`;
         if (user.role === 'admin' || user.role === 'band_admin') {
-             // --- THIS IS THE FIX ---
-             // Changed the href from "/band.html" to the new dashboard page.
              buttonHtml = `<a href="/band-dashboard.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
         }
         if (user.role === 'admin') {
@@ -84,7 +82,7 @@ export function checkAccess() {
     }
     
     // Rule 2: For all other users, their token's subscription status must be valid.
-    const validStatuses = ['active', 'trialing', 'admin_granted'];
+    const validStatuses = ['active', 'trialing', 'admin_granted']; // --- THIS IS THE FIX ---
     const hasValidStatus = validStatuses.includes(user.subscription_status);
 
     const isToolPage = currentPath.includes('projectanthem');
@@ -132,7 +130,7 @@ async function handleLogin(event) {
 
 export async function performLogin(credentials, redirectTo = null) {
     try {
-        const result = await login(credentials); // This will throw on failure
+        const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
             if (redirectTo) {
@@ -143,7 +141,6 @@ export async function performLogin(credentials, redirectTo = null) {
             const validStatuses = ['active', 'trialing', 'admin_granted'];
             const hasAccess = user.role === 'admin' || validStatuses.includes(user.subscription_status);
             
-            // --- UPDATED: Redirect band admins/members to the new dashboard after login ---
             const isBandUser = user.role === 'band_admin' || user.role === 'band_member';
             if (hasAccess && isBandUser) {
                 window.location.href = '/band-dashboard.html';
@@ -157,7 +154,7 @@ export async function performLogin(credentials, redirectTo = null) {
             throw new Error("Login failed: No token returned.");
         }
     } catch(error) {
-        throw error; // Re-throw the error to be caught by handleLogin
+        throw error;
     }
 }
 
@@ -177,3 +174,5 @@ function openModal(view) {
         }
     }
 }
+
+// --- END OF FILE public/js/auth.js ---
