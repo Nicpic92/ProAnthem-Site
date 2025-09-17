@@ -23,7 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // We pass the isDemoMode flag so modules can adapt their behavior (e.g., disable saving).
     songEditor.init(isDemoMode);
     setlistManager.init(isDemoMode);
-    historyManager.init(isDemoMode);
+    // --- FIX: Pass the reloadSong function from the songEditor into the historyManager ---
+    historyManager.init(isDemoMode, songEditor.reloadSong);
 
     // 3. Handle the special case where a new user must reset their temporary password.
     // This is now delegated to a dedicated module.
