@@ -30,6 +30,7 @@ export function setStatus(statusEl, message, isError = false) {
 }
 
 export function renderChordPalette(paletteEl, chords, onChordClick) {
+    if (!paletteEl) return;
     paletteEl.innerHTML = ''; 
     chords.forEach(c => { 
         const btn = createElement('button', { class: 'btn btn-secondary btn-sm' }, c.name);
@@ -39,6 +40,7 @@ export function renderChordPalette(paletteEl, chords, onChordClick) {
 }
 
 export function renderChordQueue(queueDiv, clearBtn, queue, currentIndex) {
+    if (!queueDiv || !clearBtn) return;
     queueDiv.innerHTML = ''; 
     const lyricsBlocks = document.querySelectorAll('.lyrics-block');
     if (queue.length === 0) { 
@@ -74,6 +76,7 @@ export function parseLineForRender(rawLine) {
 }
 
 export function renderPreview(previewEl, songBlocks, renderTransposedTab) {
+    if (!previewEl) return;
     let previewHtml = '';
     (songBlocks || []).forEach(block => {
         let blockToRender = block.type === 'reference' ? (songBlocks.find(b => b.id === block.originalId) || block) : block;
@@ -109,7 +112,6 @@ export function createBlockElement(block, drawFretboardCallback) {
     } else if (block.type === 'drum_tab') {
         contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`;
     }
-    // Note: 'reference' type block content is handled within renderSongBlocks logic for simplicity now.
     
     div.innerHTML = `
         <div class="block-header">
@@ -118,13 +120,14 @@ export function createBlockElement(block, drawFretboardCallback) {
         </div>
         <div class="block-content">${contentHtml}</div>`;
     
-    if (block.type === 'tab') {
+    if (block.type === 'tab' && drawFretboardCallback) {
         setTimeout(() => drawFretboardCallback(block.id), 0);
     }
     return div;
 }
 
 export function renderSongBlocks(containerEl, songBlocks, createBlockElementCallback, initializeSortableCallback) {
+    if (!containerEl) return;
     containerEl.innerHTML = '';
     (songBlocks || []).forEach(block => {
         let blockToRender = block;
@@ -142,10 +145,13 @@ export function renderSongBlocks(containerEl, songBlocks, createBlockElementCall
             containerEl.appendChild(createBlockElementCallback(blockToRender));
         }
     });
-    initializeSortableCallback();
+    if (initializeSortableCallback) {
+        initializeSortableCallback();
+    }
 }
 
 export function renderAddBlockButtons(containerEl, songBlocks) {
+    if (!containerEl) return;
     const createdSections = songBlocks.filter(b => b.type !== 'reference');
     let referenceButtonsHtml = '';
     if (createdSections.length > 0) {
@@ -168,13 +174,15 @@ export function renderAddBlockButtons(containerEl, songBlocks) {
 }
 
 export function populateTuningSelector(selectorEl, TUNINGS) {
+    if (!selectorEl) return;
     for (const key in TUNINGS) {
         const option = createElement('option', { value: key }, TUNINGS[key].name);
         selectorEl.appendChild(option);
     }
 }
 
-export async function loadSheetList(selectorEl, api) {
+export async function loadSheetList(selectorEl, api, selectId = null) {
+    if (!selectorEl) return;
     try {
         const songs = await api.getSheets();
         songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
@@ -183,10 +191,11 @@ export async function loadSheetList(selectorEl, api) {
             const o = createElement('option', { value: s.id }, s.title || 'Untitled');
             selectorEl.appendChild(o);
         });
+        if (selectId) {
+            selectorEl.value = selectId;
+        }
     } catch (e) {
         console.error('Failed to load songs:', e);
         selectorEl.innerHTML = '<option value="new">-- Create New Song --</option>';
     }
 }
-
-// --- END OF FILE public/js/modules/ui.js ---
