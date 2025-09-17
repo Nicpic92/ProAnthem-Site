@@ -1,0 +1,124 @@
+<!-- START OF FILE public/stage-plot-editor.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stage Plot Editor - ProAnthem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .tab-button { background-color: transparent; border-bottom: 2px solid transparent; }
+        .tab-button.active { border-bottom-color: #dc2626; color: #f3f4f6; }
+    </style>
+</head>
+<body class="tool flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+        <a href="/proanthem_index.html" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold">ProAnthem</h1>
+        </a>
+        <div id="nav-auth-section"></div>
+    </header>
+
+    <main class="container mx-auto px-6 py-12 flex-grow">
+        <div id="editor-content" style="display: none;" class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <!-- Sidebar for plot selection -->
+            <aside class="md:col-span-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold">Your Plots</h2>
+                    <a href="/band-dashboard.html" class="text-sm text-indigo-400 hover:underline">← Dashboard</a>
+                </div>
+                <div id="plot-list" class="space-y-2"></div>
+                <button id="new-plot-btn" class="btn btn-primary w-full mt-4">Create New Plot</button>
+            </aside>
+
+            <!-- Main Editor Area -->
+            <div class="md:col-span-3">
+                <div id="editor-panel" class="hidden">
+                    <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
+                        <input type="text" id="plot-name-input" class="form-input text-2xl font-bold bg-transparent border-0 border-b-2 border-gray-700 focus:ring-0 focus:border-indigo-500 p-0" placeholder="My Awesome Stage Plot">
+                        <div class="flex gap-2">
+                            <button id="save-plot-btn" class="btn btn-primary">Save</button>
+                            <button id="export-pdf-btn" class="btn btn-secondary">Export PDF</button>
+                            <button id="delete-plot-btn" class="btn btn-danger">Delete</button>
+                        </div>
+                    </div>
+                     <div id="status-message" class="text-center text-sm text-gray-400 h-5 mb-4"></div>
+
+                    <!-- Editor Tabs -->
+                    <div class="border-b border-gray-700 mb-4">
+                        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                            <button class="tab-button active" data-tab="layout">Stage Layout</button>
+                            <button class="tab-button" data-tab="rider">Tech Rider</button>
+                        </nav>
+                    </div>
+
+                    <!-- Stage Layout Tab -->
+                    <div id="tab-content-layout" class="tab-content">
+                        <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                            <div id="item-palette" class="lg:col-span-1 bg-gray-900 p-4 rounded-lg h-full">
+                                <h3 class="font-bold mb-2">Drag Items to Stage</h3>
+                                <!-- Items will be populated by JS -->
+                            </div>
+                            <div id="stage-area" class="lg:col-span-4 bg-gray-800 min-h-[500px] rounded-lg relative border-2 border-dashed border-gray-600 overflow-hidden">
+                                <div class="absolute inset-0 p-4" style="background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 20px 20px;">
+                                    <p class="text-center font-bold text-4xl text-gray-700 select-none">STAGE AREA</p>
+                                    <!-- Draggable items will be added here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tech Rider Tab -->
+                    <div id="tab-content-rider" class="tab-content hidden">
+                        <form id="rider-form" class="space-y-6 bg-gray-900 p-6 rounded-lg">
+                           <div>
+                                <h3 class="text-xl font-bold">Channel List / Input List</h3>
+                                <p class="text-sm text-gray-400 mb-2">Detail your required inputs for the sound engineer.</p>
+                                <textarea name="channel_list" class="form-textarea" rows="10" placeholder="e.g.,&#10;Ch 1 - Kick - Beta 52a&#10;Ch 2 - Snare - SM57&#10;Ch 3 - Vox 1 - SM58 - Stage Left"></textarea>
+                           </div>
+                           <div class="pt-4 border-t border-gray-700">
+                                <h3 class="text-xl font-bold">Contact Info</h3>
+                                <p class="text-sm text-gray-400 mb-2">Who should the venue contact with questions?</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                   <input type="text" name="contact_name" class="form-input" placeholder="Primary Contact Name">
+                                   <input type="email" name="contact_email" class="form-input" placeholder="Contact Email">
+                                   <input type="tel" name="contact_phone" class="form-input" placeholder="Contact Phone">
+                                </div>
+                           </div>
+                           <div class="pt-4 border-t border-gray-700">
+                               <h3 class="text-xl font-bold">Hospitality & Other Notes</h3>
+                               <p class="text-sm text-gray-400 mb-2">List any requirements for drinks, food, parking, etc.</p>
+                               <textarea name="hospitality_needs" class="form-textarea" rows="5" placeholder="e.g.,&#10;- 4x Bottles of still water on stage.&#10;- 1x Vegetarian meal.&#10;- Parking for 1x Van."></textarea>
+                           </div>
+                        </form>
+                    </div>
+                </div>
+                <div id="no-plot-selected" class="text-center py-20 text-gray-500">
+                    <p class="text-lg">Select a plot from the list or create a new one to get started.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="access-denied" class="text-center py-20" style="display: none;">
+            <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
+            <p class="mt-4 text-lg text-gray-300">You must be part of a band to use the Stage Plot Editor.</p>
+            <a href="/band-dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>
+        </div>
+    </main>
+    
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script type="module" src="/js/auth.js"></script>
+    <script type="module" src="/js/stagePlotEditor.js"></script>
+</body>
+</html>
+<!-- END OF FILE public/stage-plot-editor.html -->
