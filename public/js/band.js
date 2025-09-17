@@ -1,329 +1,139 @@
-// --- START OF FILE public/js/band.js ---
+// --- START OF FILE netlify/functions/band.js ---
 
-import { getUserPayload, checkAccess } from './auth.js';
-// --- THIS IS THE FIX (Line 5) ---
-// The import now correctly requests 'removeBandMember' and aliases it.
-import { 
-    getBandDetails, getBandMembers, addBandMember, removeBandMember as apiRemoveMember,
-    getBandProfile, updateBandProfile,
-    getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
-    getTransactions, createTransaction, updateTransaction, deleteTransaction,
-    getMerchItems, createMerchItem, updateMerchItem, deleteMerchItem
-} from './api.js';
+const { Client } = require('pg');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
-let isAdmin = false;
+const JWT_SECRET = process.env.JWT_SECRET;
 
-document.addEventListener('DOMContentLoaded', () => {
-    if (!checkAccess()) return;
-    const user = getUserPayload();
-    if (!user || !user.band_id) {
-        document.getElementById('band-content').style.display = 'none';
-        const ad = document.getElementById('access-denied');
-        ad.innerHTML = `<h2 class="text-3xl font-bold text-red-500">Page Not Available</h2><p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p><a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>`;
-        ad.style.display = 'block';
-        return;
+exports.handler = async (event) => {
+    const authHeader = event.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
-    initializeBandPage(user);
-});
-
-function initializeBandPage(user) {
-    isAdmin = user.role === 'admin' || user.role === 'band_admin';
-
-    if (isAdmin) {
-        document.querySelectorAll('.admin-only').forEach(el => {
-            el.style.display = (el.tagName === 'TH' || el.tagName === 'TD') ? 'table-cell' : 'block';
-        });
+    let decodedToken;
+    try {
+        const token = authHeader.split(' ')[1];
+        decodedToken = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
+    const { email: userEmail, band_id: bandId, role: userRole } = decodedToken.user;
+    const isBandAdmin = userRole === 'admin' || userRole === 'band_admin';
 
-    setupTabs();
-    setupEventListeners();
-
-    loadBandDetails();
-    loadBandMembers();
-    // loadBandProfile(); // We can simplify this for now
-    loadCalendarEvents();
-    loadFinances();
-    loadMerch();
-}
-
-function setupTabs() {
-    const tabs = document.querySelectorAll('.tab-button');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`tab-content-${tab.dataset.tab}`).classList.remove('hidden');
-        });
+    const client = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
     });
-}
 
-function setupEventListeners() {
-    const addListener = (id, event, handler) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener(event, handler);
-    };
-
-    addListener('add-member-form', 'submit', handleAddMember);
-    addListener('copy-link-btn', 'click', copyInviteLink);
-    addListener('profile-form', 'submit', handleSaveProfile);
-    addListener('add-event-btn', 'click', () => openEventModal(null));
-    addListener('event-form', 'submit', handleSaveEvent);
-    addListener('cancel-event-btn', 'click', () => closeModal('event-modal'));
-    addListener('delete-event-btn', 'click', handleDeleteEvent);
-    addListener('event-public', 'change', () => {
-        const publicFields = document.getElementById('public-event-fields');
-        if(publicFields) publicFields.classList.toggle('hidden', !document.getElementById('event-public').checked);
-    });
-    addListener('add-transaction-btn', 'click', () => openTransactionModal(null));
-    addListener('transaction-form', 'submit', handleSaveTransaction);
-    addListener('add-merch-btn', 'click', () => openMerchModal(null));
-    addListener('merch-form', 'submit', handleSaveMerchItem);
-}
-
-async function loadBandDetails() {
     try {
-        const details = await getBandDetails();
-        document.getElementById('band-name-header').textContent = details.band_name || 'Your Band';
-        document.getElementById('band-id-display').textContent = `Band Number: ${details.band_number || 'N/A'}`;
-    } catch(error) {
-        document.getElementById('band-id-display').textContent = `Could not load band info.`;
-    }
-}
-
-// --- MEMBERS LOGIC ---
-async function loadBandMembers() {
-    const tableBody = document.getElementById('members-table-body');
-    tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
-    try {
-        const members = await getBandMembers();
-        tableBody.innerHTML = '';
-        members.forEach(member => {
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700';
-            const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
-            const roleDisplay = member.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            
-            let actionsHtml = (isAdmin && member.role !== 'band_admin' && member.role !== 'admin') 
-                ? `<button class="btn-sm text-red-400 hover:underline" data-email="${member.email}">Remove</button>` : '';
-
-            row.innerHTML = `
-                <td class="p-3">${member.email}</td>
-                <td class="p-3 text-gray-400">${name}</td>
-                <td class="p-3 text-gray-400">${roleDisplay}</td>
-                <td class="p-3 admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">${actionsHtml}</td>`;
-            
-            const removeBtn = row.querySelector('button[data-email]');
-            if (removeBtn) removeBtn.addEventListener('click', () => removeMember(member.email));
-            
-            tableBody.appendChild(row);
-        });
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load members.</td></tr>`; }
-}
-
-async function handleAddMember(event) {
-    event.preventDefault();
-    const statusEl = document.getElementById('add-member-status');
-    statusEl.textContent = 'Creating...';
-    document.getElementById('add-member-status-container').classList.remove('hidden');
-    try {
-        const payload = {
-            firstName: document.getElementById('new-member-firstname').value,
-            lastName: document.getElementById('new-member-lastname').value,
-            email: document.getElementById('new-member-email').value,
-        };
-        const result = await addBandMember(payload);
-        document.getElementById('invite-link-input').value = result.link;
-        document.getElementById('invite-link-container').classList.remove('hidden');
-        statusEl.textContent = 'Invite link created successfully!';
-        event.target.reset();
-    } catch(error) { statusEl.textContent = `Error: ${error.message}`; }
-}
-
-function copyInviteLink() {
-    document.getElementById('invite-link-input').select();
-    document.execCommand('copy');
-    document.getElementById('copy-link-btn').textContent = 'Copied!';
-    setTimeout(() => { document.getElementById('copy-link-btn').textContent = 'Copy'; }, 2000);
-}
-
-async function removeMember(userEmail) {
-    if (confirm(`Remove ${userEmail} from the band?`)) {
-        try {
-            // --- THIS IS THE FIX ---
-            // Use the correctly aliased import name 'apiRemoveMember'
-            await apiRemoveMember(userEmail); 
-            loadBandMembers();
-        } catch(error) { alert(`Failed to remove member: ${error.message}`); }
-    }
-}
-
-// --- PROFILE LOGIC ---
-async function loadBandProfile() {
-    const formContainer = document.getElementById('profile-form');
-    // Placeholder - Logic for dynamically building or populating the form will go here
-    if (formContainer) {
-        // For now, let's just indicate it's loaded.
-        // The full implementation would fetch from getBandProfile and populate inputs.
-        formContainer.innerHTML = '<h2 class="text-2xl font-bold">Edit Public Profile</h2><p class="text-gray-400">Profile editing fields will appear here.</p>';
-    }
-}
-
-async function handleSaveProfile(event) {
-    event.preventDefault();
-    // Logic to save profile...
-}
-
-// --- CALENDAR LOGIC ---
-async function loadCalendarEvents() {
-    const listEl = document.getElementById('calendar-event-list');
-    listEl.innerHTML = '<p>Loading events...</p>';
-    try {
-        const events = await getCalendarEvents();
-        listEl.innerHTML = '';
-        if (events.length === 0) {
-            listEl.innerHTML = '<p class="text-gray-400">No events scheduled.</p>';
-            return;
-        }
-        events.forEach(event => {
-            const eventEl = document.createElement('div');
-            eventEl.className = `p-4 rounded-lg border flex justify-between items-center ${new Date(event.event_date) < new Date() ? 'bg-gray-800 border-gray-700 opacity-60' : 'bg-gray-800/50 border-gray-700'}`;
-            eventEl.innerHTML = `<div><p class="font-bold">${event.title} <span class="text-sm px-2 py-0.5 rounded ${event.is_public ? 'bg-blue-600' : 'bg-gray-600'}">${event.is_public ? 'Public' : 'Private'}</span></p><p class="text-sm text-gray-400">${new Date(event.event_date).toLocaleString()}</p></div>`;
-            if (isAdmin) {
-                const editButton = document.createElement('button');
-                editButton.className = 'btn btn-secondary btn-sm';
-                editButton.textContent = 'Edit';
-                editButton.onclick = () => openEventModal(event);
-                eventEl.appendChild(editButton);
+        await client.connect();
+        const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
+        const pathParts = path.split('/').filter(Boolean); // e.g., ['band', 'members'] or ['band', 'events', '123']
+        const resource = pathParts[1];
+        const resourceId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
+        
+        // --- ROUTE: /api/band ---
+        if (!resource) {
+            if (event.httpMethod === 'GET') {
+                const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
+                const { rows: [bandDetails] } = await client.query(query, [bandId]);
+                return { statusCode: 200, body: JSON.stringify(bandDetails) };
             }
-            listEl.appendChild(eventEl);
-        });
-    } catch (error) { listEl.innerHTML = `<p class="text-red-500">Error loading events.</p>`; }
-}
+        }
 
-function openEventModal(event) {
-    const form = document.getElementById('event-form');
-    form.reset();
-    document.getElementById('event-modal-title').textContent = event ? 'Edit Event' : 'Add Event';
-    document.getElementById('event-id').value = event ? event.id : '';
-    document.getElementById('event-form').elements['title'].value = event ? event.title : '';
-    // ... logic to populate other form fields from 'event' object
-    document.getElementById('event-modal').classList.remove('hidden');
-}
-async function handleSaveEvent(event) { /* ... same as before ... */ }
-async function handleDeleteEvent() { /* ... same as before ... */ }
+        // --- ROUTE: /api/band/change-password ---
+        if (event.httpMethod === 'POST' && resource === 'change-password') {
+            const { currentPassword, newPassword } = JSON.parse(event.body);
+            if (!currentPassword || !newPassword || newPassword.length < 6) {
+                return { statusCode: 400, body: JSON.stringify({ message: 'New password must be at least 6 characters.' })};
+            }
+            const { rows: [user] } = await client.query('SELECT password_hash FROM users WHERE email = $1', [userEmail]);
+            if (!user) return { statusCode: 404, body: JSON.stringify({ message: 'User not found.' })};
+            const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+            if(!isMatch) {
+                return { statusCode: 401, body: JSON.stringify({ message: 'Current password is incorrect.' })};
+            }
+            const new_password_hash = await bcrypt.hash(newPassword, 10);
+            await client.query('UPDATE users SET password_hash = $1, password_reset_required = FALSE WHERE email = $2', [new_password_hash, userEmail]);
+            return { statusCode: 200, body: JSON.stringify({ message: "Password updated successfully." }) };
+        }
+        
+        // --- ROUTE: /api/band/members ---
+        if (resource === 'members') {
+            if (event.httpMethod === 'GET') {
+                const query = `SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY email`;
+                const result = await client.query(query, [bandId]);
+                return { statusCode: 200, body: JSON.stringify(result.rows) };
+            }
 
-// --- FINANCES LOGIC ---
-async function loadFinances() {
-    const tableBody = document.getElementById('transactions-table-body');
-    tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>`;
-    try {
-        const transactions = await getTransactions();
-        let total = 0;
-        tableBody.innerHTML = '';
-        transactions.forEach(t => {
-            const amount = parseFloat(t.amount);
-            total += amount;
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700 hover:bg-gray-800';
-            row.innerHTML = `
-                <td class="p-3">${new Date(t.transaction_date).toLocaleDateString()}</td>
-                <td class="p-3">${t.description}</td>
-                <td class="p-3 text-gray-400">${t.category}</td>
-                <td class="p-3 text-right font-mono ${amount >= 0 ? 'text-green-400' : 'text-red-400'}">${amount.toFixed(2)}</td>
-                <td class="p-3 text-right admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">
-                    <button class="text-sm text-indigo-400 hover:underline" data-action="edit">Edit</button>
-                    <button class="text-sm text-red-400 hover:underline ml-2" data-action="delete">Delete</button>
-                </td>`;
-            row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openTransactionModal(t));
-            row.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
-                if(confirm('Delete this transaction?')) { await deleteTransaction(t.id); loadFinances(); }
-            });
-            tableBody.appendChild(row);
-        });
-        const balanceEl = document.getElementById('total-balance');
-        balanceEl.textContent = `$${total.toFixed(2)}`;
-        balanceEl.className = total >= 0 ? 'text-green-400' : 'text-red-400';
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load transactions.</td></tr>`; }
-}
-function openTransactionModal(t) {
-    const form = document.getElementById('transaction-form');
-    form.reset();
-    document.getElementById('transaction-modal-title').textContent = t ? 'Edit Transaction' : 'Add Transaction';
-    document.getElementById('transaction-id').value = t ? t.id : '';
-    document.getElementById('transaction-date').value = t ? new Date(t.transaction_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    document.getElementById('transaction-description').value = t ? t.description : '';
-    document.getElementById('transaction-amount').value = t ? t.amount : '';
-    document.getElementById('transaction-category').value = t ? t.category : 'Venue Payout';
-    document.getElementById('transaction-modal').classList.remove('hidden');
-}
-async function handleSaveTransaction(e) {
-    e.preventDefault();
-    const id = document.getElementById('transaction-id').value;
-    const payload = {
-        transaction_date: document.getElementById('transaction-date').value,
-        description: document.getElementById('transaction-description').value,
-        amount: document.getElementById('transaction-amount').value,
-        category: document.getElementById('transaction-category').value
-    };
-    try {
-        id ? await updateTransaction(id, payload) : await createTransaction(payload);
-        closeModal('transaction-modal');
-        loadFinances();
-    } catch(error) { alert(`Save failed: ${error.message}`); }
-}
+            if (isBandAdmin) {
+                if (event.httpMethod === 'POST') {
+                    const { firstName, lastName, email } = JSON.parse(event.body);
+                    if (!firstName || !lastName || !email) {
+                        return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required.' })};
+                    }
+                    // ... (rest of add member logic remains the same)
+                    const inviteToken = crypto.randomBytes(32).toString('hex');
+                    await client.query('INSERT INTO band_invites (band_id, email, token) VALUES ($1, $2, $3)', [bandId, email.toLowerCase(), inviteToken]);
+                    const inviteLink = `${process.env.SITE_URL}/pricing.html?invite_token=${inviteToken}`;
+                    return { statusCode: 201, body: JSON.stringify({ link: inviteLink }) };
+                }
 
-// --- MERCH LOGIC ---
-async function loadMerch() {
-    const tableBody = document.getElementById('merch-table-body');
-    tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>`;
-    try {
-        const items = await getMerchItems();
-        tableBody.innerHTML = '';
-        items.forEach(item => {
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700';
-            row.innerHTML = `
-                <td class="p-3">${item.item_name}</td>
-                <td class="p-3">${item.variant_name || 'N/A'}</td>
-                <td class="p-3 text-right">${item.price ? `$${parseFloat(item.price).toFixed(2)}` : 'N/A'}</td>
-                <td class="p-3 text-right">${item.stock_quantity}</td>
-                <td class="p-3 text-right admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">
-                    <button class="text-sm text-indigo-400 hover:underline" data-action="edit">Edit</button>
-                    <button class="text-sm text-red-400 hover:underline ml-2" data-action="delete">Delete</button>
-                </td>`;
-            row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openMerchModal(item));
-            row.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
-                if(confirm('Delete this item?')) { await deleteMerchItem(item.id); loadMerch(); }
-            });
-            tableBody.appendChild(row);
-        });
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load.</td></tr>`; }
-}
-function openMerchModal(item) {
-    const form = document.getElementById('merch-form');
-    form.reset();
-    document.getElementById('merch-modal-title').textContent = item ? 'Edit Merch Item' : 'Add Merch Item';
-    document.getElementById('merch-id').value = item ? item.id : '';
-    document.getElementById('merch-item-name').value = item ? item.item_name : '';
-    document.getElementById('merch-variant-name').value = item ? item.variant_name : '';
-    document.getElementById('merch-price').value = item ? item.price : '';
-    document.getElementById('merch-stock').value = item ? item.stock_quantity : '';
-    document.getElementById('merch-modal').classList.remove('hidden');
-}
-async function handleSaveMerchItem(e) {
-    e.preventDefault();
-    const id = document.getElementById('merch-id').value;
-    const payload = {
-        item_name: document.getElementById('merch-item-name').value,
-        variant_name: document.getElementById('merch-variant-name').value,
-        price: document.getElementById('merch-price').value || null,
-        stock_quantity: document.getElementById('merch-stock').value
-    };
-    try {
-        id ? await updateMerchItem(id, payload) : await createMerchItem(payload);
-        closeModal('merch-modal');
-        loadMerch();
-    } catch(error) { alert(`Save failed: ${error.message}`); }
-}
-// --- END OF FILE public/js/band.js ---
+                if (event.httpMethod === 'DELETE') {
+                    const { emailToRemove } = JSON.parse(event.body);
+                    // ... (rest of delete member logic remains the same)
+                    await client.query('DELETE FROM users WHERE email = $1 AND band_id = $2', [emailToRemove, bandId]);
+                    return { statusCode: 204, body: '' };
+                }
+            }
+        }
+        
+        // --- NEW: ROUTE: /api/band/events ---
+        if (resource === 'events') {
+            if (event.httpMethod === 'GET') {
+                const query = `SELECT * FROM events WHERE band_id = $1 ORDER BY event_date ASC`;
+                const { rows } = await client.query(query, [bandId]);
+                return { statusCode: 200, body: JSON.stringify(rows) };
+            }
+            
+            if (isBandAdmin) {
+                 if (event.httpMethod === 'POST') {
+                    const e = JSON.parse(event.body);
+                    const query = `INSERT INTO events (band_id, title, event_date, venue_name, details, is_public, external_url)
+                                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
+                    const values = [bandId, e.title, e.event_date, e.venue_name, e.details, e.is_public, e.external_url];
+                    const { rows: [newEvent] } = await client.query(query, values);
+                    return { statusCode: 201, body: JSON.stringify(newEvent) };
+                }
+
+                if (event.httpMethod === 'PUT' && resourceId) {
+                    const e = JSON.parse(event.body);
+                    const query = `UPDATE events SET title = $1, event_date = $2, venue_name = $3, details = $4, is_public = $5, external_url = $6
+                                   WHERE id = $7 AND band_id = $8 RETURNING *`;
+                    const values = [e.title, e.event_date, e.venue_name, e.details, e.is_public, e.external_url, resourceId, bandId];
+                    const { rows: [updatedEvent] } = await client.query(query, values);
+                    if (!updatedEvent) return { statusCode: 404, body: JSON.stringify({ message: 'Event not found.' })};
+                    return { statusCode: 200, body: JSON.stringify(updatedEvent) };
+                }
+                
+                if (event.httpMethod === 'DELETE' && resourceId) {
+                    const result = await client.query('DELETE FROM events WHERE id = $1 AND band_id = $2', [resourceId, bandId]);
+                    if (result.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Event not found.' })};
+                    return { statusCode: 204, body: '' };
+                }
+            }
+        }
+
+
+        return { statusCode: 404, body: JSON.stringify({ message: 'Band management route not found.' }) };
+    } catch(error) {
+        console.error('API Error in /api/band:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
+    } finally {
+        if(client) await client.end();
+    }
+};
+
+// --- END OF FILE netlify/functions/band.js ---
