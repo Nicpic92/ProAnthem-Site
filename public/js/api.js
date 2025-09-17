@@ -90,5 +90,10 @@ export const getMerchItems = () => apiRequest('merch');
 export const createMerchItem = (data) => apiRequest('merch', data, 'POST');
 export const updateMerchItem = (id, data) => apiRequest(`merch/${id}`, data, 'PUT');
 export const deleteMerchItem = (id) => apiRequest(`merch/${id}`, null, 'DELETE');
+// Add these lines to the end of public/js/api.js
+
+export const getSongStems = (songId) => apiRequest(`song-stems?song_id=${songId}`);
+export const createSongStem = (data) => apiRequest('song-stems', data, 'POST');
+export const deleteSongStem = (stemId) => apiRequest(`song-stems/${stemId}`, null, 'DELETE');
 
 // --- END OF FILE public/js/api.js ---
