@@ -3,6 +3,7 @@
 import * as api from '../api.js';
 import * as UI from './ui.js';
 import * as Fretboard from './fretboard.js';
+import * as drumEditor from './drumEditor.js'; // Import the new drum editor module
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 
@@ -148,7 +149,8 @@ function initializeDemoSong() {
 async function initializeNewSong(forceNew = false) {
     el.historyBtn.disabled = true;
     const createBlankSong = () => {
-        songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'lyrics', label: 'Verse 1', content: '', height: 100 }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
+        const initialDrumTab = "HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|";
+        songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'drum_tab', label: 'Drums 1', content: initialDrumTab }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
         el.titleInput.value = '';
         el.artistInput.value = '';
         el.durationInput.value = '';
@@ -263,7 +265,22 @@ async function handleDelete() {
 // --- RENDERING & UI LOGIC ---
 
 function renderSongBlocks() {
-    UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block, drawFretboard), initializeSortable);
+    UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block), initializeSortable);
+    
+    // After the blocks are on the page, initialize the special editors
+    songData.song_blocks.forEach(block => {
+        if (block.type === 'tab') {
+            drawFretboard(block.id);
+        } else if (block.type === 'drum_tab') {
+            const container = document.getElementById(`drum-editor-${block.id}`);
+            if (container) {
+                drumEditor.createEditor(container, block.content, (newContent) => {
+                    updateBlockData(block.id, 'content', newContent);
+                });
+            }
+        }
+    });
+
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
     renderPreview();
 }
@@ -282,13 +299,7 @@ function updateMusicalSettingsUI() {
 }
 
 // --- FRETBOARD LOGIC (GLUE FUNCTIONS) ---
-// This section acts as the "glue" between the generic fretboard module and this module's state.
 
-/**
- * A wrapper function passed to the UI module. It gathers all necessary state
- * from songEditor.js and calls the generic Fretboard.drawFretboard function.
- * @param {string} blockId - The ID of the song block to draw the fretboard for.
- */
 function drawFretboard(blockId) {
     const block = songData.song_blocks.find(b => b.id === blockId);
     if (!block || block.type !== 'tab') return;
@@ -299,16 +310,11 @@ function drawFretboard(blockId) {
         CONSTANTS.TUNINGS,
         CONSTANTS.STRING_CONFIG,
         CONSTANTS.FRETBOARD_CONFIG,
-        drawNotesOnFretboard, // Callback to draw the notes
-        attachFretboardListeners // Callback to attach event listeners
+        drawNotesOnFretboard,
+        attachFretboardListeners
     );
 }
 
-/**
- * A callback function that draws the notes onto a specific fretboard.
- * It's passed to the fretboard module, which then calls it after the SVG is created.
- * @param {string} blockId - The ID of the block to draw notes on.
- */
 function drawNotesOnFretboard(blockId) {
     const block = songData.song_blocks.find(b => b.id === blockId);
     if (!block || block.type !== 'tab') return;
@@ -326,10 +332,6 @@ function drawNotesOnFretboard(blockId) {
     );
 }
 
-/**
- * A callback function that attaches all necessary event listeners to a newly drawn fretboard SVG.
- * @param {SVGElement} svgEl - The SVG element of the fretboard.
- */
 function attachFretboardListeners(svgEl) {
     svgEl.addEventListener('click', handleFretboardClick);
     svgEl.addEventListener('mousedown', handleNoteMouseDown);
@@ -385,7 +387,7 @@ function updateBlockData(blockId, field, value, height) {
     if (block) {
         if (field !== null) block[field] = value;
         if (height !== null) block.height = height;
-        if (field === 'content') renderPreview();
+        renderPreview(); // Always render preview on data change
     }
 }
 
@@ -457,7 +459,6 @@ function handleFretboardClick(e) {
     const block = songData.song_blocks.find(b => b.id === blockId);
     if (!block || !block.editMode) return;
 
-    // Do not proceed if the click was on an existing note
     if (e.target.classList.contains('fretboard-note')) return;
 
     const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG);
@@ -546,9 +547,13 @@ function handleAddBlockClick(e) {
         const baseLabel = target.textContent.trim().replace('+', '').trim();
         const count = songData.song_blocks.filter(b => b.label.startsWith(baseLabel)).length + 1;
         const label = `${baseLabel} ${count}`;
-        const newBlock = { id: `block_${Date.now()}`, type, label, height: 100 };
-        if (type === 'lyrics' || type === 'drum_tab') newBlock.content = '';
-        if (type === 'tab') {
+        const newBlock = { id: `block_${Date.now()}`, type, label };
+        if (type === 'lyrics') {
+            newBlock.content = '';
+            newBlock.height = 100;
+        } else if (type === 'drum_tab') {
+            newBlock.content = "HH|----|\nSD|----|\nBD|----|";
+        } else if (type === 'tab') {
             newBlock.data = { notes: [] };
             newBlock.strings = 6;
             newBlock.editMode = false;
