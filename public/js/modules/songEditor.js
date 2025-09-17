@@ -4,6 +4,7 @@ import * as api from '../api.js';
 import * as UI from './ui.js';
 import * as Fretboard from './fretboard.js';
 import { openHistoryModal } from './historyManager.js';
+import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -119,7 +120,6 @@ function attachEventListeners() {
     el.historyBtn?.addEventListener('click', () => openHistoryModal(songData, renderPreview, (id) => loadSong(id), renderTransposedTabForHistory));
 }
 
-// Public function to allow history module to reload a song after restore
 export function reloadSong(id) {
     loadSong(id);
 }
@@ -158,6 +158,7 @@ async function initializeNewSong(forceNew = false) {
         updateMusicalSettingsUI();
         renderSongBlocks();
         updateSoundingKey();
+        updateSetlistSongContext(songData);
     };
 
     if (forceNew) { createBlankSong(); return; }
@@ -195,6 +196,7 @@ async function loadSong(id) {
         UI.setStatus(el.statusMessage, 'Song loaded.');
         updateSoundingKey();
         el.historyBtn.disabled = false;
+        updateSetlistSongContext(songData);
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
         initializeNewSong(true);
@@ -233,6 +235,7 @@ async function handleSave() {
             el.songSelector.value = savedSong.id;
         }
         el.historyBtn.disabled = false;
+        updateSetlistSongContext(songData);
     } catch (error) {
         UI.setStatus(el.statusMessage, `Save failed: ${error.message}`, true);
     } finally {
@@ -260,6 +263,8 @@ async function handleDelete() {
 // --- RENDERING & UI LOGIC ---
 
 function renderSongBlocks() {
+    // --- THIS IS THE FIX ---
+    // We now pass the local drawFretboard function as a callback into UI.renderSongBlocks
     UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block, drawFretboard), initializeSortable);
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
     renderPreview();
