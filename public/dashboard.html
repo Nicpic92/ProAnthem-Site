@@ -1,0 +1,146 @@
+<!-- START OF FILE public/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - ProAnthem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        /* This applies the dark "tool" theme from your style.css */
+        body {
+            background-color: #111827; /* Dark BG */
+            color: #f3f4f6; /* Light Text */
+        }
+        .feature-card {
+            background-color: #1f2937; /* gray-800 */
+            border: 1px solid #374151; /* gray-700 */
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            flex-direction: column;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #4f46e5; /* indigo-600 */
+        }
+    </style>
+</head>
+<body class="tool flex flex-col min-h-screen">
+
+    <header class="container mx-auto p-6 flex justify-between items-center">
+        <a href="/dashboard.html" class="flex items-center space-x-4">
+            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+            <h1 class="text-4xl font-bold">ProAnthem</h1>
+        </a>
+        <div id="nav-auth-section">
+            <!-- Populated by auth.js -->
+        </div>
+    </header>
+
+    <main class="flex-grow">
+        <section class="container mx-auto px-6 py-12">
+            <div class="mb-12">
+                <h1 id="welcome-header" class="text-4xl md:text-5xl font-bold tracking-tight">Welcome!</h1>
+                <p class="mt-2 text-lg text-gray-400">Select a tool to get started.</p>
+            </div>
+
+            <!-- Feature Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                <!-- Tile 1: Song Editor -->
+                <div class="feature-card rounded-lg p-8">
+                    <h2 class="text-2xl font-bold">Songwriting Hub</h2>
+                    <div class="my-3">
+                        <span class="bg-green-200 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Core Tool</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 flex-grow">
+                        Craft your songs with our multi-section editor for lyrics, chords, interactive guitar tabs, and drum tabs.
+                    </p>
+                    <a href="/ProjectAnthem.html" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
+                        Launch Tool
+                    </a>
+                </div>
+
+                <!-- Tile 2: Band Management -->
+                <div id="band-management-card" class="feature-card rounded-lg p-8 band-only hidden">
+                    <h2 class="text-2xl font-bold">Band Management</h2>
+                    <div class="my-3">
+                        <span class="bg-indigo-200 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Band Feature</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 flex-grow">
+                        Manage your band's members, public profile, announcements, calendar, finances, and merchandise inventory.
+                    </p>
+                    <a href="/band-dashboard.html" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
+                        Manage Band
+                    </a>
+                </div>
+                
+                <!-- Tile 3: Stage Plot & Rider -->
+                <div class="feature-card rounded-lg p-8 band-only hidden">
+                    <h2 class="text-2xl font-bold">Stage Plot & Tech Rider</h2>
+                    <div class="my-3">
+                        <span class="bg-indigo-200 text-indigo-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Band Feature</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 flex-grow">
+                        Create professional stage plots with a visual drag-and-drop editor and generate tech riders for venues.
+                    </p>
+                    <a href="/stage-plot-editor.html" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
+                        Open Editor
+                    </a>
+                </div>
+
+                <!-- Tile 4: Show Builder -->
+                <div class="feature-card rounded-lg p-8">
+                    <h2 class="text-2xl font-bold">Show Builder</h2>
+                    <div class="my-3">
+                        <span class="bg-green-200 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Core Tool</span>
+                    </div>
+                    <p class="text-gray-400 mb-6 flex-grow">
+                        Build, reorder, and clone your setlists. Launch the hands-free Live Show mode for performances.
+                    </p>
+                    <!-- Note: This links to the song tool, where the setlist manager is located -->
+                    <a href="/ProjectAnthem.html" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
+                        Launch Tool
+                    </a>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script type="module">
+        import { getUserPayload } from './js/auth.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = getUserPayload();
+            if (!user) {
+                // If somehow a non-logged-in user gets here, send them home.
+                window.location.href = '/proanthem_index.html';
+                return;
+            }
+
+            // Personalize the welcome message
+            const welcomeHeader = document.getElementById('welcome-header');
+            welcomeHeader.textContent = `Welcome, ${user.name}!`;
+
+            // Show band-specific cards only if the user is in a band
+            const isBandUser = user.band_id && (user.role === 'band_admin' || user.role === 'band_member' || user.role === 'admin');
+            if (isBandUser) {
+                document.querySelectorAll('.band-only').forEach(el => {
+                    el.classList.remove('hidden');
+                });
+            }
+        });
+    </script>
+    <script type="module" src="/js/auth.js"></script>
+</body>
+</html>
+<!-- END OF FILE public/dashboard.html -->
