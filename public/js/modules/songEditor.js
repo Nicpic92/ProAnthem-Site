@@ -12,7 +12,7 @@ import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.
 import { getUserPayload } from '../auth.js';
 import * as diagramRenderer from './diagramRenderer.js';
 import { getChordDiagrams } from '../api.js';
-import * as stemManager from './stemManager.js'; // NEW IMPORT
+import * as stemManager from './stemManager.js';
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -32,7 +32,7 @@ export function init(isDemoMode) {
     
     fretboardController.init(renderSong); 
     audioManager.init(handleRecordingFinished);
-    stemManager.init(); // NEW: Initialize stem manager
+    stemManager.init();
 
     UI.populateTuningSelector(el.tuningSelector, { E_STANDARD: { name: "E Standard" }, EB_STANDARD: { name: "Eb Standard" }, D_STANDARD: { name: "D Standard" }, DROP_D: { name: "Drop D" }, DROP_C: { name: "Drop C" } });
 
@@ -108,7 +108,7 @@ function cacheDOMElements() {
     el.resetDemoBtn = document.getElementById('resetDemoBtn');
     el.historyBtn = document.getElementById('historyBtn');
     el.notationPalette = document.getElementById('notation-palette');
-    el.manageStemsBtn = document.getElementById('manage-stems-btn'); // NEW ELEMENT
+    el.manageStemsBtn = document.getElementById('manage-stems-btn');
 }
 
 function attachEventListeners() {
@@ -150,7 +150,6 @@ function attachEventListeners() {
     setupNotationPalette();
     setupChordHover();
 
-    // NEW EVENT LISTENER
     el.manageStemsBtn?.addEventListener('click', () => stemManager.openModal(songDataManager.getSongData()));
 }
 
@@ -200,7 +199,7 @@ function updateUIFromData(songData) {
     const steps = songData.transpose;
     el.transposeStatus.textContent = steps > 0 ? `+${steps}` : String(steps);
     el.historyBtn.disabled = !songData.id;
-    el.manageStemsBtn.disabled = !songData.id; // NEW UI UPDATE
+    el.manageStemsBtn.disabled = !songData.id;
 }
 
 export async function handleLoadSong(id) {
@@ -213,7 +212,7 @@ export async function handleLoadSong(id) {
         }
         renderSong();
         UI.setStatus(el.statusMessage, 'Song loaded.');
-        stemManager.loadStemsForMixer(id === 'new' ? null : id); // NEW: Load stems for the song
+        stemManager.loadStemsForMixer(id === 'new' ? null : id);
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
         await songDataManager.loadSong('new');
@@ -231,7 +230,6 @@ async function handleSave() {
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
                 await UI.loadSheetList(el.songSelector, api, savedSong.id);
             }
-            // After saving a new song, we now have an ID, so we should reload its stems.
             if (!el.manageStemsBtn.disabled) {
                  stemManager.loadStemsForMixer(savedSong.id);
             }
@@ -256,7 +254,7 @@ async function handleDelete() {
             UI.setStatus(el.statusMessage, 'Song deleted.');
             await UI.loadSheetList(el.songSelector, api);
             renderSong();
-            stemManager.loadStemsForMixer(null); // NEW: Clear stems after deleting
+            stemManager.loadStemsForMixer(null);
         } catch (e) {
             UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
         }
@@ -280,9 +278,6 @@ function handleTranspose(amount) {
     });
     renderSong();
 }
-
-// ... (The rest of the functions: handleAddBlockClick, handleSongBlockClick, handleImport, handleDeleteAudio, handleRecordingFinished, etc. remain unchanged)
-// ... (All functions from handleAddBlockClick to the end of the file are the same as your last version)
 
 function handleAddBlockClick(e) {
     const target = e.target;
@@ -453,7 +448,7 @@ function setupChordHover() {
                     popupEl.innerHTML = diagramSvg;
                     
                     const rect = chordSpan.getBoundingClientRect();
-                    popupEl.style.left = `${rect.left}px;
+                    popupEl.style.left = `${rect.left}px`;
                     if (rect.bottom + 170 > window.innerHeight) {
                         popupEl.style.top = `${rect.top - 170}px`;
                     } else {
