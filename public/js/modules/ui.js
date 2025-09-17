@@ -142,10 +142,6 @@ export function renderSongBlocks(containerEl, songBlocks, createBlockElementCall
                 <div class="block-content"><div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div></div>`;
             containerEl.appendChild(refDiv);
         } else {
-            // --- THIS IS THE FIX ---
-            // The createBlockElementCallback is what creates the element.
-            // We pass the blockToRender data into it.
-            // This was the missing link in the callback chain.
             containerEl.appendChild(createBlockElementCallback(blockToRender));
         }
     });
