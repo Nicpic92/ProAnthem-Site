@@ -1,5 +1,6 @@
 // --- START OF FILE public/js/modules/songEditor.js ---
 
+import * as api from '../api.js'; // Make sure the original api is imported
 import * as UI from './ui.js';
 import * as songDataManager from './songDataManager.js';
 import * as fretboardController from './fretboardController.js';
@@ -34,7 +35,6 @@ export function init(isDemoMode) {
     loadInitialData();
 }
 
-// --- NEW: Centralized function for initial data loading ---
 async function loadInitialData() {
     if (isDemo) {
         songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
@@ -45,19 +45,16 @@ async function loadInitialData() {
         loadChords();
         UI.setStatus(el.statusMessage, 'Loading songs...');
         try {
-            // 1. Fetch all sheets first
-            const sheets = await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets });
+            // --- FIX: Pass the real `api` module to loadSheetList ---
+            const sheets = await UI.loadSheetList(el.songSelector, api);
             
-            // 2. Determine which song to load (first in the list or a new one)
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
             
-            // 3. Load that specific song's content
             await handleLoadSong(initialSongId);
 
-            UI.setStatus(el.statusMessage, ''); // Clear loading message
+            UI.setStatus(el.statusMessage, '');
         } catch (error) {
             UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
-            // If list fails to load, still load a blank song editor
             await handleLoadSong('new');
         }
     }
@@ -232,7 +229,7 @@ async function handleSave() {
             UI.setStatus(el.statusMessage, 'Saved successfully!');
             // If it was a new song, refresh the song list to include it and select it
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
-                await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets }, savedSong.id);
+                await UI.loadSheetList(el.songSelector, api, savedSong.id);
             }
             renderSong(); // Re-render to update things like the history button
         }
@@ -253,7 +250,7 @@ async function handleDelete() {
             UI.setStatus(el.statusMessage, 'Deleting...');
             await songDataManager.deleteSong();
             UI.setStatus(el.statusMessage, 'Song deleted.');
-            await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets });
+            await UI.loadSheetList(el.songSelector, api);
             renderSong(); // Renders the new blank song
         } catch (e) {
             UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
@@ -425,7 +422,8 @@ async function loadChords() {
     try {
         const chords = isDemo 
             ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
-            : await songDataManager.api.getChords();
+            // --- FIX: Use the imported `api` module directly ---
+            : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
         if (!isDemo) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
@@ -437,7 +435,6 @@ async function handleAddChord() {
     const name = el.newChordInput.value.trim();
     if (!name) return;
     try {
-        const api = await import('../api.js');
         await api.createChord({ name });
         el.newChordInput.value = '';
         UI.setStatus(el.statusMessage, `'${name}' added.`);
@@ -532,38 +529,4 @@ function setupNotationPalette() {
 
         const notation = button.dataset.notation;
         const songData = songDataManager.getSongData();
-        const selected = fretboardController.getSelectedNote();
-        const block = songData.song_blocks.find(b => b.id === selected.blockId);
-
-        if (block && block.data.notes[selected.noteIndex]) {
-            const currentNote = block.data.notes[selected.noteIndex];
-            currentNote.notation = currentNote.notation === notation ? null : notation;
-
-            if (notation === 'b') {
-                const targetFret = prompt("Bend to which fret?", (currentNote.fret - (songData.capo)) + 2);
-                if (targetFret !== null && !isNaN(targetFret)) {
-                    currentNote.bend_target = parseInt(targetFret, 10);
-                }
-            } else {
-                delete currentNote.bend_target;
-            }
-            renderSong();
-        }
-    });
-}
-
-function renderPreview() {
-    const songData = songDataManager.getSongData();
-    UI.renderPreview(el.livePreview, songData.song_blocks, renderTransposedTab);
-}
-
-function renderTransposedTab(tabBlock) {
-    const songData = songDataManager.getSongData();
-    // This is a temporary stand-in for the full fretboard module's functionality
-    return `[Tab for ${tabBlock.strings} strings]`; 
-}
-
-function renderTransposedTabForHistory(tabBlock, historyData) {
-     // This is a temporary stand-in
-     return `[Tab for ${tabBlock.strings} strings]`;
-}
+        const selected = fretboardController.getSelectedNo
