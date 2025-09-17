@@ -9,7 +9,7 @@ import * as audioManager from './audioManager.js';
 import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
-import { getUserPayload } from '../auth.js'; // --- FIX: Import the auth helper ---
+import { getUserPayload } from '../auth.js';
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -38,33 +38,38 @@ export function init(isDemoMode) {
 async function loadInitialData() {
     const user = getUserPayload();
 
-    // --- FIX: Logic is now auth-aware ---
-    // If we're on the demo page OR if there's no logged-in user, load the demo.
-    if (isDemo || !user) {
+    // If we're explicitly on the demo page, force demo mode.
+    if (isDemo) {
         songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-        loadChords(); // This will correctly load the demo chords now
+        loadChords(null); // Load demo chords
         renderSong();
-        // Disable features that require a login
         if (el.recordBtn) el.recordBtn.disabled = true;
         if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
-        isDemo = true; // Force demo mode if user is not logged in
         return;
     }
     
-    // If we reach here, a user is logged in and we are not on the demo page.
-    loadChords();
-    UI.setStatus(el.statusMessage, 'Loading songs...');
-    try {
-        const sheets = await UI.loadSheetList(el.songSelector, api);
-        
-        const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
-        
-        await handleLoadSong(initialSongId);
-
-        UI.setStatus(el.statusMessage, '');
-    } catch (error) {
-        UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
-        await handleLoadSong('new');
+    // For any other page, check for a logged-in user.
+    if (user) {
+        // Logged-in user flow
+        await loadChords(user);
+        UI.setStatus(el.statusMessage, 'Loading songs...');
+        try {
+            const sheets = await UI.loadSheetList(el.songSelector, api);
+            const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
+            await handleLoadSong(initialSongId);
+            UI.setStatus(el.statusMessage, '');
+        } catch (error) {
+            UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
+            await handleLoadSong('new');
+        }
+    } else {
+        // Logged-out user on main tool page flow -> show them the demo
+        isDemo = true; // Force demo mode for the rest of the session
+        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
+        loadChords(null); // Load demo chords
+        renderSong();
+        if (el.recordBtn) el.recordBtn.disabled = true;
+        if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
     }
 }
 
@@ -426,14 +431,15 @@ function handleRecordingFinished(audioUrl) {
 
 // --- CHORD AND MUSIC THEORY LOGIC ---
 
-async function loadChords() {
+// --- FIX: This function now accepts the user to determine its behavior ---
+async function loadChords(user) {
     try {
-        const chords = isDemo 
+        const chords = !user
             ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
             : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
-        if (!isDemo) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
+        if (user) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
     }
 }
 
@@ -445,7 +451,7 @@ async function handleAddChord() {
         await api.createChord({ name });
         el.newChordInput.value = '';
         UI.setStatus(el.statusMessage, `'${name}' added.`);
-        await loadChords();
+        await loadChords(getUserPayload()); // Reload with user context
     } catch (e) {
         UI.setStatus(el.statusMessage, e.message, true);
     }
