@@ -9,6 +9,7 @@ let selectedVersionData = null;
 let currentSongData = null;
 let renderPreviewCallback = null;
 let renderTransposedTabCallback = null;
+let reloadSongCallback = null;
 
 const el = {};
 
@@ -42,6 +43,7 @@ export async function openHistoryModal(songData, previewCallback, reloadCallback
 
     currentSongData = songData;
     renderPreviewCallback = previewCallback;
+    reloadSongCallback = reloadCallback;
     renderTransposedTabCallback = transposedTabCallback;
 
     el.historyModalTitle.textContent = `Version History for "${currentSongData.title}"`;
@@ -125,7 +127,7 @@ async function handleRestoreVersion() {
         el.historyModal.classList.add('hidden');
         UI.setStatus(statusMessageEl, 'Song restored successfully!', false);
         
-        reloadSong(currentSongData.id);
+        reloadSongCallback(currentSongData.id);
 
     } catch (error) {
         UI.setStatus(document.getElementById('statusMessage'), `Restore failed: ${error.message}`, true);
