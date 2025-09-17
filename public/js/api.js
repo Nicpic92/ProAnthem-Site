@@ -32,6 +32,11 @@ export const getSheet = (id) => apiRequest(`lyric-sheets/${id}`);
 export const createSheet = (data) => apiRequest('lyric-sheets', data, 'POST');
 export const updateSheet = (id, data) => apiRequest(`lyric-sheets/${id}`, data, 'PUT');
 export const deleteSheet = (id) => apiRequest(`lyric-sheets/${id}`, null, 'DELETE');
+
+// --- NEW VERSION HISTORY API FUNCTIONS ---
+export const getVersions = (sheetId) => apiRequest(`lyric-sheets/${sheetId}/versions`);
+export const getVersion = (sheetId, versionId) => apiRequest(`lyric-sheets/${sheetId}/versions/${versionId}`);
+
 export const getChords = () => apiRequest('chords');
 export const createChord = (data) => apiRequest('chords', data, 'POST');
 export const getSetlists = () => apiRequest('setlists');
@@ -42,7 +47,6 @@ export const addSongToSetlist = (setlistId, songId) => apiRequest(`setlists/${se
 export const removeSongFromSetlist = (setlistId, songId) => apiRequest(`setlists/${setlistId}/songs/${songId}`, null, 'DELETE');
 export const updateSetlistDetails = (id, data) => apiRequest(`setlists/${id}`, data, 'PUT');
 export const updateSetlistSongOrder = (id, song_ids) => apiRequest(`setlists/${id}/songs`, { song_ids }, 'PUT');
-// --- THIS IS THE NEW FUNCTION ---
 export const cloneSetlist = (id, newName) => apiRequest(`setlists/${id}/clone`, { newName }, 'POST');
 export const login = (credentials) => apiRequest('login', credentials, 'POST');
 export const signup = (payload) => apiRequest('signup', payload, 'POST');
