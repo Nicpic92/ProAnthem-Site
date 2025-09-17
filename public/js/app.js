@@ -3,6 +3,8 @@
 import { checkAccess, getUserPayload } from './auth.js';
 import * as songEditor from './modules/songEditor.js';
 import * as setlistManager from './modules/setlistManager.js';
+// --- THIS IS THE FIX ---
+// The import path was missing the folder structure.
 import * as historyManager from './modules/historyManager.js';
 
 // This is the main entry point for the entire application.
