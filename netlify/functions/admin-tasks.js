@@ -1,12 +1,11 @@
+// --- START OF FILE netlify/functions/admin-tasks.js ---
+
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 
 const JWT_SECRET = process.env.JWT_SECRET;
-
-// Helper to generate a random password (no longer used for add-user, but good to keep)
-const generateTemporaryPassword = () => crypto.randomBytes(8).toString('hex');
 
 exports.handler = async (event) => {
     const authHeader = event.headers.authorization;
@@ -91,20 +90,21 @@ exports.handler = async (event) => {
                     return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required to add a user.' })};
                 }
 
-                // --- THIS IS THE FIX ---
-                // 1. Fetch the band_number from the bands table.
                 const { rows: [band] } = await client.query('SELECT band_number FROM bands WHERE id = $1', [bandId]);
                 if (!band) {
                     return { statusCode: 404, body: JSON.stringify({ message: 'The selected band was not found.' })};
                 }
-                const tempPassword = band.band_number.toString(); // 2. Use the band_number as the password.
-
+                const tempPassword = band.band_number.toString();
                 const password_hash = await bcrypt.hash(tempPassword, 10);
 
-                const query = `INSERT INTO users (email, password_hash, first_name, last_name, role, band_id, password_reset_required)
-                               VALUES ($1, $2, $3, $4, $5, $6, TRUE) RETURNING email`;
-                await client.query(query, [email.toLowerCase(), password_hash, firstName, lastName, role, bandId]);
-                // 3. Return the band_number in the response.
+                // --- THIS IS THE FIX ---
+                // If the user being created is an admin, grant them access immediately.
+                const subscriptionStatus = (role === 'admin' || role === 'band_admin') ? 'admin_granted' : null;
+
+                const query = `INSERT INTO users (email, password_hash, first_name, last_name, role, band_id, password_reset_required, subscription_status)
+                               VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7) RETURNING email`;
+                await client.query(query, [email.toLowerCase(), password_hash, firstName, lastName, role, bandId, subscriptionStatus]);
+                
                 return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.', temporaryPassword: tempPassword }) };
             }
 
@@ -137,3 +137,5 @@ exports.handler = async (event) => {
         await client.end();
     }
 };
+
+// --- END OF FILE netlify/functions/admin-tasks.js ---
