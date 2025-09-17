@@ -2,10 +2,6 @@
 
 import { changePassword } from './api.js';
 
-/**
- * Checks if the user is required to reset their password and displays the modal if so.
- * @param {object | null} user The user payload from the JWT.
- */
 export function checkForcedReset(user) {
     if (user && user.force_reset) {
         const passwordModal = document.getElementById('password-reset-modal');
@@ -18,10 +14,6 @@ export function checkForcedReset(user) {
     }
 }
 
-/**
- * Handles the submission of the password reset form.
- * @param {Event} event The form submission event.
- */
 async function handlePasswordReset(event) {
     event.preventDefault();
     const errorEl = document.getElementById('password-reset-error');
@@ -47,11 +39,13 @@ async function handlePasswordReset(event) {
     try {
         await changePassword({ currentPassword, newPassword });
         
-        alert('Password updated successfully! You can now use the tool.');
-        document.getElementById('password-reset-modal').classList.add('hidden');
-        // The page is now effectively un-blocked.
+        alert('Password updated successfully! You will now be taken to your dashboard.');
+        // --- THIS IS THE FIX ---
+        // Redirect to the new main dashboard after successful reset.
+        window.location.href = '/dashboard.html';
         
     } catch (error) {
         errorEl.textContent = error.message;
     }
 }
+// --- END OF FILE public/js/passwordResetHandler.js ---
