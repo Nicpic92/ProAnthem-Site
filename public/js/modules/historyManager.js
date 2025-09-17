@@ -2,14 +2,16 @@
 
 import * as api from '../api.js';
 import * as UI from './ui.js';
-import { reloadSong } from './songEditor.js';
+// --- FIX: Removed the problematic import that caused the circular dependency ---
+// import { reloadSong } from './songEditor.js';
 
 let isDemo = false;
 let selectedVersionData = null;
 let currentSongData = null;
 let renderPreviewCallback = null;
 let renderTransposedTabCallback = null;
-let reloadSongCallback = null;
+// --- FIX: Store the callback function in a local variable ---
+let reloadSongCallback = null; 
 
 const el = {};
 
@@ -23,8 +25,10 @@ function cacheDOMElements() {
     el.restoreVersionBtn = document.getElementById('restore-version-btn');
 }
 
-export function init(isDemoMode) {
+// --- FIX: Init now accepts the reloadSong function as a parameter ---
+export function init(isDemoMode, reloadCallback) {
     isDemo = isDemoMode;
+    reloadSongCallback = reloadCallback; // Store the function
     cacheDOMElements();
     attachEventListeners();
 }
@@ -35,7 +39,8 @@ function attachEventListeners() {
     el.restoreVersionBtn?.addEventListener('click', handleRestoreVersion);
 }
 
-export async function openHistoryModal(songData, previewCallback, reloadCallback, transposedTabCallback) {
+// --- FIX: The `reloadCallback` parameter is no longer needed here ---
+export async function openHistoryModal(songData, previewCallback, transposedTabCallback) {
     if (isDemo || !songData.id) {
         alert("Version history is only available for saved songs.");
         return;
@@ -43,7 +48,6 @@ export async function openHistoryModal(songData, previewCallback, reloadCallback
 
     currentSongData = songData;
     renderPreviewCallback = previewCallback;
-    reloadSongCallback = reloadCallback;
     renderTransposedTabCallback = transposedTabCallback;
 
     el.historyModalTitle.textContent = `Version History for "${currentSongData.title}"`;
@@ -113,6 +117,7 @@ async function handleRestoreVersion() {
         const statusMessageEl = document.getElementById('statusMessage');
         UI.setStatus(statusMessageEl, 'Restoring version...');
         
+        // The `updateSheet` function will automatically create a new version history entry.
         await api.updateSheet(currentSongData.id, {
             title: selectedVersionData.title,
             artist: selectedVersionData.artist,
@@ -127,7 +132,10 @@ async function handleRestoreVersion() {
         el.historyModal.classList.add('hidden');
         UI.setStatus(statusMessageEl, 'Song restored successfully!', false);
         
-        reloadSongCallback(currentSongData.id);
+        // --- FIX: Use the stored callback instead of the direct import ---
+        if (reloadSongCallback) {
+            reloadSongCallback(currentSongData.id);
+        }
 
     } catch (error) {
         UI.setStatus(document.getElementById('statusMessage'), `Restore failed: ${error.message}`, true);
