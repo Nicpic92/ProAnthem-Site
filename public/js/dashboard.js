@@ -1,7 +1,6 @@
 // --- START OF FILE public/js/dashboard.js ---
-import { getUserPayload, checkAccess } from './js/auth.js';
-import { apiRequest } from './js/api.js';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction, getMerchItems, createMerchItem, updateMerchItem, deleteMerchItem } from './api.js';
+import { getUserPayload, checkAccess } from './auth.js';
+import { apiRequest, getTransactions, createTransaction, updateTransaction, deleteTransaction, getMerchItems, createMerchItem, updateMerchItem, deleteMerchItem } from './api.js';
 
 let isAdmin = false;
 
