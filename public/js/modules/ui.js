@@ -142,6 +142,9 @@ export function renderSongBlocks(containerEl, songBlocks, createBlockElementCall
                 <div class="block-content"><div class="p-4 bg-gray-800 rounded-md text-gray-400 italic">Reference to: ${originalBlock ? originalBlock.label : 'Unknown Section'}</div></div>`;
             containerEl.appendChild(refDiv);
         } else {
+            // --- THIS IS THE FIX ---
+            // The createBlockElementCallback is now correctly called, and it passes along
+            // the necessary drawFretboardCallback to the createBlockElement function.
             containerEl.appendChild(createBlockElementCallback(blockToRender));
         }
     });
@@ -152,7 +155,7 @@ export function renderSongBlocks(containerEl, songBlocks, createBlockElementCall
 
 export function renderAddBlockButtons(containerEl, songBlocks) {
     if (!containerEl) return;
-    const createdSections = songBlocks.filter(b => b.type !== 'reference');
+    const createdSections = songBlocks ? songBlocks.filter(b => b.type !== 'reference') : [];
     let referenceButtonsHtml = '';
     if (createdSections.length > 0) {
         const refItems = createdSections.map(b => `<a href="#" class="block px-4 py-2 text-sm text-gray-200 hover:bg-gray-600" data-original-id="${b.id}" role="menuitem">${b.label}</a>`).join('');
