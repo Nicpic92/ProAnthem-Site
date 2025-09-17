@@ -9,6 +9,7 @@ import * as audioManager from './audioManager.js';
 import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
+import { getUserPayload } from '../auth.js'; // --- FIX: Import the auth helper ---
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -26,7 +27,6 @@ export function init(isDemoMode) {
     cacheDOMElements();
     attachEventListeners();
     
-    // Initialize sub-modules
     fretboardController.init(renderSong); 
     audioManager.init(handleRecordingFinished);
 
@@ -36,26 +36,35 @@ export function init(isDemoMode) {
 }
 
 async function loadInitialData() {
-    if (isDemo) {
-        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-        loadChords();
-        renderSong();
-        if (el.recordBtn) el.recordBtn.disabled = true;
-    } else {
-        loadChords();
-        UI.setStatus(el.statusMessage, 'Loading songs...');
-        try {
-            const sheets = await UI.loadSheetList(el.songSelector, api);
-            
-            const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
-            
-            await handleLoadSong(initialSongId);
+    const user = getUserPayload();
 
-            UI.setStatus(el.statusMessage, '');
-        } catch (error) {
-            UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
-            await handleLoadSong('new');
-        }
+    // --- FIX: Logic is now auth-aware ---
+    // If we're on the demo page OR if there's no logged-in user, load the demo.
+    if (isDemo || !user) {
+        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
+        loadChords(); // This will correctly load the demo chords now
+        renderSong();
+        // Disable features that require a login
+        if (el.recordBtn) el.recordBtn.disabled = true;
+        if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
+        isDemo = true; // Force demo mode if user is not logged in
+        return;
+    }
+    
+    // If we reach here, a user is logged in and we are not on the demo page.
+    loadChords();
+    UI.setStatus(el.statusMessage, 'Loading songs...');
+    try {
+        const sheets = await UI.loadSheetList(el.songSelector, api);
+        
+        const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
+        
+        await handleLoadSong(initialSongId);
+
+        UI.setStatus(el.statusMessage, '');
+    } catch (error) {
+        UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
+        await handleLoadSong('new');
     }
 }
 
@@ -553,11 +562,11 @@ function renderPreview() {
 }
 
 function renderTransposedTab(tabBlock) {
-    // This is a stand-in for the full fretboard module's functionality
+    const songData = songDataManager.getSongData();
+    // This is a temporary stand-in for the full fretboard module's functionality
     return `[Tab for ${tabBlock.strings} strings]`; 
 }
 
-// --- THIS IS THE FIX: Added the missing closing brace ---
 function renderTransposedTabForHistory(tabBlock, historyData) {
      // This is a stand-in
      return `[Tab for ${tabBlock.strings} strings]`;
