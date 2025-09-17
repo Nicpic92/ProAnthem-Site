@@ -79,5 +79,16 @@ export const deleteStagePlot = (id) => apiRequest(`stage-plots/${id}`, null, 'DE
 
 // --- NEW FUNCTION FOR CHORD DIAGRAMS ---
 export const getChordDiagrams = (chordName) => apiRequest(`chords/${chordName}/diagrams`);
+// Add these lines to the end of public/js/api.js
+
+export const getTransactions = () => apiRequest('finances');
+export const createTransaction = (data) => apiRequest('finances', data, 'POST');
+export const updateTransaction = (id, data) => apiRequest(`finances/${id}`, data, 'PUT');
+export const deleteTransaction = (id) => apiRequest(`finances/${id}`, null, 'DELETE');
+
+export const getMerchItems = () => apiRequest('merch');
+export const createMerchItem = (data) => apiRequest('merch', data, 'POST');
+export const updateMerchItem = (id, data) => apiRequest(`merch/${id}`, data, 'PUT');
+export const deleteMerchItem = (id) => apiRequest(`merch/${id}`, null, 'DELETE');
 
 // --- END OF FILE public/js/api.js ---
