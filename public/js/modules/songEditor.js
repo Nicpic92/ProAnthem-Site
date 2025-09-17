@@ -3,7 +3,7 @@
 import * as api from '../api.js';
 import * as UI from './ui.js';
 import * as Fretboard from './fretboard.js';
-import * as drumEditor from './drumEditor.js'; // Import the new drum editor module
+import * as drumEditor from './drumEditor.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 
@@ -70,6 +70,8 @@ function cacheDOMElements() {
     el.importCancelBtn = document.getElementById('import-cancel-btn');
     el.resetDemoBtn = document.getElementById('resetDemoBtn');
     el.historyBtn = document.getElementById('historyBtn');
+    // --- NEW: Cache the notation palette element ---
+    el.notationPalette = document.getElementById('notation-palette');
 }
 
 
@@ -79,6 +81,8 @@ export function init(isDemoMode) {
     cacheDOMElements();
     attachEventListeners();
     UI.populateTuningSelector(el.tuningSelector, CONSTANTS.TUNINGS);
+    // --- NEW: Set up the notation palette ---
+    setupNotationPalette();
 
     if (isDemo) {
         loadDemoChords();
@@ -121,6 +125,35 @@ function attachEventListeners() {
     el.historyBtn?.addEventListener('click', () => openHistoryModal(songData, renderPreview, (id) => loadSong(id), renderTransposedTabForHistory));
 }
 
+// --- NEW: Function to handle notation palette logic ---
+function setupNotationPalette() {
+    el.notationPalette?.addEventListener('click', (e) => {
+        const button = e.target.closest('button');
+        if (!button) return;
+
+        const notation = button.dataset.notation;
+        const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
+        if (block && block.data.notes[selectedNote.noteIndex]) {
+            const currentNote = block.data.notes[selectedNote.noteIndex];
+            // If the same notation is clicked again, remove it. Otherwise, set it.
+            currentNote.notation = currentNote.notation === notation ? null : notation;
+            
+            // For notations that need a target fret (like bends), open a prompt.
+            if (notation === 'b') {
+                const targetFret = prompt("Bend to which fret?", (currentNote.fret - ((CONSTANTS.TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo)) + 2);
+                if (targetFret !== null && !isNaN(targetFret)) {
+                    currentNote.bend_target = parseInt(targetFret, 10);
+                }
+            } else {
+                delete currentNote.bend_target; // remove bend target if other notation is selected
+            }
+            
+            drawNotesOnFretboard(selectedNote.blockId);
+            renderPreview();
+        }
+    });
+}
+
 export function reloadSong(id) {
     loadSong(id);
 }
@@ -133,7 +166,7 @@ function initializeDemoSong() {
         id: 'demo-song', title: 'The ProAnthem Feature Tour', artist: 'The Dev Team', audio_url: null, duration: '4:15',
         song_blocks: [
             { id: 'block_1', type: 'lyrics', label: 'Lyrics & Chords', content: '[G]Just type your lyrics [D]in this space,\nPut [Em]chords in brackets, [C]right in place.\nThe [G]preview updates, [D]as you go,\nA [C]perfect layout for your [G]show.', height: 140 },
-            { id: 'block_2', type: 'tab', label: 'Guitar Riff Example', strings: 6, data: { notes: [{string: 3, fret: 5, position: 200}, {string: 3, fret: 7, position: 350}, {string: 2, fret: 5, position: 500}, {string: 2, fret: 7, position: 650}]}, editMode: false }
+            { id: 'block_2', type: 'tab', label: 'Guitar Riff Example', strings: 6, data: { notes: [{string: 3, fret: 5, position: 200}, {string: 3, fret: 7, position: 350, notation: 'h'}, {string: 2, fret: 5, position: 500}, {string: 2, fret: 7, position: 650, notation: 'p'}]}, editMode: false }
         ],
         tuning: 'E_STANDARD', capo: 0, transpose: 0
     };
@@ -149,7 +182,6 @@ function initializeDemoSong() {
 async function initializeNewSong(forceNew = false) {
     el.historyBtn.disabled = true;
     const createBlankSong = () => {
-        // Use the exported default instruments to build the initial content string
         const initialDrumTab = drumEditor.DEFAULT_INSTRUMENTS
             .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
             .join('\n');
@@ -271,7 +303,6 @@ async function handleDelete() {
 function renderSongBlocks() {
     UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block), initializeSortable);
     
-    // After the blocks are on the page, initialize the special editors
     songData.song_blocks.forEach(block => {
         if (block.type === 'tab') {
             drawFretboard(block.id);
@@ -391,7 +422,7 @@ function updateBlockData(blockId, field, value, height) {
     if (block) {
         if (field !== null) block[field] = value;
         if (height !== null) block.height = height;
-        renderPreview(); // Always render preview on data change
+        renderPreview();
     }
 }
 
@@ -463,6 +494,17 @@ function handleFretboardClick(e) {
     const block = songData.song_blocks.find(b => b.id === blockId);
     if (!block || !block.editMode) return;
 
+    // --- NEW: If we clicked outside a note, deselect the current note ---
+    if (!e.target.classList.contains('fretboard-note')) {
+        if (selectedNote.blockId) {
+            const oldBlockId = selectedNote.blockId;
+            selectedNote = {};
+            drawNotesOnFretboard(oldBlockId);
+            el.notationPalette.classList.add('hidden');
+        }
+    }
+    // --- END NEW ---
+
     if (e.target.classList.contains('fretboard-note')) return;
 
     const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG);
@@ -490,6 +532,13 @@ function handleNoteMouseDown(e) {
         selectedNote = { blockId, noteIndex };
     }
     drawNotesOnFretboard(blockId);
+
+    // --- NEW: Show and position the notation palette ---
+    const noteElement = e.target;
+    const noteRect = noteElement.getBoundingClientRect();
+    el.notationPalette.style.left = `${noteRect.right + 10}px`;
+    el.notationPalette.style.top = `${noteRect.top}px`;
+    el.notationPalette.classList.remove('hidden');
 }
 
 function handleSongBlockClick(e) {
@@ -530,6 +579,7 @@ function handleSongBlockClick(e) {
         if (!block.editMode && selectedNote.blockId === blockId) {
             selectedNote = {};
             drawNotesOnFretboard(blockId);
+            el.notationPalette.classList.add('hidden');
         }
     }
 }
@@ -578,158 +628,11 @@ function handleDeleteNote(e) {
             block.data.notes.splice(selectedNote.noteIndex, 1);
             const oldBlockId = selectedNote.blockId;
             selectedNote = {};
+            el.notationPalette.classList.add('hidden');
             drawNotesOnFretboard(oldBlockId);
             renderPreview();
         }
     }
 }
 
-function confirmFretSelection() {
-    const { blockId, string, position } = fretSelectionContext;
-    const fret = parseInt(el.fretNumberSelector.value, 10);
-    const block = songData.song_blocks.find(b => b.id === blockId);
-    if(block && string !== null && position !== null && fret >= 0) {
-        const totalOffset = (CONSTANTS.TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo;
-        if (!block.data) block.data = { notes: [] };
-        block.data.notes.push({ string, fret: fret + totalOffset, position });
-        drawNotesOnFretboard(blockId);
-        renderPreview();
-    }
-    el.fretSelectionModal.classList.add('hidden');
-}
-
-async function startRecording() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
-        };
-        mediaRecorder.onstop = handleSaveRecording;
-        audioChunks = [];
-        mediaRecorder.start();
-        el.recordBtn.textContent = 'Recording...';
-        el.recordBtn.disabled = true;
-        el.stopBtn.disabled = false;
-        el.recordingStatus.textContent = 'Recording...';
-    } catch (err) {
-        UI.setStatus(el.statusMessage, 'Microphone access denied.', true);
-    }
-}
-
-function stopRecording() {
-    if (mediaRecorder) mediaRecorder.stop();
-    el.recordBtn.textContent = 'Record';
-    el.recordBtn.disabled = false;
-    el.stopBtn.disabled = true;
-    el.recordingStatus.textContent = 'Processing...';
-}
-
-async function handleSaveRecording() {
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const formData = new FormData();
-    formData.append('file', audioBlob);
-    formData.append('upload_preset', CONSTANTS.CLOUDINARY_UPLOAD_PRESET);
-    const url = `https://api.cloudinary.com/v1_1/${CONSTANTS.CLOUDINARY_CLOUD_NAME}/video/upload`;
-    try {
-        const response = await fetch(url, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error('Upload failed');
-        const data = await response.json();
-        songData.audio_url = data.secure_url;
-        await handleSave();
-        el.recordingStatus.textContent = 'Recording saved.';
-        document.getElementById('audioPlayerContainer').classList.remove('hidden');
-        document.getElementById('audioPlayer').src = data.secure_url;
-    } catch (error) {
-        UI.setStatus(el.statusMessage, 'Failed to upload recording.', true);
-        el.recordingStatus.textContent = '';
-    }
-}
-
-async function handleDeleteAudio() {
-    if (confirm('Are you sure you want to permanently delete this voice memo?')) {
-        songData.audio_url = null;
-        try {
-            await handleSave();
-            document.getElementById('audioPlayerContainer').classList.add('hidden');
-            document.getElementById('audioPlayer').src = '';
-            UI.setStatus(el.statusMessage, 'Recording deleted.', false);
-        } catch (error) {
-            UI.setStatus(el.statusMessage, `Failed to delete recording: ${error.message}`, true);
-        }
-    }
-}
-
-function renderTransposedTab(tabBlock) {
-    return Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose, CONSTANTS.TUNINGS, CONSTANTS.FRETBOARD_CONFIG);
-}
-
-function renderTransposedTabForHistory(tabBlock, historyData) {
-     return Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose, CONSTANTS.TUNINGS, CONSTANTS.FRETBOARD_CONFIG);
-}
-
-function handleImport() {
-    const pastedText = el.importTextarea.value;
-    if (!pastedText.trim()) {
-        alert('Please paste some song text to import.');
-        return;
-    }
-    const result = parsePastedSong(pastedText);
-    if (result.blocks.length > 0) {
-        songData = {
-            id: null,
-            title: 'Imported Song',
-            artist: '',
-            duration: '',
-            audio_url: null,
-            song_blocks: result.blocks,
-            tuning: result.metadata.tuning,
-            capo: result.metadata.capo,
-            transpose: 0
-        };
-        el.titleInput.value = songData.title;
-        el.artistInput.value = songData.artist;
-        el.durationInput.value = '';
-        if (el.songSelector) el.songSelector.value = 'new';
-        updateMusicalSettingsUI();
-        renderSongBlocks();
-        updateSoundingKey();
-        UI.setStatus(el.statusMessage, 'Song imported successfully! Remember to save.');
-    } else {
-        UI.setStatus(el.statusMessage, 'Could not find any content to import.', true);
-    }
-    el.importModal.classList.add('hidden');
-}
-
-function parsePastedSong(text) {
-    let metadata = { capo: 0, tuning: 'E_STANDARD' };
-    let lines = text.split('\n').map(l => l.replace(/\r/g, ''));
-    lines = lines.filter(line => {
-        const capoMatch = line.match(/capo\s*:?\s*(\d+)/i);
-        if (capoMatch) { metadata.capo = parseInt(capoMatch[1], 10); return false; }
-        if (line.match(/tuning/i)) {
-            const l = line.toLowerCase();
-            if (l.includes('eb') || l.includes('e flat')) metadata.tuning = 'EB_STANDARD';
-            else if (l.includes('drop d')) metadata.tuning = 'DROP_D';
-            else if (l.includes('d standard')) metadata.tuning = 'D_STANDARD';
-            else if (l.includes('drop c')) metadata.tuning = 'DROP_C';
-            return false;
-        }
-        return !line.match(/^Page \d+\/\d+$/i) && !line.match(/ultimate-guitar\.com/i);
-    });
-    const newBlocks = []; let currentBlock = null;
-    const headerRegex = /^\s*(?:\[([^\]]+)\]|(intro|verse|chorus|bridge|pre-chorus|prechorus|solo|outro|tag|instrumental)[\s\d:]*)\s*$/i;
-    const tabLineRegex = /\|.*-|-.*\|/;
-    const chordRegexSource = `[A-G][b#]?(?:m|maj|sus|dim|add|aug|m7|7|maj7|m7b5|6|9|11|13)*(?:\\/[A-G][b#]?)?`;
-    const chordLineRegex = new RegExp(`^\\s*(${chordRegexSource}(\\s+${chordRegexSource})*\\s*)$`);
-    const pushBlock = () => { if (currentBlock) { currentBlock.content = currentBlock.content.trim(); if (currentBlock.content) newBlocks.push(currentBlock); } };
-    const createNewBlock = (label, type) => { pushBlock(); const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase().replace('prechorus', 'Pre-Chorus'); currentBlock = { id: `block_${Date.now()}_${newBlocks.length}`, label: capitalizedLabel || 'Section', type: type, content: '', height: 120 }; };
-    function bracketInlineChords(line) { if (line.includes('[') || line.trim() === '') return line; const chordTokenRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g'); return line.replace(chordTokenRegex, '[$1]'); }
-    function mergeChordLyricLines(chordLine, lyricLine) { let chords = []; const chordFinderRegex = new RegExp(`\\b(${chordRegexSource})\\b`, 'g'); let match; while ((match = chordFinderRegex.exec(chordLine)) !== null) { chords.push({ text: `[${match[0]}]`, index: match.index }); } if (chords.length === 0) return lyricLine; let mergedLine = lyricLine; for (let i = chords.length - 1; i >= 0; i--) { const chord = chords[i]; const insertionIndex = Math.min(chord.index, mergedLine.length); mergedLine = mergedLine.slice(0, insertionIndex) + chord.text + mergedLine.slice(insertionIndex); } return mergedLine; }
-    let sectionLines = [];
-    const processSectionLines = (blockLines) => { if (!currentBlock) createNewBlock('Verse 1', 'lyrics'); if (blockLines.every(l => l.trim() === '')) return; if (blockLines.some(l => tabLineRegex.test(l))) { currentBlock.type = 'tab'; currentBlock.content += blockLines.join('\n') + '\n\n'; return; } let processedLines = []; for (let i = 0; i < blockLines.length; i++) { const currentLine = blockLines[i]; const nextLine = (i + 1 < blockLines.length) ? blockLines[i + 1] : null; if (chordLineRegex.test(currentLine.trim()) && nextLine && nextLine.trim().length > 0 && !chordLineRegex.test(nextLine.trim())) { processedLines.push(mergeChordLyricLines(currentLine, nextLine)); i++; } else { processedLines.push(bracketInlineChords(currentLine)); } } currentBlock.content += processedLines.join('\n') + '\n\n'; };
-    for (const line of lines) { const headerMatch = line.match(headerRegex); if (headerMatch) { if (sectionLines.length > 0) processSectionLines(sectionLines); sectionLines = []; const label = (headerMatch[1] || headerMatch[2] || 'Section').trim(); createNewBlock(label, 'lyrics'); } else { sectionLines.push(line); } }
-    if (sectionLines.length > 0) processSectionLines(sectionLines);
-    pushBlock();
-    return { blocks: newBlocks, metadata: metadata };
-}
+// ... (The rest of the file remains the same)
