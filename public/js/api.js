@@ -10,11 +10,21 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
     if (token) {
         options.headers['Authorization'] = `Bearer ${token}`;
     }
-    if (data) {
-        options.body = JSON.stringify(data);
-    }
     try {
         const response = await fetch(`/api/${endpoint}`, options);
+
+        // --- THIS IS THE GLOBAL FIX ---
+        // If the server returns a 401, the token is bad.
+        // We must log the user out and stop everything.
+        if (response.status === 401) {
+            localStorage.removeItem('user_token');
+            // Redirect to the home page where they can log in again.
+            window.location.href = '/proanthem_index.html'; 
+            // Throw an error to prevent any subsequent code from running.
+            throw new Error('Session expired. Please log in again.');
+        }
+        // --- END OF FIX ---
+
         if (response.status === 204) return null;
         const responseData = await response.json();
         if (!response.ok) {
@@ -33,7 +43,6 @@ export const createSheet = (data) => apiRequest('lyric-sheets', data, 'POST');
 export const updateSheet = (id, data) => apiRequest(`lyric-sheets/${id}`, data, 'PUT');
 export const deleteSheet = (id) => apiRequest(`lyric-sheets/${id}`, null, 'DELETE');
 
-// --- NEW VERSION HISTORY API FUNCTIONS ---
 export const getVersions = (sheetId) => apiRequest(`lyric-sheets/${sheetId}/versions`);
 export const getVersion = (sheetId, versionId) => apiRequest(`lyric-sheets/${sheetId}/versions/${versionId}`);
 
