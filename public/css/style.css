@@ -44,6 +44,7 @@ body.marketing {
 .btn { border: 1px solid transparent; padding: 0.6em 1.2em; font-size: 1em; font-weight: 500; cursor: pointer; transition: background-color 0.25s; border-radius: 8px; }
 .btn:disabled { background-color: #4b5563; opacity: 0.5; cursor: not-allowed; }
 .btn-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
+.form-input-sm { padding: 0.3em 0.8em; font-size: 0.9em; }
 .btn-primary { background-color: #dc2626; color: white; } /* red-600 */
 .btn-primary:hover:not(:disabled) { background-color: #b91c1c; } /* red-700 */
 .btn-secondary { background-color: #3b82f6; color: white; } /* blue-500 */
@@ -80,10 +81,40 @@ body.marketing {
 .drum-instrument {
     background-color: #374151;
     color: #d1d5db;
-    padding: 0.5rem;
+    padding: 0.25rem 0.75rem;
     text-align: left;
     font-weight: bold;
     border-right: 2px solid #4b5563;
+    position: relative;
+    white-space: nowrap;
+}
+.drum-instrument-name {
+    margin-right: 20px; /* Space for the remove button */
+}
+.drum-instrument-controls {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.drum-instrument:hover .drum-instrument-controls {
+    opacity: 1;
+}
+.drum-remove-btn {
+    background: none;
+    border: none;
+    color: #fca5a5;
+    cursor: pointer;
+    font-size: 1.2rem;
+    line-height: 1;
+    padding: 0 4px;
+}
+.drum-remove-btn:hover {
+    color: #ef4444;
 }
 .drum-cell {
     width: 25px;
@@ -98,6 +129,18 @@ body.marketing {
     background-color: #4b5563;
     color: #ffffff;
 }
+.drum-add-form {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+.drum-add-input {
+    flex-grow: 1;
+}
+.drum-add-form button {
+    flex-shrink: 0;
+}
 
 /* --- Fretboard and component styles --- */
 .block-header:active { cursor: grabbing; }
@@ -110,7 +153,6 @@ body.marketing {
 .fretboard-note-text { fill: #111827; font-weight: bold; pointer-events: none; text-anchor: middle; alignment-baseline: central; }
 .queue-pill { background-color: #374151; padding: 2px 8px; border-radius: 12px; font-size: 0.9em; }
 .form-textarea.placement-mode { cursor: crosshair; }
-.drum-tab-block { font-family: 'Courier New', Courier, monospace; line-height: 1.5; }
 .resize-handle { position: absolute; bottom: 0; left: 0; right: 0; height: 10px; cursor: ns-resize; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; background-color: rgba(74, 85, 104, 0.5); }
 .resize-handle:hover { background-color: rgba(99, 110, 129, 0.7); }
 .btn-edit-mode { background-color: #2563eb; } .btn-edit-mode:hover { background-color: #1d4ed8; }
