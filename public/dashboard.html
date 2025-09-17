@@ -51,14 +51,14 @@
             <!-- Feature Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
 
-                <!-- Tile 1: Song Editor -->
-                <div class="feature-card rounded-lg p-8">
-                    <h2 class="text-2xl font-bold">Songwriting Hub</h2>
+                <!-- Tile 1: ProAnthem Core Tool -->
+                <div class="feature-card rounded-lg p-8 lg:col-span-2">
+                    <h2 class="text-2xl font-bold">ProAnthem Tool</h2>
                     <div class="my-3">
                         <span class="bg-green-200 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Core Tool</span>
                     </div>
                     <p class="text-gray-400 mb-6 flex-grow">
-                        Craft your songs with our multi-section editor for lyrics, chords, interactive guitar tabs, and drum tabs.
+                        The complete hub for songwriting and performance. Build songs with lyrics, chords, and tabs, then organize them into powerful setlists for your live shows. Includes practice tools like the stem mixer and chord visualizer.
                     </p>
                     <a href="/ProjectAnthem.html" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
                         Launch Tool
@@ -74,7 +74,7 @@
                     <p class="text-gray-400 mb-6 flex-grow">
                         Manage your band's members, public profile, announcements, calendar, finances, and merchandise inventory.
                     </p>
-                    <a href="/band-dashboard.html" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
+                    <a href="/band.html" class="w-full bg-slate-700 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
                         Manage Band
                     </a>
                 </div>
@@ -93,21 +93,6 @@
                     </a>
                 </div>
 
-                <!-- Tile 4: Show Builder -->
-                <div class="feature-card rounded-lg p-8">
-                    <h2 class="text-2xl font-bold">Show Builder</h2>
-                    <div class="my-3">
-                        <span class="bg-green-200 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">Core Tool</span>
-                    </div>
-                    <p class="text-gray-400 mb-6 flex-grow">
-                        Build, reorder, and clone your setlists. Launch the hands-free Live Show mode for performances.
-                    </p>
-                    <!-- Note: This links to the song tool, where the setlist manager is located -->
-                    <a href="/ProjectAnthem.html" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg text-center transition-colors">
-                        Launch Tool
-                    </a>
-                </div>
-
             </div>
         </section>
     </main>
@@ -117,12 +102,17 @@
     </footer>
 
     <script type="module">
-        import { getUserPayload } from './js/auth.js';
+        import { getUserPayload, checkAccess } from './js/auth.js';
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!checkAccess()) {
+                // If checkAccess fails, it will handle the redirect.
+                return;
+            }
+
             const user = getUserPayload();
             if (!user) {
-                // If somehow a non-logged-in user gets here, send them home.
+                // Should not happen if checkAccess passes, but as a fallback.
                 window.location.href = '/proanthem_index.html';
                 return;
             }
@@ -132,7 +122,7 @@
             welcomeHeader.textContent = `Welcome, ${user.name}!`;
 
             // Show band-specific cards only if the user is in a band
-            const isBandUser = user.band_id && (user.role === 'band_admin' || user.role === 'band_member' || user.role === 'admin');
+            const isBandUser = user.band_id && (user.role === 'band_admin' || user.role === 'band_member' || user.role === 'admin' || user.role === 'editor');
             if (isBandUser) {
                 document.querySelectorAll('.band-only').forEach(el => {
                     el.classList.remove('hidden');
