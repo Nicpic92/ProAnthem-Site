@@ -65,6 +65,40 @@ body.marketing {
 .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 50; }
 .tab-button.active { border-bottom-color: #dc2626; }
 
+/* --- NEW: Interactive Drum Tab Editor Styles --- */
+.drum-editor-container {
+    overflow-x: auto;
+    padding: 0.5rem;
+    background-color: #111827;
+    border-radius: 4px;
+}
+.drum-editor-table {
+    border-collapse: collapse;
+    font-family: 'Courier New', Courier, monospace;
+    width: 100%;
+}
+.drum-instrument {
+    background-color: #374151;
+    color: #d1d5db;
+    padding: 0.5rem;
+    text-align: left;
+    font-weight: bold;
+    border-right: 2px solid #4b5563;
+}
+.drum-cell {
+    width: 25px;
+    height: 30px;
+    text-align: center;
+    border: 1px solid #374151;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    color: #9ca3af;
+}
+.drum-cell:hover {
+    background-color: #4b5563;
+    color: #ffffff;
+}
+
 /* --- Fretboard and component styles --- */
 .block-header:active { cursor: grabbing; }
 .block-content { padding: 1rem; position: relative; padding-bottom: 1.5rem; }
