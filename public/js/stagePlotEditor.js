@@ -9,7 +9,7 @@ let plotDataState = {
     items: []
 };
 let isDirty = false; // Flag to track unsaved changes
-let draggedItemId = null; // NEW: To track which item is being dragged on the stage
+let draggedItemId = null; 
 
 document.addEventListener('DOMContentLoaded', () => {
     const user = getUserPayload();
@@ -26,7 +26,7 @@ function init() {
     setupEventListeners();
     populateItemPalette();
     setupTabs();
-    setupStageAreaEvents(); // NEW: Centralize stage event listeners
+    setupStageAreaEvents();
 }
 
 function setupEventListeners() {
@@ -198,7 +198,6 @@ function populateItemPalette() {
     });
 }
 
-// NEW: This function centralizes all event listeners for the stage area
 function setupStageAreaEvents() {
     const stageArea = document.getElementById('stage-area');
     
@@ -208,17 +207,15 @@ function setupStageAreaEvents() {
         e.preventDefault();
         const stageRect = stageArea.getBoundingClientRect();
 
-        // Check if we are dropping a new item from the palette or moving an existing one
         const paletteItemData = e.dataTransfer.getData('application/json');
         
-        if (paletteItemData) { // Dropping a NEW item from the palette
+        if (paletteItemData) {
             const itemData = JSON.parse(paletteItemData);
             
-            // Allow user to set a custom label
             let label = itemData.label;
             if (itemData.type === 'custom') {
                 const customLabel = prompt('Enter a label for this item:', 'Custom Item');
-                if (!customLabel) return; // User cancelled
+                if (!customLabel) return;
                 label = customLabel;
             }
 
@@ -230,9 +227,10 @@ function setupStageAreaEvents() {
                 type: itemData.type,
                 label: label,
                 x: x,
-                y: y
+                y: y,
+                rotation: 0 // NEW: Initialize rotation to 0
             });
-        } else if (draggedItemId) { // MOVING an existing item on the stage
+        } else if (draggedItemId) {
             const item = plotDataState.items.find(i => i.id === draggedItemId);
             if (item) {
                 item.x = ((e.clientX - stageRect.left) / stageRect.width) * 100;
@@ -246,7 +244,6 @@ function setupStageAreaEvents() {
     });
 }
 
-// NEW: This function now renders interactive elements with event listeners
 function renderStagePlot() {
     const stageArea = document.getElementById('stage-area');
     stageArea.querySelectorAll('.stage-item').forEach(el => el.remove());
@@ -254,31 +251,44 @@ function renderStagePlot() {
     plotDataState.items.forEach(item => {
         const itemEl = document.createElement('div');
         itemEl.className = 'stage-item absolute flex flex-col items-center cursor-move p-2 bg-gray-600 rounded-md shadow-lg select-none';
+        
+        // MODIFIED: Apply rotation via a CSS transform
+        const currentRotation = item.rotation || 0;
         itemEl.style.left = `${item.x}%`;
         itemEl.style.top = `${item.y}%`;
-        itemEl.style.transform = 'translate(-50%, -50%)';
+        itemEl.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
+        
         itemEl.dataset.itemId = item.id;
         itemEl.draggable = true;
 
-        // NEW: Add controls for editing and deleting items
+        // MODIFIED: Add a rotate button (R) to the controls
         itemEl.innerHTML = `
             <span class="item-label text-xs font-bold whitespace-nowrap">${item.label}</span>
             <div class="item-controls absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1">
-                <button data-action="edit" class="bg-blue-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">E</button>
-                <button data-action="delete" class="bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">X</button>
+                <button data-action="rotate" title="Rotate" class="bg-green-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">R</button>
+                <button data-action="edit" title="Edit Label" class="bg-blue-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">E</button>
+                <button data-action="delete" title="Delete" class="bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">X</button>
             </div>
         `;
-        // Add a hover effect class
         itemEl.classList.add('group');
 
-        // NEW: Event listener for dragging an item that's already on the stage
         itemEl.addEventListener('dragstart', (e) => {
-            // We don't set data, just an ID to indicate we are moving an existing item
             draggedItemId = item.id;
             e.dataTransfer.effectAllowed = 'move';
         });
 
-        // NEW: Event listeners for the edit and delete buttons on each item
+        // NEW: Event listener for the new rotate button
+        itemEl.querySelector('[data-action="rotate"]').addEventListener('click', () => {
+            // Cycle through 0, 45, 90, etc., up to 360
+            let newRotation = (item.rotation || 0) + 45;
+            if (newRotation >= 360) {
+                newRotation = 0;
+            }
+            item.rotation = newRotation;
+            isDirty = true;
+            renderStagePlot(); // Re-render to apply the new rotation
+        });
+
         itemEl.querySelector('[data-action="edit"]').addEventListener('click', () => {
             const newLabel = prompt('Enter new label:', item.label);
             if (newLabel && newLabel.trim() !== '') {
@@ -300,7 +310,6 @@ function renderStagePlot() {
     });
 }
 
-
 function handleExportPdf() {
     if (isDirty) {
         alert('Please save your changes before exporting to PDF.');
@@ -320,11 +329,12 @@ function handleExportPdf() {
         doc.rect(10, 20, 190, 120); // Stage area rectangle
         doc.setFontSize(10);
         
+        // MODIFIED: Render rotated text in the PDF
         plotDataState.items.forEach(item => {
-            // Convert percentage to PDF coordinates
             const x = 10 + (item.x / 100) * 190;
             const y = 20 + (item.y / 100) * 120;
-            doc.text(item.label, x, y, { align: 'center' });
+            const rotation = item.rotation || 0;
+            doc.text(item.label, x, y, { align: 'center', angle: rotation });
         });
 
         // Page 2: Tech Rider
@@ -339,7 +349,7 @@ function handleExportPdf() {
         yPos += 8;
         doc.text(riderData.channel_list || 'N/A', 20, yPos);
         
-        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 120; // Move below channel list
+        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 120;
         doc.setFontSize(16);
         doc.text('Contact Info:', 15, yPos);
         doc.setFontSize(12);
