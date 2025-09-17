@@ -71,12 +71,13 @@ export const getCalendarEvents = () => apiRequest('band-profile/events');
 export const createCalendarEvent = (data) => apiRequest('band-profile/events', data, 'POST');
 export const updateCalendarEvent = (id, data) => apiRequest(`band-profile/events/${id}`, data, 'PUT');
 export const deleteCalendarEvent = (id) => apiRequest(`band-profile/events/${id}`, null, 'DELETE');
-
-// --- NEW FUNCTIONS FOR STAGE PLOTS ---
 export const getStagePlots = () => apiRequest('stage-plots');
 export const getStagePlot = (id) => apiRequest(`stage-plots/${id}`);
 export const createStagePlot = (data) => apiRequest('stage-plots', data, 'POST');
 export const updateStagePlot = (id, data) => apiRequest(`stage-plots/${id}`, data, 'PUT');
 export const deleteStagePlot = (id) => apiRequest(`stage-plots/${id}`, null, 'DELETE');
+
+// --- NEW FUNCTION FOR CHORD DIAGRAMS ---
+export const getChordDiagrams = (chordName) => apiRequest(`chords/${chordName}/diagrams`);
 
 // --- END OF FILE public/js/api.js ---
