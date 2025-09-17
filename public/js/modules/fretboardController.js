@@ -119,4 +119,79 @@ function handleNoteMouseDown(e) {
 }
 
 function confirmFretSelection() {
-    const { blockId, string, position } = fre
+    const { blockId, string, position } = fretSelectionContext;
+    const fret = parseInt(document.getElementById('fret-number-selector').value, 10);
+    const songData = getSongData();
+    const block = songData.song_blocks.find(b => b.id === blockId);
+
+    if (block && string !== null && position !== null && fret >= 0) {
+        const totalOffset = (CONSTANTS.TUNINGS[songData.tuning]?.offset ?? 0) + songData.capo;
+        if (!block.data) block.data = { notes: [] };
+        block.data.notes.push({ string, fret: fret + totalOffset, position });
+        drawNotesOnFretboard(blockId);
+        renderCallback();
+    }
+    document.getElementById('fret-selection-modal').classList.add('hidden');
+}
+
+function handleDeleteNote(e) {
+    if (!selectedNote.blockId || selectedNote.noteIndex === undefined) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        const songData = getSongData();
+        const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
+        if (block?.data?.notes?.[selectedNote.noteIndex]) {
+            block.data.notes.splice(selectedNote.noteIndex, 1);
+            const oldBlockId = selectedNote.blockId;
+            selectedNote = {};
+            document.getElementById('notation-palette').classList.add('hidden');
+            drawNotesOnFretboard(oldBlockId);
+            renderCallback();
+        }
+    }
+}
+
+function handleMouseMove(e) {
+    if (isDraggingNote && selectedNote.blockId) {
+        const songData = getSongData();
+        const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
+        const note = block?.data?.notes[selectedNote.noteIndex];
+        if (note) {
+            const svg = document.getElementById(`fretboard-svg-${selectedNote.blockId}`);
+            const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG);
+            if (clickData) {
+                note.position = clickData.position;
+                note.string = clickData.string;
+                drawNotesOnFretboard(selectedNote.blockId);
+            }
+        }
+    }
+// --- THIS IS THE FIX: The closing brace was missing ---
+}
+
+function handleMouseUp() {
+    if (isDraggingNote) {
+        isDraggingNote = false;
+        renderCallback();
+    }
+}
+
+/**
+ * Resets the selection state, useful when switching modes.
+ */
+export function resetSelection() {
+    if (selectedNote.blockId) {
+        const oldBlockId = selectedNote.blockId;
+        selectedNote = {};
+        drawNotesOnFretboard(oldBlockId);
+        document.getElementById('notation-palette').classList.add('hidden');
+    }
+}
+
+/**
+ * Gets the selected note object.
+ * @returns {object} The selected note state.
+ */
+export function getSelectedNote() {
+    return selectedNote;
+}
