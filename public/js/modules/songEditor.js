@@ -51,7 +51,7 @@ async function loadInitialData() {
     // For any other page, check for a logged-in user.
     if (user) {
         // Logged-in user flow
-        await loadChords(user);
+        await loadChords(user); // --- PASS USER CONTEXT ---
         UI.setStatus(el.statusMessage, 'Loading songs...');
         try {
             const sheets = await UI.loadSheetList(el.songSelector, api);
@@ -431,7 +431,6 @@ function handleRecordingFinished(audioUrl) {
 
 // --- CHORD AND MUSIC THEORY LOGIC ---
 
-// --- FIX: This function now accepts the user to determine its behavior ---
 async function loadChords(user) {
     try {
         const chords = !user
@@ -569,11 +568,9 @@ function renderPreview() {
 
 function renderTransposedTab(tabBlock) {
     const songData = songDataManager.getSongData();
-    // This is a temporary stand-in for the full fretboard module's functionality
-    return `[Tab for ${tabBlock.strings} strings]`; 
+    return Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
 }
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
-     // This is a stand-in
-     return `[Tab for ${tabBlock.strings} strings]`;
+     return Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
