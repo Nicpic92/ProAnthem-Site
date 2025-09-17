@@ -263,8 +263,6 @@ async function handleDelete() {
 // --- RENDERING & UI LOGIC ---
 
 function renderSongBlocks() {
-    // --- THIS IS THE FIX ---
-    // We now pass the local drawFretboard function as a callback into UI.renderSongBlocks
     UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, (block) => UI.createBlockElement(block, drawFretboard), initializeSortable);
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
     renderPreview();
@@ -283,6 +281,59 @@ function updateMusicalSettingsUI() {
     }
 }
 
+// --- FRETBOARD LOGIC (GLUE FUNCTIONS) ---
+// This section acts as the "glue" between the generic fretboard module and this module's state.
+
+/**
+ * A wrapper function passed to the UI module. It gathers all necessary state
+ * from songEditor.js and calls the generic Fretboard.drawFretboard function.
+ * @param {string} blockId - The ID of the song block to draw the fretboard for.
+ */
+function drawFretboard(blockId) {
+    const block = songData.song_blocks.find(b => b.id === blockId);
+    if (!block || block.type !== 'tab') return;
+
+    Fretboard.drawFretboard(
+        blockId,
+        block.strings,
+        CONSTANTS.TUNINGS,
+        CONSTANTS.STRING_CONFIG,
+        CONSTANTS.FRETBOARD_CONFIG,
+        drawNotesOnFretboard, // Callback to draw the notes
+        attachFretboardListeners // Callback to attach event listeners
+    );
+}
+
+/**
+ * A callback function that draws the notes onto a specific fretboard.
+ * It's passed to the fretboard module, which then calls it after the SVG is created.
+ * @param {string} blockId - The ID of the block to draw notes on.
+ */
+function drawNotesOnFretboard(blockId) {
+    const block = songData.song_blocks.find(b => b.id === blockId);
+    if (!block || block.type !== 'tab') return;
+    
+    Fretboard.drawNotesOnFretboard(
+        blockId,
+        block.data?.notes,
+        selectedNote,
+        block.strings,
+        songData.tuning,
+        songData.capo,
+        CONSTANTS.TUNINGS,
+        CONSTANTS.STRING_CONFIG,
+        CONSTANTS.FRETBOARD_CONFIG
+    );
+}
+
+/**
+ * A callback function that attaches all necessary event listeners to a newly drawn fretboard SVG.
+ * @param {SVGElement} svgEl - The SVG element of the fretboard.
+ */
+function attachFretboardListeners(svgEl) {
+    svgEl.addEventListener('click', handleFretboardClick);
+    svgEl.addEventListener('mousedown', handleNoteMouseDown);
+}
 
 // --- CHORD & PALETTE LOGIC ---
 
@@ -398,6 +449,42 @@ function initializeSortable() {
             renderPreview();
         }
     });
+}
+
+function handleFretboardClick(e) {
+    const svg = e.currentTarget;
+    const blockId = svg.id.replace('fretboard-svg-', '');
+    const block = songData.song_blocks.find(b => b.id === blockId);
+    if (!block || !block.editMode) return;
+
+    // Do not proceed if the click was on an existing note
+    if (e.target.classList.contains('fretboard-note')) return;
+
+    const clickData = Fretboard.getFretFromClick(e, svg, block.strings, CONSTANTS.STRING_CONFIG, CONSTANTS.FRETBOARD_CONFIG);
+    if (clickData) {
+        fretSelectionContext = { blockId, string: clickData.string, position: clickData.position };
+        el.fretSelectionModal.style.left = `${e.clientX + 10}px`;
+        el.fretSelectionModal.style.top = `${e.clientY + 10}px`;
+        el.fretNumberSelector.innerHTML = [...Array(CONSTANTS.FRETBOARD_CONFIG.frets + 1).keys()].map(f => `<option value="${f}">${f}</option>`).join('');
+        el.fretNumberSelector.value = clickData.fret;
+        el.fretSelectionModal.classList.remove('hidden');
+    }
+}
+
+function handleNoteMouseDown(e) {
+    if (!e.target.classList.contains('fretboard-note')) return;
+    const svg = e.currentTarget;
+    const blockId = svg.id.replace('fretboard-svg-', '');
+    const block = songData.song_blocks.find(b => b.id === blockId);
+    if (!block || !block.editMode) return;
+
+    const noteIndex = parseInt(e.target.dataset.noteIndex, 10);
+    if (selectedNote.blockId === blockId && selectedNote.noteIndex === noteIndex) {
+        isDraggingNote = true;
+    } else {
+        selectedNote = { blockId, noteIndex };
+    }
+    drawNotesOnFretboard(blockId);
 }
 
 function handleSongBlockClick(e) {
