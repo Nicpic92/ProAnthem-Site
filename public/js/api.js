@@ -11,27 +11,18 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
         options.headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // --- THIS IS THE FIX ---
-    // If data exists for a POST, PUT, or DELETE request, stringify it and add it to the body.
     if (data && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
         options.body = JSON.stringify(data);
     }
-    // --- END OF FIX ---
 
     try {
         const response = await fetch(`/api/${endpoint}`, options);
 
-        // --- THIS IS THE GLOBAL FIX ---
-        // If the server returns a 401, the token is bad.
-        // We must log the user out and stop everything.
         if (response.status === 401) {
             localStorage.removeItem('user_token');
-            // Redirect to the home page where they can log in again.
             window.location.href = '/proanthem_index.html'; 
-            // Throw an error to prevent any subsequent code from running.
             throw new Error('Session expired. Please log in again.');
         }
-        // --- END OF FIX ---
 
         if (response.status === 204) return null;
         const responseData = await response.json();
@@ -80,4 +71,12 @@ export const getCalendarEvents = () => apiRequest('band-profile/events');
 export const createCalendarEvent = (data) => apiRequest('band-profile/events', data, 'POST');
 export const updateCalendarEvent = (id, data) => apiRequest(`band-profile/events/${id}`, data, 'PUT');
 export const deleteCalendarEvent = (id) => apiRequest(`band-profile/events/${id}`, null, 'DELETE');
+
+// --- NEW FUNCTIONS FOR STAGE PLOTS ---
+export const getStagePlots = () => apiRequest('stage-plots');
+export const getStagePlot = (id) => apiRequest(`stage-plots/${id}`);
+export const createStagePlot = (data) => apiRequest('stage-plots', data, 'POST');
+export const updateStagePlot = (id, data) => apiRequest(`stage-plots/${id}`, data, 'PUT');
+export const deleteStagePlot = (id) => apiRequest(`stage-plots/${id}`, null, 'DELETE');
+
 // --- END OF FILE public/js/api.js ---
