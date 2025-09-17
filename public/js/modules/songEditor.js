@@ -31,21 +31,38 @@ export function init(isDemoMode) {
 
     UI.populateTuningSelector(el.tuningSelector, { E_STANDARD: { name: "E Standard" }, EB_STANDARD: { name: "Eb Standard" }, D_STANDARD: { name: "D Standard" }, DROP_D: { name: "Drop D" }, DROP_C: { name: "Drop C" } });
 
+    loadInitialData();
+}
+
+// --- NEW: Centralized function for initial data loading ---
+async function loadInitialData() {
     if (isDemo) {
         songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-        loadChords(); // Load demo chords
+        loadChords();
         renderSong();
         if (el.recordBtn) el.recordBtn.disabled = true;
     } else {
         loadChords();
-        songDataManager.loadInitialSong()
-            .then(renderSong)
-            .catch(error => {
-                renderSong();
-                UI.setStatus(el.statusMessage, error.message, true);
-            });
+        UI.setStatus(el.statusMessage, 'Loading songs...');
+        try {
+            // 1. Fetch all sheets first
+            const sheets = await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets });
+            
+            // 2. Determine which song to load (first in the list or a new one)
+            const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
+            
+            // 3. Load that specific song's content
+            await handleLoadSong(initialSongId);
+
+            UI.setStatus(el.statusMessage, ''); // Clear loading message
+        } catch (error) {
+            UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
+            // If list fails to load, still load a blank song editor
+            await handleLoadSong('new');
+        }
     }
 }
+
 
 function cacheDOMElements() {
     el.titleInput = document.getElementById('titleInput');
@@ -189,7 +206,7 @@ function updateUIFromData(songData) {
 
 // --- EVENT HANDLER FUNCTIONS ---
 
-async function handleLoadSong(id) {
+export async function handleLoadSong(id) {
     if (!id) return;
     UI.setStatus(el.statusMessage, 'Loading song...');
     try {
@@ -201,7 +218,7 @@ async function handleLoadSong(id) {
         UI.setStatus(el.statusMessage, 'Song loaded.');
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
-        await songDataManager.loadSong('new');
+        await songDataManager.loadSong('new'); // Load a blank slate on error
         renderSong();
     }
 }
@@ -213,9 +230,9 @@ async function handleSave() {
         const savedSong = await songDataManager.saveSong(isDemo);
         if (savedSong) { // saveSong returns null in demo mode
             UI.setStatus(el.statusMessage, 'Saved successfully!');
-            // If it was a new song, refresh the song list to include it
+            // If it was a new song, refresh the song list to include it and select it
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
-                await UI.loadSheetList(el.songSelector, api, savedSong.id);
+                await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets }, savedSong.id);
             }
             renderSong(); // Re-render to update things like the history button
         }
@@ -236,8 +253,8 @@ async function handleDelete() {
             UI.setStatus(el.statusMessage, 'Deleting...');
             await songDataManager.deleteSong();
             UI.setStatus(el.statusMessage, 'Song deleted.');
-            await UI.loadSheetList(el.songSelector, api);
-            renderSong();
+            await UI.loadSheetList(el.songSelector, { getSheets: songDataManager.getSheets });
+            renderSong(); // Renders the new blank song
         } catch (e) {
             UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
         }
@@ -405,13 +422,14 @@ function handleRecordingFinished(audioUrl) {
 // --- CHORD AND MUSIC THEORY LOGIC ---
 
 async function loadChords() {
-    const api = isDemo ? null : await import('../api.js');
     try {
         const chords = isDemo 
             ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
-            : await api.getChords();
+            : await songDataManager.api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
-    } catch(e) { UI.setStatus(el.statusMessage, 'Failed to load chords.', true); }
+    } catch(e) { 
+        if (!isDemo) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
+    }
 }
 
 async function handleAddChord() {
@@ -541,9 +559,11 @@ function renderPreview() {
 
 function renderTransposedTab(tabBlock) {
     const songData = songDataManager.getSongData();
-    return Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
+    // This is a temporary stand-in for the full fretboard module's functionality
+    return `[Tab for ${tabBlock.strings} strings]`; 
 }
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
-     return Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
+     // This is a temporary stand-in
+     return `[Tab for ${tabBlock.strings} strings]`;
 }
