@@ -228,7 +228,7 @@ function setupStageAreaEvents() {
                 label: label,
                 x: x,
                 y: y,
-                rotation: 0 // NEW: Initialize rotation to 0
+                rotation: 0
             });
         } else if (draggedItemId) {
             const item = plotDataState.items.find(i => i.id === draggedItemId);
@@ -252,7 +252,6 @@ function renderStagePlot() {
         const itemEl = document.createElement('div');
         itemEl.className = 'stage-item absolute flex flex-col items-center cursor-move p-2 bg-gray-600 rounded-md shadow-lg select-none';
         
-        // MODIFIED: Apply rotation via a CSS transform
         const currentRotation = item.rotation || 0;
         itemEl.style.left = `${item.x}%`;
         itemEl.style.top = `${item.y}%`;
@@ -261,7 +260,6 @@ function renderStagePlot() {
         itemEl.dataset.itemId = item.id;
         itemEl.draggable = true;
 
-        // MODIFIED: Add a rotate button (R) to the controls
         itemEl.innerHTML = `
             <span class="item-label text-xs font-bold whitespace-nowrap">${item.label}</span>
             <div class="item-controls absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1">
@@ -277,16 +275,14 @@ function renderStagePlot() {
             e.dataTransfer.effectAllowed = 'move';
         });
 
-        // NEW: Event listener for the new rotate button
         itemEl.querySelector('[data-action="rotate"]').addEventListener('click', () => {
-            // Cycle through 0, 45, 90, etc., up to 360
             let newRotation = (item.rotation || 0) + 45;
             if (newRotation >= 360) {
                 newRotation = 0;
             }
             item.rotation = newRotation;
             isDirty = true;
-            renderStagePlot(); // Re-render to apply the new rotation
+            renderStagePlot();
         });
 
         itemEl.querySelector('[data-action="edit"]').addEventListener('click', () => {
@@ -310,68 +306,106 @@ function renderStagePlot() {
     });
 }
 
+// MODIFIED: This entire function is replaced with the new, more robust version.
 function handleExportPdf() {
     if (isDirty) {
         alert('Please save your changes before exporting to PDF.');
         return;
     }
-    if (window.jspdf) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        
-        const plotName = document.getElementById('plot-name-input').value;
-        const riderForm = document.getElementById('rider-form');
-        const riderData = Object.fromEntries(new FormData(riderForm));
-
-        // Page 1: Stage Plot
-        doc.setFontSize(22);
-        doc.text(`Stage Plot: ${plotName}`, 105, 15, { align: 'center' });
-        doc.rect(10, 20, 190, 120); // Stage area rectangle
-        doc.setFontSize(10);
-        
-        // MODIFIED: Render rotated text in the PDF
-        plotDataState.items.forEach(item => {
-            const x = 10 + (item.x / 100) * 190;
-            const y = 20 + (item.y / 100) * 120;
-            const rotation = item.rotation || 0;
-            doc.text(item.label, x, y, { align: 'center', angle: rotation });
-        });
-
-        // Page 2: Tech Rider
-        doc.addPage();
-        doc.setFontSize(22);
-        doc.text('Technical Rider', 105, 15, { align: 'center' });
-        
-        doc.setFontSize(16);
-        let yPos = 30;
-        doc.text('Channel List / Input List:', 15, yPos);
-        doc.setFontSize(12);
-        yPos += 8;
-        doc.text(riderData.channel_list || 'N/A', 20, yPos);
-        
-        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 120;
-        doc.setFontSize(16);
-        doc.text('Contact Info:', 15, yPos);
-        doc.setFontSize(12);
-        yPos += 8;
-        doc.text(`Name: ${riderData.contact_name || 'N/A'}`, 20, yPos);
-        yPos += 6;
-        doc.text(`Email: ${riderData.contact_email || 'N/A'}`, 20, yPos);
-        yPos += 6;
-        doc.text(`Phone: ${riderData.contact_phone || 'N/A'}`, 20, yPos);
-
-        yPos += 15;
-        doc.setFontSize(16);
-        doc.text('Hospitality & Other Notes:', 15, yPos);
-        doc.setFontSize(12);
-        yPos += 8;
-        doc.text(riderData.hospitality_needs || 'N/A', 20, yPos);
-        
-        doc.save(`${plotName.replace(/\s/g, '_')}.pdf`);
-    } else {
-        alert('PDF library not loaded. This is a placeholder.');
+    if (!window.jspdf) {
+        alert('PDF library not loaded.');
+        return;
     }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'px', // Use pixels for easier translation from screen
+        format: 'a4'
+    });
+
+    const plotName = document.getElementById('plot-name-input').value;
+    const riderForm = document.getElementById('rider-form');
+    const riderData = Object.fromEntries(new FormData(riderForm));
+
+    // --- NEW CONSTANTS FOR STYLING ---
+    const STAGE_BG_COLOR = '#1f2937'; // gray-800
+    const ITEM_BG_COLOR = '#4b5563'; // gray-600
+    const TEXT_COLOR = '#ffffff';
+    const FONT_SIZE = 10;
+    const PADDING = 5;
+
+    // --- PAGE 1: STAGE PLOT ---
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0); // Black text for title
+    doc.text(`Stage Plot: ${plotName}`, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+
+    // Define stage area on the PDF
+    const stageX = 20;
+    const stageY = 40;
+    const stageWidth = doc.internal.pageSize.getWidth() - 40;
+    const stageHeight = doc.internal.pageSize.getHeight() - 60;
+
+    // Draw stage background
+    doc.setFillColor(STAGE_BG_COLOR);
+    doc.rect(stageX, stageY, stageWidth, stageHeight, 'F'); // 'F' for fill
+
+    doc.setFontSize(FONT_SIZE);
+
+    // Loop through each item and draw it
+    plotDataState.items.forEach(item => {
+        // Convert percentage position from UI to absolute pixel position on PDF
+        const itemX = stageX + (item.x / 100) * stageWidth;
+        const itemY = stageY + (item.y / 100) * stageHeight;
+        const rotation = item.rotation || 0;
+
+        // Calculate the size of the box based on the text length
+        const textWidth = doc.getTextWidth(item.label);
+        const rectWidth = textWidth + PADDING * 2;
+        const rectHeight = FONT_SIZE + PADDING * 2;
+        const cornerRadius = 4;
+
+        // --- Core Rotation Logic ---
+        doc.saveGraphicsState(); // Save the unrotated state
+        
+        doc.translate(itemX, itemY); // Move the origin to the item's center
+        doc.rotate(rotation); // Rotate the entire coordinate system
+        
+        // Draw the item's background rectangle, centered on the new origin (0,0)
+        doc.setFillColor(ITEM_BG_COLOR);
+        doc.roundedRect(-rectWidth / 2, -rectHeight / 2, rectWidth, rectHeight, cornerRadius, cornerRadius, 'F');
+        
+        // Draw the text, centered on the new origin (0,0)
+        doc.setTextColor(TEXT_COLOR);
+        doc.text(item.label, 0, 0, { align: 'center', baseline: 'middle' });
+        
+        doc.restoreGraphicsState(); // IMPORTANT: Restore state for the next item
+    });
+
+    // --- PAGE 2: TECH RIDER ---
+    doc.addPage('a4', 'portrait');
+    doc.setFontSize(22);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Technical Rider', doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
+
+    // Helper to render text with word wrapping
+    const renderWrappedText = (title, content, startY) => {
+        doc.setFontSize(16);
+        doc.text(title, 15, startY);
+        doc.setFontSize(12);
+        const splitContent = doc.splitTextToSize(content || 'N/A', doc.internal.pageSize.getWidth() - 35);
+        doc.text(splitContent, 20, startY + 8);
+        return startY + (splitContent.length * 5) + 15; // Return the new Y position
+    };
+    
+    let yPos = 40;
+    yPos = renderWrappedText('Channel List / Input List:', riderData.channel_list, yPos);
+    yPos = renderWrappedText('Contact Info:', `Name: ${riderData.contact_name || 'N/A'}\nEmail: ${riderData.contact_email || 'N/A'}\nPhone: ${riderData.contact_phone || 'N/A'}`, yPos);
+    yPos = renderWrappedText('Hospitality & Other Notes:', riderData.hospitality_needs, yPos);
+
+    doc.save(`${plotName.replace(/\s/g, '_')}.pdf`);
 }
+
 
 function setStatus(message, isError = false) {
     const statusEl = document.getElementById('status-message');
