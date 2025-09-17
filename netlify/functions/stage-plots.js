@@ -25,6 +25,10 @@ exports.handler = async (event) => {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
     
+    // Only band admins or system admins can create, update, or delete plots.
+    // Any band member can view them.
+    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin';
+
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
@@ -51,6 +55,7 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'POST') {
+            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
             const { plot_name, plot_data, tech_rider_data } = JSON.parse(event.body);
             const query = `INSERT INTO stage_plots (band_id, plot_name, plot_data, tech_rider_data) 
                            VALUES ($1, $2, $3, $4) RETURNING *`;
@@ -59,6 +64,7 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'PUT' && plotId) {
+            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
             const { plot_name, plot_data, tech_rider_data } = JSON.parse(event.body);
             const query = `UPDATE stage_plots 
                            SET plot_name = $1, plot_data = $2, tech_rider_data = $3 
@@ -69,6 +75,7 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && plotId) {
+            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
             const result = await client.query('DELETE FROM stage_plots WHERE id = $1 AND band_id = $2', [plotId, bandId]);
             if (result.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Plot not found or access denied.' }) };
             return { statusCode: 204, body: '' };
