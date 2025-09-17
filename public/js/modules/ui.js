@@ -109,7 +109,6 @@ export function createBlockElement(block) {
         const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary';
         headerControls = `<button class="btn ${editButtonClass} btn-sm" data-action="edit-tab">${isEditMode ? 'Done Editing' : 'Edit'}</button>`;
     } else if (block.type === 'drum_tab') {
-        // Create a container for the interactive editor instead of a textarea
         contentHtml = `<div id="drum-editor-${block.id}" class="drum-editor-container"></div>`;
     }
     
@@ -179,8 +178,9 @@ export function populateTuningSelector(selectorEl, TUNINGS) {
 }
 
 export async function loadSheetList(selectorEl, api, selectId = null) {
-    if (!selectorEl) return;
+    if (!selectorEl) return [];
     try {
+        // --- FIX: Use the passed-in `api` object correctly ---
         const songs = await api.getSheets();
         songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
         selectorEl.innerHTML = '<option value="new">-- Create New Song --</option>';
@@ -191,8 +191,10 @@ export async function loadSheetList(selectorEl, api, selectId = null) {
         if (selectId) {
             selectorEl.value = selectId;
         }
+        return songs; // Return the fetched songs for the caller to use
     } catch (e) {
         console.error('Failed to load songs:', e);
         selectorEl.innerHTML = '<option value="new">-- Create New Song --</option>';
+        throw e; // Re-throw the error so the caller can handle it
     }
 }
