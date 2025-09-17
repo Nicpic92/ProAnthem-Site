@@ -4,7 +4,6 @@ import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
-    // Re-establishes that this script handles the main login modal form
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -37,17 +36,16 @@ function updateNav() {
     if (!navAuthSection) return;
 
     if (user) {
-        let buttonHtml = `<a href="/ProjectAnthem.html" class="btn btn-secondary">Tool</a>`;
-        if (user.role === 'admin' || user.role === 'band_admin') {
-             buttonHtml = `<a href="/band-dashboard.html" class="btn btn-secondary mr-4">Manage Band</a>` + buttonHtml;
-        }
+        // Logged-in users see a dashboard link and other management links.
+        let buttonHtml = `<a href="/dashboard.html" class="btn btn-secondary">Dashboard</a>`;
         if (user.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="btn btn-primary mr-4">Admin Panel</a>` + buttonHtml;
         }
-         buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
+        buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
         navAuthSection.innerHTML = `<div class="flex items-center">${buttonHtml}</div>`;
         document.getElementById('logout-button')?.addEventListener('click', logout);
     } else {
+        // Logged-out users see a login button.
         navAuthSection.innerHTML = `<button id="login-modal-button" class="btn btn-secondary">Log In</button>`;
         const loginBtn = document.getElementById('login-modal-button');
         if(loginBtn) {
@@ -57,10 +55,11 @@ function updateNav() {
 }
 
 export function checkAccess() {
-    const publicPages = ['/', '/proanthem_index.html', '/proanthem_index', '/pricing.html', '/pricing', '/demo.html', '/demo', '/construction.html', '/construction', '/band-profile.html', '/band-profile', '/admin.html', '/admin', '/band-dashboard.html', '/band-dashboard'];
+    // MODIFIED: dashboard.html is now a primary authenticated page.
+    const publicPages = ['/', '/proanthem_index.html', '/proanthem_index', '/pricing.html', '/pricing', '/demo.html', '/demo', '/construction.html', '/construction'];
     const currentPath = window.location.pathname.toLowerCase();
-
-    // Public pages are always accessible
+    
+    // Allow access to public pages OR if the path starts with /bands/ (for public profiles)
     if (publicPages.includes(currentPath) || currentPath.startsWith('/bands/')) {
         return true;
     }
@@ -71,41 +70,17 @@ export function checkAccess() {
         return false;
     }
 
-    // Rule 1: System administrators always have access.
-    if (user.role === 'admin') {
-        const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content') || document.getElementById('dashboard-content');
-        if (content) {
-            content.style.display = 'block';
-            content.classList.remove('hidden');
-        }
-        return true;
-    }
-    
-    // Rule 2: For all other users, their token's subscription status must be valid.
-    const validStatuses = ['active', 'trialing', 'admin_granted']; // --- THIS IS THE FIX ---
-    const hasValidStatus = validStatuses.includes(user.subscription_status);
-
-    const isToolPage = currentPath.includes('projectanthem');
-    const isBandPage = currentPath.includes('band.html') || currentPath.includes('band-dashboard.html');
-
-    if ((isToolPage || isBandPage) && !hasValidStatus) {
+    const validStatuses = ['active', 'trialing', 'admin_granted'];
+    if (!validStatuses.includes(user.subscription_status) && user.role !== 'admin') {
         window.location.href = '/pricing.html';
         return false;
     }
-    
-    // Rule 3: Band pages require being part of a band.
-    if (isBandPage && user.role !== 'band_admin' && user.role !== 'band_member') {
-        window.location.href = '/proanthem_index.html';
-        return false;
-    }
 
-    const content = document.getElementById('tool-content') || document.getElementById('band-content') || document.getElementById('admin-content') || document.getElementById('dashboard-content');
-    const accessDenied = document.getElementById('access-denied');
-    
-    if (content && accessDenied) {
-        content.style.display = 'block';
+    // Un-hide the main content of the authenticated page
+    const content = document.querySelector('#tool-content, #band-content, #admin-content, #dashboard-content, #editor-content');
+    if (content) {
+        content.style.display = 'block'; // Or grid, flex, etc., depending on the page
         content.classList.remove('hidden');
-        accessDenied.style.display = 'none';
     }
     
     return true;
@@ -128,24 +103,26 @@ async function handleLogin(event) {
     }
 }
 
-export async function performLogin(credentials, redirectTo = null) {
+export async function performLogin(credentials) {
     try {
         const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
-            if (redirectTo) {
-                window.location.href = redirectTo;
-                return;
-            }
             const user = getUserPayload();
+
+            // --- THIS IS THE KEY CHANGE ---
+            // After login, ALWAYS go to the new dashboard.
+            // The dashboard itself will handle the password reset prompt if needed.
+            // The only exception is if their subscription is invalid.
             const validStatuses = ['active', 'trialing', 'admin_granted'];
             const hasAccess = user.role === 'admin' || validStatuses.includes(user.subscription_status);
             
-            const isBandUser = user.role === 'band_admin' || user.role === 'band_member';
-            if (hasAccess && isBandUser) {
-                window.location.href = '/band-dashboard.html';
-            } else if (hasAccess) {
+            if (user.force_reset) {
+                // If they need to reset, send them to the tool page where the modal lives.
+                // We'll redirect them to the dashboard AFTER they reset.
                 window.location.href = '/ProjectAnthem.html';
+            } else if (hasAccess) {
+                window.location.href = '/dashboard.html';
             } else {
                 window.location.href = '/pricing.html';
             }
