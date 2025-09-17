@@ -9,6 +9,7 @@ let plotDataState = {
     items: []
 };
 let isDirty = false; // Flag to track unsaved changes
+let draggedItemId = null; // NEW: To track which item is being dragged on the stage
 
 document.addEventListener('DOMContentLoaded', () => {
     const user = getUserPayload();
@@ -25,6 +26,7 @@ function init() {
     setupEventListeners();
     populateItemPalette();
     setupTabs();
+    setupStageAreaEvents(); // NEW: Centralize stage event listeners
 }
 
 function setupEventListeners() {
@@ -105,7 +107,9 @@ async function loadPlotForEditing(plotId) {
             }
         }
         
-        plotDataState = plot.plot_data || { items: [] };
+        plotDataState = plot.plot_data && Array.isArray(plot.plot_data.items) 
+            ? plot.plot_data 
+            : { items: [] };
         renderStagePlot();
 
     } catch (error) {
@@ -175,15 +179,16 @@ function populateItemPalette() {
         { type: 'mic', label: 'Vocal Mic' },
         { type: 'amp', label: 'Guitar Amp' },
         { type: 'bass-amp', label: 'Bass Amp' },
-        { type: 'monitor', label: 'Wedge Monitor' },
+        { type: 'monitor', label: 'Wedge' },
         { type: 'drums', label: 'Drum Kit' },
         { type: 'keyboard', label: 'Keyboard' },
         { type: 'di', label: 'DI Box' },
+        { type: 'custom', label: 'Custom Label' }
     ];
 
     items.forEach(item => {
         const itemEl = document.createElement('div');
-        itemEl.className = 'p-2 bg-gray-700 text-center rounded-md cursor-grab text-sm select-none';
+        itemEl.className = 'p-2 bg-gray-700 text-center rounded-md cursor-grab text-sm select-none hover:bg-gray-600';
         itemEl.textContent = item.label;
         itemEl.draggable = true;
         itemEl.addEventListener('dragstart', (e) => {
@@ -193,48 +198,114 @@ function populateItemPalette() {
     });
 }
 
-const stageArea = document.getElementById('stage-area');
-stageArea.addEventListener('dragover', (e) => e.preventDefault());
-stageArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const stageRect = stageArea.getBoundingClientRect();
-    const itemData = JSON.parse(e.dataTransfer.getData('application/json'));
+// NEW: This function centralizes all event listeners for the stage area
+function setupStageAreaEvents() {
+    const stageArea = document.getElementById('stage-area');
     
-    // Calculate position as percentage to be responsive
-    const x = ((e.clientX - stageRect.left) / stageRect.width) * 100;
-    const y = ((e.clientY - stageRect.top) / stageRect.height) * 100;
+    stageArea.addEventListener('dragover', (e) => e.preventDefault());
     
-    plotDataState.items.push({
-        id: `item_${Date.now()}`,
-        type: itemData.type,
-        label: itemData.label,
-        x: x,
-        y: y
-    });
-    isDirty = true;
-    renderStagePlot();
-});
+    stageArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const stageRect = stageArea.getBoundingClientRect();
 
+        // Check if we are dropping a new item from the palette or moving an existing one
+        const paletteItemData = e.dataTransfer.getData('application/json');
+        
+        if (paletteItemData) { // Dropping a NEW item from the palette
+            const itemData = JSON.parse(paletteItemData);
+            
+            // Allow user to set a custom label
+            let label = itemData.label;
+            if (itemData.type === 'custom') {
+                const customLabel = prompt('Enter a label for this item:', 'Custom Item');
+                if (!customLabel) return; // User cancelled
+                label = customLabel;
+            }
+
+            const x = ((e.clientX - stageRect.left) / stageRect.width) * 100;
+            const y = ((e.clientY - stageRect.top) / stageRect.height) * 100;
+            
+            plotDataState.items.push({
+                id: `item_${Date.now()}`,
+                type: itemData.type,
+                label: label,
+                x: x,
+                y: y
+            });
+        } else if (draggedItemId) { // MOVING an existing item on the stage
+            const item = plotDataState.items.find(i => i.id === draggedItemId);
+            if (item) {
+                item.x = ((e.clientX - stageRect.left) / stageRect.width) * 100;
+                item.y = ((e.clientY - stageRect.top) / stageRect.height) * 100;
+            }
+            draggedItemId = null;
+        }
+
+        isDirty = true;
+        renderStagePlot();
+    });
+}
+
+// NEW: This function now renders interactive elements with event listeners
 function renderStagePlot() {
+    const stageArea = document.getElementById('stage-area');
     stageArea.querySelectorAll('.stage-item').forEach(el => el.remove());
 
     plotDataState.items.forEach(item => {
         const itemEl = document.createElement('div');
-        itemEl.className = 'stage-item absolute flex flex-col items-center cursor-move p-1 bg-gray-600 rounded-md shadow-lg';
+        itemEl.className = 'stage-item absolute flex flex-col items-center cursor-move p-2 bg-gray-600 rounded-md shadow-lg select-none';
         itemEl.style.left = `${item.x}%`;
         itemEl.style.top = `${item.y}%`;
         itemEl.style.transform = 'translate(-50%, -50%)';
         itemEl.dataset.itemId = item.id;
-        itemEl.innerHTML = `<span class="text-xs font-bold">${item.label}</span>`;
-        // Add more visual representation based on item.type if desired
-        
+        itemEl.draggable = true;
+
+        // NEW: Add controls for editing and deleting items
+        itemEl.innerHTML = `
+            <span class="item-label text-xs font-bold whitespace-nowrap">${item.label}</span>
+            <div class="item-controls absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1">
+                <button data-action="edit" class="bg-blue-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">E</button>
+                <button data-action="delete" class="bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">X</button>
+            </div>
+        `;
+        // Add a hover effect class
+        itemEl.classList.add('group');
+
+        // NEW: Event listener for dragging an item that's already on the stage
+        itemEl.addEventListener('dragstart', (e) => {
+            // We don't set data, just an ID to indicate we are moving an existing item
+            draggedItemId = item.id;
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        // NEW: Event listeners for the edit and delete buttons on each item
+        itemEl.querySelector('[data-action="edit"]').addEventListener('click', () => {
+            const newLabel = prompt('Enter new label:', item.label);
+            if (newLabel && newLabel.trim() !== '') {
+                item.label = newLabel.trim();
+                isDirty = true;
+                renderStagePlot();
+            }
+        });
+
+        itemEl.querySelector('[data-action="delete"]').addEventListener('click', () => {
+            if (confirm(`Delete "${item.label}"?`)) {
+                plotDataState.items = plotDataState.items.filter(i => i.id !== item.id);
+                isDirty = true;
+                renderStagePlot();
+            }
+        });
+
         stageArea.appendChild(itemEl);
     });
 }
 
+
 function handleExportPdf() {
-    // This is a placeholder for the PDF generation logic.
-    // jsPDF library is required.
+    if (isDirty) {
+        alert('Please save your changes before exporting to PDF.');
+        return;
+    }
     if (window.jspdf) {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -243,21 +314,48 @@ function handleExportPdf() {
         const riderForm = document.getElementById('rider-form');
         const riderData = Object.fromEntries(new FormData(riderForm));
 
-        doc.text(`Stage Plot: ${plotName}`, 10, 10);
-        // TODO: Render the visual plot onto the PDF canvas. This is complex.
+        // Page 1: Stage Plot
+        doc.setFontSize(22);
+        doc.text(`Stage Plot: ${plotName}`, 105, 15, { align: 'center' });
+        doc.rect(10, 20, 190, 120); // Stage area rectangle
+        doc.setFontSize(10);
         
-        doc.addPage();
-        doc.text('Technical Rider', 10, 10);
-        doc.text('Channel List:', 10, 20);
-        doc.text(riderData.channel_list || 'N/A', 15, 25);
-        
-        doc.text('Contact Info:', 10, 80);
-        doc.text(`Name: ${riderData.contact_name || 'N/A'}`, 15, 85);
-        doc.text(`Email: ${riderData.contact_email || 'N/A'}`, 15, 90);
-        doc.text(`Phone: ${riderData.contact_phone || 'N/A'}`, 15, 95);
+        plotDataState.items.forEach(item => {
+            // Convert percentage to PDF coordinates
+            const x = 10 + (item.x / 100) * 190;
+            const y = 20 + (item.y / 100) * 120;
+            doc.text(item.label, x, y, { align: 'center' });
+        });
 
-        doc.text('Hospitality:', 10, 110);
-        doc.text(riderData.hospitality_needs || 'N/A', 15, 115);
+        // Page 2: Tech Rider
+        doc.addPage();
+        doc.setFontSize(22);
+        doc.text('Technical Rider', 105, 15, { align: 'center' });
+        
+        doc.setFontSize(16);
+        let yPos = 30;
+        doc.text('Channel List / Input List:', 15, yPos);
+        doc.setFontSize(12);
+        yPos += 8;
+        doc.text(riderData.channel_list || 'N/A', 20, yPos);
+        
+        yPos = doc.lastAutoTable ? doc.lastAutoTable.finalY + 15 : 120; // Move below channel list
+        doc.setFontSize(16);
+        doc.text('Contact Info:', 15, yPos);
+        doc.setFontSize(12);
+        yPos += 8;
+        doc.text(`Name: ${riderData.contact_name || 'N/A'}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Email: ${riderData.contact_email || 'N/A'}`, 20, yPos);
+        yPos += 6;
+        doc.text(`Phone: ${riderData.contact_phone || 'N/A'}`, 20, yPos);
+
+        yPos += 15;
+        doc.setFontSize(16);
+        doc.text('Hospitality & Other Notes:', 15, yPos);
+        doc.setFontSize(12);
+        yPos += 8;
+        doc.text(riderData.hospitality_needs || 'N/A', 20, yPos);
         
         doc.save(`${plotName.replace(/\s/g, '_')}.pdf`);
     } else {
@@ -276,5 +374,4 @@ function setStatus(message, isError = false) {
         }, 3000);
     }
 }
-
 // --- END OF FILE public/js/stagePlotEditor.js ---
