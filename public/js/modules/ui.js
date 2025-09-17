@@ -143,8 +143,9 @@ export function renderSongBlocks(containerEl, songBlocks, createBlockElementCall
             containerEl.appendChild(refDiv);
         } else {
             // --- THIS IS THE FIX ---
-            // The createBlockElementCallback is now correctly called, and it passes along
-            // the necessary drawFretboardCallback to the createBlockElement function.
+            // The createBlockElementCallback is what creates the element.
+            // We pass the blockToRender data into it.
+            // This was the missing link in the callback chain.
             containerEl.appendChild(createBlockElementCallback(blockToRender));
         }
     });
