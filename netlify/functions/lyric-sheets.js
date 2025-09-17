@@ -10,13 +10,13 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    let userEmail, bandId, userRole; // <-- userRole is now available
+    let userEmail, bandId, userRole;
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userEmail = decoded.user.email;
         bandId = decoded.user.band_id;
-        userRole = decoded.user.role; // <-- Get role from token
+        userRole = decoded.user.role;
         if (!bandId) throw new Error("Token is missing band_id.");
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
@@ -88,6 +88,11 @@ exports.handler = async (event) => {
                     );
                     const nextVersionNumber = (lastVersion.max_version || 0) + 1;
 
+                    // --- THIS IS THE FIX ---
+                    // Explicitly stringify the song_blocks object before sending it to the database.
+                    // The `|| []` ensures that if song_blocks is null, we insert a valid empty JSON array.
+                    const archivedSongBlocks = JSON.stringify(currentSheet.song_blocks || []);
+
                     const archiveQuery = `
                         INSERT INTO lyric_sheet_versions (
                             lyric_sheet_id, version_number, title, artist, audio_url, song_blocks,
@@ -96,7 +101,7 @@ exports.handler = async (event) => {
                     `;
                     await client.query(archiveQuery, [
                         id, nextVersionNumber, currentSheet.title, currentSheet.artist,
-                        currentSheet.audio_url, currentSheet.song_blocks, currentSheet.tuning,
+                        currentSheet.audio_url, archivedSongBlocks, currentSheet.tuning,
                         currentSheet.capo, currentSheet.transpose, currentSheet.duration, userEmail
                     ]);
 
@@ -126,8 +131,6 @@ exports.handler = async (event) => {
                 }
             }
             if (event.httpMethod === 'DELETE') {
-                // --- PERMISSION CHECK ADDED ---
-                // Only admins and band_admins can delete songs. Editors and members cannot.
                 if (userRole !== 'admin' && userRole !== 'band_admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to delete songs.' }) };
                 }
