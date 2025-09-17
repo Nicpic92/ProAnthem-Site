@@ -10,6 +10,14 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
     if (token) {
         options.headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // --- THIS IS THE FIX ---
+    // If data exists for a POST, PUT, or DELETE request, stringify it and add it to the body.
+    if (data && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+        options.body = JSON.stringify(data);
+    }
+    // --- END OF FIX ---
+
     try {
         const response = await fetch(`/api/${endpoint}`, options);
 
@@ -72,3 +80,4 @@ export const getCalendarEvents = () => apiRequest('band-profile/events');
 export const createCalendarEvent = (data) => apiRequest('band-profile/events', data, 'POST');
 export const updateCalendarEvent = (id, data) => apiRequest(`band-profile/events/${id}`, data, 'PUT');
 export const deleteCalendarEvent = (id) => apiRequest(`band-profile/events/${id}`, null, 'DELETE');
+// --- END OF FILE public/js/api.js ---
