@@ -96,10 +96,9 @@ export function renderPreview(previewEl, songBlocks, renderTransposedTab) {
     previewEl.innerHTML = previewHtml;
 }
 
-export function createBlockElement(block, drawFretboardCallback) {
+export function createBlockElement(block) {
     const div = createElement('div', { class: 'song-block', 'data-block-id': block.id });
     let contentHtml = '', headerControls = '';
-    const drumPlaceholder = `HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|`;
 
     if (block.type === 'lyrics') {
         contentHtml = `<textarea class="form-textarea lyrics-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="Enter lyrics and [chords]...">${block.content || ''}</textarea><div class="resize-handle"></div>`;
@@ -110,7 +109,8 @@ export function createBlockElement(block, drawFretboardCallback) {
         const editButtonClass = isEditMode ? 'btn-edit-mode' : 'btn-secondary';
         headerControls = `<button class="btn ${editButtonClass} btn-sm" data-action="edit-tab">${isEditMode ? 'Done Editing' : 'Edit'}</button>`;
     } else if (block.type === 'drum_tab') {
-        contentHtml = `<textarea class="form-textarea drum-tab-block" data-field="content" style="height: ${block.height || 100}px;" placeholder="${drumPlaceholder}">${block.content || ''}</textarea><div class="resize-handle"></div>`;
+        // Create a container for the interactive editor instead of a textarea
+        contentHtml = `<div id="drum-editor-${block.id}" class="drum-editor-container"></div>`;
     }
     
     div.innerHTML = `
@@ -120,9 +120,6 @@ export function createBlockElement(block, drawFretboardCallback) {
         </div>
         <div class="block-content">${contentHtml}</div>`;
     
-    if (block.type === 'tab' && drawFretboardCallback) {
-        setTimeout(() => drawFretboardCallback(block.id), 0);
-    }
     return div;
 }
 
