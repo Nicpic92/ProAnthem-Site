@@ -1,4 +1,4 @@
-// --- START OF FILE login.js ---
+// --- START OF FILE netlify/functions/login.js ---
 
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
@@ -140,3 +140,5 @@ exports.handler = async (event) => {
         }
     }
 };
+
+// --- END OF FILE netlify/functions/login.js ---
