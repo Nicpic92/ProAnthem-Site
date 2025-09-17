@@ -10,6 +10,10 @@ import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 import { getUserPayload } from '../auth.js';
+// --- NEW IMPORTS ---
+import * as diagramRenderer from './diagramRenderer.js';
+import { getChordDiagrams } from '../api.js';
+
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -38,15 +42,13 @@ export function init(isDemoMode) {
 async function loadInitialData() {
     const user = getUserPayload();
 
-    if (isDemo) { // Explicitly on /demo.html
+    if (isDemo) {
         setupDemoMode();
         return;
     }
     
     if (user) {
-        // --- FIX: Wrap API calls in a try/catch block ---
         try {
-            // Logged-in user flow
             await loadChords(user);
             UI.setStatus(el.statusMessage, 'Loading songs...');
             const sheets = await UI.loadSheetList(el.songSelector, api);
@@ -54,23 +56,17 @@ async function loadInitialData() {
             await handleLoadSong(initialSongId);
             UI.setStatus(el.statusMessage, '');
         } catch (error) {
-            // This will catch the "Session expired" error from api.js
-            // The api.js will handle the redirect, so we don't need to do much here,
-            // but we can prevent further errors by not trying to render.
             console.log("Authentication error during data load. Redirecting...");
-            // If it's NOT a session error, fall back to demo mode.
             if (!error.message.includes("Session expired")) {
                 UI.setStatus(el.statusMessage, `Error: ${error.message}. Loading demo.`, true);
                 setupDemoMode();
             }
         }
     } else {
-        // Logged-out user on main tool page
         setupDemoMode();
     }
 }
 
-// --- NEW: Helper function to set up the demo state ---
 function setupDemoMode() {
     isDemo = true;
     songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
@@ -116,53 +112,43 @@ function cacheDOMElements() {
 }
 
 function attachEventListeners() {
-    // Top-level input listeners
     el.titleInput?.addEventListener('input', () => songDataManager.updateSongField('title', el.titleInput.value));
     el.artistInput?.addEventListener('input', () => songDataManager.updateSongField('artist', el.artistInput.value));
     el.durationInput?.addEventListener('input', () => songDataManager.updateSongField('duration', el.durationInput.value));
 
-    // Demo and song selection
     el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) { songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA); renderSong(); }});
     el.songSelector?.addEventListener('change', () => handleLoadSong(el.songSelector.value));
 
-    // Musical settings
     [el.tuningSelector, el.capoFretInput].forEach(elem => elem?.addEventListener('input', handleMusicalSettingsChange));
     el.transposeUpBtn?.addEventListener('click', () => handleTranspose(1));
     el.transposeDownBtn?.addEventListener('click', () => handleTranspose(-1));
 
-    // Main buttons
     el.saveBtn?.addEventListener('click', handleSave);
     el.deleteBtn?.addEventListener('click', handleDelete);
 
-    // Chord palette and queue
     el.addChordBtn?.addEventListener('click', handleAddChord);
     el.newChordInput?.addEventListener('keyup', (e) => e.key === 'Enter' && handleAddChord());
     el.clearQueueBtn?.addEventListener('click', () => { chordQueue = []; chordQueueIndex = 0; UI.renderChordQueue(el.chordQueueDiv, el.clearQueueBtn, chordQueue, chordQueueIndex); });
 
-    // Block container interactions
     el.songBlocksContainer?.addEventListener('focusin', (e) => { if (e.target.classList.contains('lyrics-block')) lastFocusedLyricsBlock = e.target; });
     el.songBlocksContainer?.addEventListener('input', (e) => { if (e.target.dataset.field) { const blockId = e.target.closest('.song-block').dataset.blockId; songDataManager.updateBlockData(blockId, 'content', e.target.value, null); renderPreview(); updateSoundingKey(); } });
     el.songBlocksContainer?.addEventListener('click', handleSongBlockClick);
     el.addBlockButtonsContainer?.addEventListener('click', handleAddBlockClick);
     
-    // Resize Handle Logic
     el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
     document.addEventListener('mousemove', (e) => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } });
     document.addEventListener('mouseup', () => { if (activeResize.element) { songDataManager.updateBlockData(activeResize.blockId, null, null, activeResize.element.offsetHeight); activeResize = {}; document.body.style.cursor = ''; } });
     
-    // Audio
     el.deleteAudioBtn?.addEventListener('click', handleDeleteAudio);
 
-    // Import
     el.importBtn?.addEventListener('click', () => { el.importTextarea.value = ''; el.importModal.classList.remove('hidden'); });
     el.importCancelBtn?.addEventListener('click', () => el.importModal.classList.add('hidden'));
     el.importConfirmBtn?.addEventListener('click', handleImport);
 
-    // History
-    el.historyBtn?.addEventListener('click', () => openHistoryModal(songDataManager.getSongData(), renderPreview, handleLoadSong, renderTransposedTabForHistory));
+    el.historyBtn?.addEventListener('click', () => openHistoryModal(songDataManager.getSongData(), renderPreview, renderTransposedTabForHistory));
 
-    // Notation Palette
     setupNotationPalette();
+    setupChordHover(); // NEW: Setup hover listeners
 }
 
 /**
@@ -174,7 +160,6 @@ function renderSong() {
     
     UI.renderSongBlocks(el.songBlocksContainer, songData.song_blocks, UI.createBlockElement, initializeSortable);
     
-    // After blocks are rendered, initialize interactive components within them
     songData.song_blocks.forEach(block => {
         if (block.type === 'tab') {
             fretboardController.drawFretboard(block.id);
@@ -195,10 +180,6 @@ function renderSong() {
     updateSetlistSongContext(songData);
 }
 
-/**
- * Updates all the simple form inputs and UI elements from the songData object.
- * @param {object} songData 
- */
 function updateUIFromData(songData) {
     el.titleInput.value = songData.title;
     el.artistInput.value = songData.artist;
@@ -236,7 +217,7 @@ export async function handleLoadSong(id) {
         UI.setStatus(el.statusMessage, 'Song loaded.');
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
-        await songDataManager.loadSong('new'); // Load a blank slate on error
+        await songDataManager.loadSong('new');
         renderSong();
     }
 }
@@ -246,13 +227,12 @@ async function handleSave() {
     UI.setStatus(el.statusMessage, 'Saving...');
     try {
         const savedSong = await songDataManager.saveSong(isDemo);
-        if (savedSong) { // saveSong returns null in demo mode
+        if (savedSong) {
             UI.setStatus(el.statusMessage, 'Saved successfully!');
-            // If it was a new song, refresh the song list to include it and select it
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
                 await UI.loadSheetList(el.songSelector, api, savedSong.id);
             }
-            renderSong(); // Re-render to update things like the history button
+            renderSong();
         }
     } catch (error) {
         UI.setStatus(el.statusMessage, `Save failed: ${error.message}`, true);
@@ -272,7 +252,7 @@ async function handleDelete() {
             await songDataManager.deleteSong();
             UI.setStatus(el.statusMessage, 'Song deleted.');
             await UI.loadSheetList(el.songSelector, api);
-            renderSong(); // Renders the new blank song
+            renderSong();
         } catch (e) {
             UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
         }
@@ -343,7 +323,6 @@ function handleSongBlockClick(e) {
     if (!blockEl) return;
     const blockId = blockEl.dataset.blockId;
     
-    // Chord Queue Placement
     if (e.target.classList.contains('lyrics-block') && chordQueue.length > 0) {
         e.preventDefault();
         const textarea = e.target;
@@ -361,7 +340,6 @@ function handleSongBlockClick(e) {
         return;
     }
 
-    // Action Buttons in Header
     const action = e.target.dataset.action;
     if (action) {
         const songData = songDataManager.getSongData();
@@ -398,7 +376,7 @@ function handleImport() {
     const result = parsePastedSong(pastedText);
     if (result.blocks.length > 0) {
         const newSongData = {
-            ...songDataManager.getSongData(), // keep capo, tuning etc if possible
+            ...songDataManager.getSongData(),
             id: null,
             title: 'Imported Song',
             artist: '',
@@ -421,7 +399,7 @@ async function handleDeleteAudio() {
     if (confirm('Are you sure you want to permanently delete this voice memo?')) {
         songDataManager.updateSongField('audio_url', null);
         try {
-            await handleSave(); // Save the change
+            await handleSave();
             renderSong();
             UI.setStatus(el.statusMessage, 'Recording deleted.', false);
         } catch (error) {
@@ -432,12 +410,73 @@ async function handleDeleteAudio() {
 
 function handleRecordingFinished(audioUrl) {
     songDataManager.updateSongField('audio_url', audioUrl);
-    handleSave(); // Automatically save the song after a successful recording upload
+    handleSave();
     renderSong();
 }
 
 
 // --- CHORD AND MUSIC THEORY LOGIC ---
+
+// NEW: This new function sets up the hover listeners for the chord diagrams.
+function setupChordHover() {
+    const previewEl = el.livePreview;
+    const popupEl = document.getElementById('chord-diagram-popup');
+    if (!previewEl || !popupEl) return;
+    
+    let hoverTimeout;
+    
+    // Using mouseover on the container is more efficient than adding a listener to every chord.
+    previewEl.addEventListener('mouseover', (e) => {
+        // We only care about hovering over an element with the 'chord-span' class
+        const chordSpan = e.target.closest('.chord-span');
+        if (!chordSpan) return;
+
+        const chordText = chordSpan.textContent.trim();
+        if (!chordText) return;
+
+        clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(async () => {
+            try {
+                // Check if the diagram is already cached to avoid API calls
+                let diagramSvg = sessionStorage.getItem(`chord-diagram-${chordText}`);
+                
+                if (!diagramSvg) {
+                    const diagrams = await getChordDiagrams(chordText);
+                    const guitarDiagram = diagrams.find(d => d.instrument === 'guitar');
+                    if (guitarDiagram) {
+                        diagramSvg = diagramRenderer.renderGuitarDiagram(guitarDiagram.diagram_data);
+                        sessionStorage.setItem(`chord-diagram-${chordText}`, diagramSvg); // Cache the result
+                    }
+                }
+                
+                if (diagramSvg) {
+                    popupEl.innerHTML = diagramSvg;
+                    
+                    const rect = chordSpan.getBoundingClientRect();
+                    popupEl.style.left = `${rect.left}px`;
+                    // Position above the chord if there's not enough space below
+                    if (rect.bottom + 170 > window.innerHeight) {
+                        popupEl.style.top = `${rect.top - 170}px`;
+                    } else {
+                        popupEl.style.top = `${rect.bottom + 5}px`;
+                    }
+                    popupEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.warn(`Could not fetch diagram for ${chordText}:`, error.message);
+            }
+        }, 200); // 200ms delay to feel responsive but not jarring
+    });
+
+    // Use mouseout on the container to hide the popup
+    previewEl.addEventListener('mouseout', (e) => {
+        const chordSpan = e.target.closest('.chord-span');
+        if (chordSpan) {
+            clearTimeout(hoverTimeout);
+            popupEl.classList.add('hidden');
+        }
+    });
+}
 
 async function loadChords(user) {
     try {
@@ -446,8 +485,6 @@ async function loadChords(user) {
             : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
-        // We only show an error if a real user was logged in.
-        // For logged-out users, this failing is expected and silent.
         if (user) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
     }
 }
@@ -460,7 +497,7 @@ async function handleAddChord() {
         await api.createChord({ name });
         el.newChordInput.value = '';
         UI.setStatus(el.statusMessage, `'${name}' added.`);
-        await loadChords(getUserPayload()); // Reload with user context
+        await loadChords(getUserPayload());
     } catch (e) {
         UI.setStatus(el.statusMessage, e.message, true);
     }
@@ -578,9 +615,11 @@ function renderPreview() {
 
 function renderTransposedTab(tabBlock) {
     const songData = songDataManager.getSongData();
-    return Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
+    // Corrected function call to use the updated Fretboard module constants
+    return fretboardController.Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
 }
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
-     return Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
+     return fretboardController.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
+// --- END OF FILE public/js/modules/songEditor.js ---
