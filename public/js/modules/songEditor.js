@@ -38,39 +38,47 @@ export function init(isDemoMode) {
 async function loadInitialData() {
     const user = getUserPayload();
 
-    // If we're explicitly on the demo page, force demo mode.
-    if (isDemo) {
-        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-        loadChords(null); // Load demo chords
-        renderSong();
-        if (el.recordBtn) el.recordBtn.disabled = true;
-        if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
+    if (isDemo) { // Explicitly on /demo.html
+        setupDemoMode();
         return;
     }
     
-    // For any other page, check for a logged-in user.
     if (user) {
-        // Logged-in user flow
-        await loadChords(user); // --- PASS USER CONTEXT ---
-        UI.setStatus(el.statusMessage, 'Loading songs...');
+        // --- FIX: Wrap API calls in a try/catch block ---
         try {
+            // Logged-in user flow
+            await loadChords(user);
+            UI.setStatus(el.statusMessage, 'Loading songs...');
             const sheets = await UI.loadSheetList(el.songSelector, api);
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
             await handleLoadSong(initialSongId);
             UI.setStatus(el.statusMessage, '');
         } catch (error) {
-            UI.setStatus(el.statusMessage, `Failed to load song list: ${error.message}`, true);
-            await handleLoadSong('new');
+            // This will catch the "Session expired" error from api.js
+            // The api.js will handle the redirect, so we don't need to do much here,
+            // but we can prevent further errors by not trying to render.
+            console.log("Authentication error during data load. Redirecting...");
+            // If it's NOT a session error, fall back to demo mode.
+            if (!error.message.includes("Session expired")) {
+                UI.setStatus(el.statusMessage, `Error: ${error.message}. Loading demo.`, true);
+                setupDemoMode();
+            }
         }
     } else {
-        // Logged-out user on main tool page flow -> show them the demo
-        isDemo = true; // Force demo mode for the rest of the session
-        songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-        loadChords(null); // Load demo chords
-        renderSong();
-        if (el.recordBtn) el.recordBtn.disabled = true;
-        if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
+        // Logged-out user on main tool page
+        setupDemoMode();
     }
+}
+
+// --- NEW: Helper function to set up the demo state ---
+function setupDemoMode() {
+    isDemo = true;
+    songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
+    loadChords(null); // Load demo chords
+    renderSong();
+    if (el.recordBtn) el.recordBtn.disabled = true;
+    if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
+    UI.setStatus(el.statusMessage, "This is a demo. Your work will not be saved.");
 }
 
 
@@ -438,6 +446,8 @@ async function loadChords(user) {
             : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
+        // We only show an error if a real user was logged in.
+        // For logged-out users, this failing is expected and silent.
         if (user) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
     }
 }
