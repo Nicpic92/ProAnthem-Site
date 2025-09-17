@@ -149,7 +149,11 @@ function initializeDemoSong() {
 async function initializeNewSong(forceNew = false) {
     el.historyBtn.disabled = true;
     const createBlankSong = () => {
-        const initialDrumTab = "HH|x-x-x-x-x-x-x-x-|\nSD|----o-------o---|\nBD|o-------o-------|";
+        // Use the exported default instruments to build the initial content string
+        const initialDrumTab = drumEditor.DEFAULT_INSTRUMENTS
+            .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
+            .join('\n');
+            
         songData = { id: null, title: '', artist: '', duration: '', audio_url: null, song_blocks: [{ id: `block_${Date.now()}`, type: 'drum_tab', label: 'Drums 1', content: initialDrumTab }], tuning: 'E_STANDARD', capo: 0, transpose: 0 };
         el.titleInput.value = '';
         el.artistInput.value = '';
@@ -552,7 +556,9 @@ function handleAddBlockClick(e) {
             newBlock.content = '';
             newBlock.height = 100;
         } else if (type === 'drum_tab') {
-            newBlock.content = "HH|----|\nSD|----|\nBD|----|";
+            newBlock.content = drumEditor.DEFAULT_INSTRUMENTS
+                .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
+                .join('\n');
         } else if (type === 'tab') {
             newBlock.data = { notes: [] };
             newBlock.strings = 6;
