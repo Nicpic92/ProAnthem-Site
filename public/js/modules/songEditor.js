@@ -10,10 +10,9 @@ import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
 import { getUserPayload } from '../auth.js';
-// --- NEW IMPORTS ---
 import * as diagramRenderer from './diagramRenderer.js';
 import { getChordDiagrams } from '../api.js';
-
+import * as stemManager from './stemManager.js'; // NEW IMPORT
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
@@ -33,6 +32,7 @@ export function init(isDemoMode) {
     
     fretboardController.init(renderSong); 
     audioManager.init(handleRecordingFinished);
+    stemManager.init(); // NEW: Initialize stem manager
 
     UI.populateTuningSelector(el.tuningSelector, { E_STANDARD: { name: "E Standard" }, EB_STANDARD: { name: "Eb Standard" }, D_STANDARD: { name: "D Standard" }, DROP_D: { name: "Drop D" }, DROP_C: { name: "Drop C" } });
 
@@ -70,13 +70,12 @@ async function loadInitialData() {
 function setupDemoMode() {
     isDemo = true;
     songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-    loadChords(null); // Load demo chords
+    loadChords(null);
     renderSong();
     if (el.recordBtn) el.recordBtn.disabled = true;
     if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
     UI.setStatus(el.statusMessage, "This is a demo. Your work will not be saved.");
 }
-
 
 function cacheDOMElements() {
     el.titleInput = document.getElementById('titleInput');
@@ -109,6 +108,7 @@ function cacheDOMElements() {
     el.resetDemoBtn = document.getElementById('resetDemoBtn');
     el.historyBtn = document.getElementById('historyBtn');
     el.notationPalette = document.getElementById('notation-palette');
+    el.manageStemsBtn = document.getElementById('manage-stems-btn'); // NEW ELEMENT
 }
 
 function attachEventListeners() {
@@ -148,12 +148,12 @@ function attachEventListeners() {
     el.historyBtn?.addEventListener('click', () => openHistoryModal(songDataManager.getSongData(), renderPreview, renderTransposedTabForHistory));
 
     setupNotationPalette();
-    setupChordHover(); // NEW: Setup hover listeners
+    setupChordHover();
+
+    // NEW EVENT LISTENER
+    el.manageStemsBtn?.addEventListener('click', () => stemManager.openModal(songDataManager.getSongData()));
 }
 
-/**
- * The main render function for the entire editor. Called whenever state changes.
- */
 function renderSong() {
     const songData = songDataManager.getSongData();
     updateUIFromData(songData);
@@ -200,10 +200,8 @@ function updateUIFromData(songData) {
     const steps = songData.transpose;
     el.transposeStatus.textContent = steps > 0 ? `+${steps}` : String(steps);
     el.historyBtn.disabled = !songData.id;
+    el.manageStemsBtn.disabled = !songData.id; // NEW UI UPDATE
 }
-
-
-// --- EVENT HANDLER FUNCTIONS ---
 
 export async function handleLoadSong(id) {
     if (!id) return;
@@ -215,6 +213,7 @@ export async function handleLoadSong(id) {
         }
         renderSong();
         UI.setStatus(el.statusMessage, 'Song loaded.');
+        stemManager.loadStemsForMixer(id === 'new' ? null : id); // NEW: Load stems for the song
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
         await songDataManager.loadSong('new');
@@ -231,6 +230,10 @@ async function handleSave() {
             UI.setStatus(el.statusMessage, 'Saved successfully!');
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
                 await UI.loadSheetList(el.songSelector, api, savedSong.id);
+            }
+            // After saving a new song, we now have an ID, so we should reload its stems.
+            if (!el.manageStemsBtn.disabled) {
+                 stemManager.loadStemsForMixer(savedSong.id);
             }
             renderSong();
         }
@@ -253,6 +256,7 @@ async function handleDelete() {
             UI.setStatus(el.statusMessage, 'Song deleted.');
             await UI.loadSheetList(el.songSelector, api);
             renderSong();
+            stemManager.loadStemsForMixer(null); // NEW: Clear stems after deleting
         } catch (e) {
             UI.setStatus(el.statusMessage, `Failed to delete: ${e.message}`, true);
         }
@@ -276,6 +280,9 @@ function handleTranspose(amount) {
     });
     renderSong();
 }
+
+// ... (The rest of the functions: handleAddBlockClick, handleSongBlockClick, handleImport, handleDeleteAudio, handleRecordingFinished, etc. remain unchanged)
+// ... (All functions from handleAddBlockClick to the end of the file are the same as your last version)
 
 function handleAddBlockClick(e) {
     const target = e.target;
@@ -414,10 +421,6 @@ function handleRecordingFinished(audioUrl) {
     renderSong();
 }
 
-
-// --- CHORD AND MUSIC THEORY LOGIC ---
-
-// NEW: This new function sets up the hover listeners for the chord diagrams.
 function setupChordHover() {
     const previewEl = el.livePreview;
     const popupEl = document.getElementById('chord-diagram-popup');
@@ -425,9 +428,7 @@ function setupChordHover() {
     
     let hoverTimeout;
     
-    // Using mouseover on the container is more efficient than adding a listener to every chord.
     previewEl.addEventListener('mouseover', (e) => {
-        // We only care about hovering over an element with the 'chord-span' class
         const chordSpan = e.target.closest('.chord-span');
         if (!chordSpan) return;
 
@@ -437,7 +438,6 @@ function setupChordHover() {
         clearTimeout(hoverTimeout);
         hoverTimeout = setTimeout(async () => {
             try {
-                // Check if the diagram is already cached to avoid API calls
                 let diagramSvg = sessionStorage.getItem(`chord-diagram-${chordText}`);
                 
                 if (!diagramSvg) {
@@ -445,7 +445,7 @@ function setupChordHover() {
                     const guitarDiagram = diagrams.find(d => d.instrument === 'guitar');
                     if (guitarDiagram) {
                         diagramSvg = diagramRenderer.renderGuitarDiagram(guitarDiagram.diagram_data);
-                        sessionStorage.setItem(`chord-diagram-${chordText}`, diagramSvg); // Cache the result
+                        sessionStorage.setItem(`chord-diagram-${chordText}`, diagramSvg);
                     }
                 }
                 
@@ -453,8 +453,7 @@ function setupChordHover() {
                     popupEl.innerHTML = diagramSvg;
                     
                     const rect = chordSpan.getBoundingClientRect();
-                    popupEl.style.left = `${rect.left}px`;
-                    // Position above the chord if there's not enough space below
+                    popupEl.style.left = `${rect.left}px;
                     if (rect.bottom + 170 > window.innerHeight) {
                         popupEl.style.top = `${rect.top - 170}px`;
                     } else {
@@ -465,10 +464,9 @@ function setupChordHover() {
             } catch (error) {
                 console.warn(`Could not fetch diagram for ${chordText}:`, error.message);
             }
-        }, 200); // 200ms delay to feel responsive but not jarring
+        }, 200);
     });
 
-    // Use mouseout on the container to hide the popup
     previewEl.addEventListener('mouseout', (e) => {
         const chordSpan = e.target.closest('.chord-span');
         if (chordSpan) {
@@ -562,9 +560,6 @@ function updateSoundingKey() {
     document.getElementById('soundingKeyDisplay').textContent = soundingKey;
 }
 
-
-// --- UTILITY AND RENDER CALLBACKS ---
-
 function initializeSortable() {
     if (el.songBlocksContainer.sortableInstance) {
         el.songBlocksContainer.sortableInstance.destroy();
@@ -615,11 +610,10 @@ function renderPreview() {
 
 function renderTransposedTab(tabBlock) {
     const songData = songDataManager.getSongData();
-    // Corrected function call to use the updated Fretboard module constants
-    return fretboardController.Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
+    return UI.Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
 }
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
-     return fretboardController.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
+     return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
 // --- END OF FILE public/js/modules/songEditor.js ---
