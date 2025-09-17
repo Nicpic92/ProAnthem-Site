@@ -36,6 +36,8 @@ export async function apiRequest(endpoint, data = null, method = 'GET') {
     }
 }
 
+// ... (all existing exports remain the same)
+
 export const getSheets = () => apiRequest('lyric-sheets');
 export const getSheet = (id) => apiRequest(`lyric-sheets/${id}`);
 export const createSheet = (data) => apiRequest('lyric-sheets', data, 'POST');
@@ -67,33 +69,30 @@ export const addBandMember = (data) => apiRequest('band/members', data, 'POST');
 export const removeBandMember = (email) => apiRequest('band/members', { emailToRemove: email }, 'DELETE');
 export const getBandProfile = () => apiRequest('band-profile');
 export const updateBandProfile = (data) => apiRequest('band-profile', data, 'PUT');
-export const getCalendarEvents = () => apiRequest('band-profile/events');
-export const createCalendarEvent = (data) => apiRequest('band-profile/events', data, 'POST');
-export const updateCalendarEvent = (id, data) => apiRequest(`band-profile/events/${id}`, data, 'PUT');
-export const deleteCalendarEvent = (id) => apiRequest(`band-profile/events/${id}`, null, 'DELETE');
+
+// --- THIS IS THE FIX ---
+// The old, incorrect endpoint was 'band-profile/events'. The new, correct endpoint is 'band/events'.
+export const getCalendarEvents = () => apiRequest('band/events');
+export const createCalendarEvent = (data) => apiRequest('band/events', data, 'POST');
+export const updateCalendarEvent = (id, data) => apiRequest(`band/events/${id}`, data, 'PUT');
+export const deleteCalendarEvent = (id) => apiRequest(`band/events/${id}`, null, 'DELETE');
+
 export const getStagePlots = () => apiRequest('stage-plots');
 export const getStagePlot = (id) => apiRequest(`stage-plots/${id}`);
 export const createStagePlot = (data) => apiRequest('stage-plots', data, 'POST');
 export const updateStagePlot = (id, data) => apiRequest(`stage-plots/${id}`, data, 'PUT');
 export const deleteStagePlot = (id) => apiRequest(`stage-plots/${id}`, null, 'DELETE');
-
-// --- NEW FUNCTION FOR CHORD DIAGRAMS ---
 export const getChordDiagrams = (chordName) => apiRequest(`chords/${chordName}/diagrams`);
-// Add these lines to the end of public/js/api.js
-
+export const getSongStems = (songId) => apiRequest(`song-stems?song_id=${songId}`);
+export const createSongStem = (data) => apiRequest('song-stems', data, 'POST');
+export const deleteSongStem = (stemId) => apiRequest(`song-stems/${stemId}`, null, 'DELETE');
 export const getTransactions = () => apiRequest('finances');
 export const createTransaction = (data) => apiRequest('finances', data, 'POST');
 export const updateTransaction = (id, data) => apiRequest(`finances/${id}`, data, 'PUT');
 export const deleteTransaction = (id) => apiRequest(`finances/${id}`, null, 'DELETE');
-
 export const getMerchItems = () => apiRequest('merch');
 export const createMerchItem = (data) => apiRequest('merch', data, 'POST');
 export const updateMerchItem = (id, data) => apiRequest(`merch/${id}`, data, 'PUT');
 export const deleteMerchItem = (id) => apiRequest(`merch/${id}`, null, 'DELETE');
-// Add these lines to the end of public/js/api.js
-
-export const getSongStems = (songId) => apiRequest(`song-stems?song_id=${songId}`);
-export const createSongStem = (data) => apiRequest('song-stems', data, 'POST');
-export const deleteSongStem = (stemId) => apiRequest(`song-stems/${stemId}`, null, 'DELETE');
 
 // --- END OF FILE public/js/api.js ---
