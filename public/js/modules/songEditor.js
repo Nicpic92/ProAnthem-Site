@@ -1,6 +1,6 @@
 // --- START OF FILE public/js/modules/songEditor.js ---
 
-import * as api from '../api.js'; // Make sure the original api is imported
+import * as api from '../api.js';
 import * as UI from './ui.js';
 import * as songDataManager from './songDataManager.js';
 import * as fretboardController from './fretboardController.js';
@@ -45,7 +45,6 @@ async function loadInitialData() {
         loadChords();
         UI.setStatus(el.statusMessage, 'Loading songs...');
         try {
-            // --- FIX: Pass the real `api` module to loadSheetList ---
             const sheets = await UI.loadSheetList(el.songSelector, api);
             
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
@@ -422,7 +421,6 @@ async function loadChords() {
     try {
         const chords = isDemo 
             ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
-            // --- FIX: Use the imported `api` module directly ---
             : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
@@ -529,4 +527,38 @@ function setupNotationPalette() {
 
         const notation = button.dataset.notation;
         const songData = songDataManager.getSongData();
-        const selected = fretboardController.getSelectedNo
+        const selected = fretboardController.getSelectedNote();
+        const block = songData.song_blocks.find(b => b.id === selected.blockId);
+
+        if (block && block.data.notes[selected.noteIndex]) {
+            const currentNote = block.data.notes[selected.noteIndex];
+            currentNote.notation = currentNote.notation === notation ? null : notation;
+
+            if (notation === 'b') {
+                const targetFret = prompt("Bend to which fret?", (currentNote.fret - (songData.capo)) + 2);
+                if (targetFret !== null && !isNaN(targetFret)) {
+                    currentNote.bend_target = parseInt(targetFret, 10);
+                }
+            } else {
+                delete currentNote.bend_target;
+            }
+            renderSong();
+        }
+    });
+}
+
+function renderPreview() {
+    const songData = songDataManager.getSongData();
+    UI.renderPreview(el.livePreview, songData.song_blocks, renderTransposedTab);
+}
+
+function renderTransposedTab(tabBlock) {
+    // This is a stand-in for the full fretboard module's functionality
+    return `[Tab for ${tabBlock.strings} strings]`; 
+}
+
+// --- THIS IS THE FIX: Added the missing closing brace ---
+function renderTransposedTabForHistory(tabBlock, historyData) {
+     // This is a stand-in
+     return `[Tab for ${tabBlock.strings} strings]`;
+}
