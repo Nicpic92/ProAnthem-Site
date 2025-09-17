@@ -69,13 +69,10 @@ export const getBandMembers = () => apiRequest('band/members');
 export const addBandMember = (data) => apiRequest('band/members', data, 'POST');
 export const removeBandMember = (email) => apiRequest('band/members', { emailToRemove: email }, 'DELETE');
 
-// Note: getBandProfile/updateBandProfile are now obsolete and can be removed, but we'll leave them for now.
-// The new consolidated band management page will not use them.
-export const getBandProfile = () => apiRequest('band-profile');
-export const updateBandProfile = (data) => apiRequest('band-profile', data, 'PUT');
-
 // --- THIS IS THE FIX ---
-// The old, incorrect endpoint was 'band-profile/events'. The new, correct endpoint is 'band/events'.
+// The old endpoints are replaced with the new, correct, consolidated endpoints.
+export const getBandProfile = () => apiRequest('band/profile');
+export const updateBandProfile = (data) => apiRequest('band/profile', data, 'PUT');
 export const getCalendarEvents = () => apiRequest('band/events');
 export const createCalendarEvent = (data) => apiRequest('band/events', data, 'POST');
 export const updateCalendarEvent = (id, data) => apiRequest(`band/events/${id}`, data, 'PUT');
