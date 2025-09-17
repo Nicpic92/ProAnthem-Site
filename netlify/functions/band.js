@@ -35,15 +35,14 @@ exports.handler = async (event) => {
         const resource = pathParts[1];
         const resourceId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
         
-        // --- ROUTE: /api/band (GET Details & PUT Profile) ---
+        // --- ROUTE: /api/band (GET Details) ---
         if (!resource) {
             if (event.httpMethod === 'GET') {
                 const query = `SELECT band_name, band_number FROM bands WHERE id = $1`;
                 const { rows: [bandDetails] } = await client.query(query, [bandId]);
+                if (!bandDetails) return { statusCode: 404, body: JSON.stringify({ message: 'Band not found.' })};
                 return { statusCode: 200, body: JSON.stringify(bandDetails) };
             }
-            // Note: PUT for profile is now handled by /api/band-profile for clarity,
-            // but could be merged here if desired.
         }
 
         // --- ROUTE: /api/band/change-password ---
@@ -112,16 +111,38 @@ exports.handler = async (event) => {
             }
         }
         
-        // --- NEW: ROUTE: /api/band/events ---
+        // --- NEW: ROUTE: /api/band/profile ---
+        if (resource === 'profile') {
+            if (event.httpMethod === 'GET') {
+                const query = 'SELECT band_name, slug, bio, link_website, link_spotify, link_apple_music, link_youtube, link_instagram, link_facebook, photo_gallery, press_kit_enabled FROM bands WHERE id = $1';
+                const { rows: [profile] } = await client.query(query, [bandId]);
+                if (!profile) return { statusCode: 404, body: JSON.stringify({ message: 'Profile not found.' }) };
+                return { statusCode: 200, body: JSON.stringify(profile) };
+            }
+            if (event.httpMethod === 'PUT' && isBandAdmin) {
+                const p = JSON.parse(event.body);
+                const photoGallery = Array.isArray(p.photo_gallery) ? p.photo_gallery.filter(url => typeof url === 'string' && url.trim() !== '') : [];
+                const query = `UPDATE bands SET 
+                                band_name = $1, slug = $2, bio = $3, link_website = $4, link_spotify = $5, 
+                                link_apple_music = $6, link_youtube = $7, link_instagram = $8, 
+                                link_facebook = $9, photo_gallery = $10, press_kit_enabled = $11
+                               WHERE id = $12 RETURNING *`;
+                const values = [p.band_name, p.slug, p.bio, p.link_website, p.link_spotify, p.link_apple_music, p.link_youtube, p.link_instagram, p.link_facebook, JSON.stringify(photoGallery), p.press_kit_enabled, bandId];
+                const { rows: [updatedProfile] } = await client.query(query, values);
+                return { statusCode: 200, body: JSON.stringify(updatedProfile) };
+            } else if (event.httpMethod === 'PUT') {
+                 return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' })};
+            }
+        }
+        
+        // --- ROUTE: /api/band/events ---
         if (resource === 'events') {
-            // Any band member can view events
             if (event.httpMethod === 'GET') {
                 const query = `SELECT * FROM events WHERE band_id = $1 ORDER BY event_date ASC`;
                 const { rows } = await client.query(query, [bandId]);
                 return { statusCode: 200, body: JSON.stringify(rows) };
             }
             
-            // Only admins can create, update, or delete events
             if (isBandAdmin) {
                  if (event.httpMethod === 'POST') {
                     const e = JSON.parse(event.body);
@@ -151,7 +172,6 @@ exports.handler = async (event) => {
                  return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission for this action.' })};
             }
         }
-
 
         return { statusCode: 404, body: JSON.stringify({ message: 'Band management route not found.' }) };
     } catch(error) {
