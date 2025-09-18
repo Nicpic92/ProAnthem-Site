@@ -43,17 +43,15 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE FINAL, CORRECTED LOGIC BLOCK ---
+        // --- THIS IS THE CORRECTED LOGIC BLOCK ---
         
-        // Priority 1: Handle special, non-Stripe roles first.
-        if (user.role === 'free') {
-            subStatus = 'free';
-        } else if (user.role === 'admin') {
+        // Priority 1: Handle special, non-Stripe roles/statuses first.
+        if (user.role === 'admin') {
             subStatus = 'active'; // System admins are always active
         } else if (user.subscription_status === 'admin_granted') {
             subStatus = 'admin_granted';
         } 
-        // Priority 2: Handle band members, who inherit status.
+        // Priority 2: Handle band members, who inherit status from their admin.
         else if (user.role === 'band_member') {
             const { rows: [bandAdmin] } = await client.query(
                 `SELECT role, subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
@@ -61,7 +59,8 @@ exports.handler = async (event) => {
             );
 
             if (bandAdmin && (bandAdmin.subscription_status === 'admin_granted' || bandAdmin.role === 'free')) {
-                subStatus = bandAdmin.subscription_status || bandAdmin.role;
+                // If admin is specially granted or on the free plan, member inherits that status.
+                subStatus = bandAdmin.subscription_status || bandAdmin.role; 
             } else if (bandAdmin && bandAdmin.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: bandAdmin.stripe_customer_id, status: 'all', limit: 1,
@@ -71,22 +70,22 @@ exports.handler = async (event) => {
                 subStatus = 'inactive';
             }
         } 
-        // Priority 3 (Fallback): If no other rules match, the user MUST be a paying solo/band_admin. Check Stripe.
+        // Priority 3 (Fallback): Handle all other users (solo, band_admins, and 'free' role).
         else {
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id, status: 'all', limit: 1,
                 });
 
-                let newStatus = 'inactive';
-                let newPlan = null;
-                let updatedRole = user.role; 
-
                 if (subscriptions.data.length > 0) {
+                    // User has a Stripe subscription, sync its status.
                     const sub = subscriptions.data[0];
-                    newStatus = sub.status;
-                    const priceId = sub.items.data[0].price.id;
+                    const newStatus = sub.status;
 
+                    // Also, sync their role based on the plan type
+                    const priceId = sub.items.data[0].price.id;
+                    let newPlan = null;
+                    let updatedRole = user.role; 
                     if (priceId === BAND_PLAN_PRICE_ID) {
                         newPlan = 'band';
                         updatedRole = 'band_admin';
@@ -94,19 +93,23 @@ exports.handler = async (event) => {
                         newPlan = 'solo';
                         updatedRole = 'solo';
                     }
+                    
+                    if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || updatedRole !== user.role) {
+                        await client.query(
+                            'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
+                            [newStatus, newPlan, updatedRole, user.email]
+                        );
+                    }
+                    subStatus = newStatus;
+                    userRole = updatedRole;
+
+                } else {
+                    // User has a Stripe ID but NO active subscription. They are on the free plan.
+                    subStatus = 'free';
                 }
-                
-                if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || updatedRole !== user.role) {
-                    await client.query(
-                        'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                        [newStatus, newPlan, updatedRole, user.email]
-                    );
-                }
-                subStatus = newStatus;
-                userRole = updatedRole; // Update role in token if it changed
             } else {
-                // User has no Stripe ID, no special role/status. They are inactive.
-                subStatus = 'inactive';
+                // User has no Stripe ID, so they must be on the free plan.
+                subStatus = 'free';
             }
         }
         
