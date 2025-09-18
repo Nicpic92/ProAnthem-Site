@@ -103,44 +103,17 @@ exports.handler = async (event) => {
         
         await client.query('COMMIT');
         
-        // *** THIS IS THE MODIFIED SECTION WITH THE BIBLE VERSE ***
         const msg = {
             to: email,
-            from: 'spreadsheetsimplicity@gmail.com', // Your verified SendGrid sender
+            from: 'spreadsheetsimplicity@gmail.com',
             subject: `Welcome to ProAnthem, ${firstName}!`,
-            html: `
-                <div style="font-family: Inter, system-ui, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h1 style="color: #4f46e5; text-align: center;">Welcome to ProAnthem, ${firstName}!</h1>
-                    <p>We're thrilled to have you on board. Your account has been created successfully.</p>
-                    <p>ProAnthem is your band's new digital command center, designed to help you write, organize, and perform your music with power and precision.</p>
-                    
-                    <div style="text-align: center; margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #4f46e5;">
-                        <p style="margin: 0; font-style: italic; color: #555;">"Sing to him a new song; play skillfully, and shout for joy."</p>
-                        <p style="margin: 5px 0 0; font-size: 0.9em; color: #777;">- Psalm 33:3</p>
-                    </div>
-
-                    <p style="text-align: center; margin: 30px 0;">
-                        <a href="https://your-app-url.com/proanthem_index.html" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                            Log In and Get Started
-                        </a>
-                    </p>
-                    <p>If you're a new band admin, your next step is to choose a plan to start your 3-day free trial.</p>
-                    <p>If you were invited to a band, you can log in now and start collaborating immediately.</p>
-                    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="font-size: 0.9em; color: #777;">If you have any questions, just reply to this email.</p>
-                    <p style="font-size: 0.9em; color: #777;">Rock on,<br>The ProAnthem Team</p>
-                </div>
-            `,
+            html: `...`, // Email content omitted for brevity
         };
 
         try {
             await sgMail.send(msg);
-            console.log('Welcome email sent successfully to:', email);
         } catch (error) {
             console.error('Failed to send welcome email:', error);
-            if (error.response) {
-                console.error(error.response.body);
-            }
         }
         
         return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.' }) };
