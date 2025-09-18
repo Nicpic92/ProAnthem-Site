@@ -8,16 +8,22 @@
   publish = "public"
 
 # This section defines URL rewriting and redirect rules.
+
+# --- THIS IS THE FIX ---
+# This is the general rule for ALL API calls.
+# It captures any request to /api/* (e.g., /api/finances, /api/calendar/123)
 [[redirects]]
-  # This rule captures any request to a URL starting with /bands/ followed by some text.
-  # The ":slug" is a placeholder that captures the band's unique name.
+  from = "/api/*"
+  # It rewrites the request to the corresponding serverless function.
+  # The ":splat" placeholder contains whatever was matched by the "*".
+  to = "/.netlify/functions/:splat"
+  # A 200 status makes this a rewrite, not a redirect.
+  status = 200
+
+# This is the specific rule for the public band profile pages.
+[[redirects]]
   from = "/bands/:slug"
-
-  # It serves the content of the band-profile.html page for this request.
   to = "/band-profile.html"
-
-  # A 200 status means this is a rewrite, not a redirect. The user's browser URL
-  # will remain the "pretty" URL (e.g., /bands/nick-picardi-band).
   status = 200
 
 # --- END OF FILE netlify.toml ---
