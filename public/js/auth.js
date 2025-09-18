@@ -3,7 +3,21 @@
 import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // This runs on every page load and is the key to the definitive fix.
     updateNav();
+    
+    // REDIRECTION LOGIC:
+    const user = getUserPayload();
+    const currentPath = window.location.pathname.toLowerCase();
+    const isPublicPage = ['/proanthem_index.html', '/pricing.html', '/demo.html', '/'].some(page => currentPath.endsWith(page));
+
+    // If a logged-in user lands on a public page, they should always be sent to their dashboard.
+    // This breaks the loop by providing a single, authoritative redirect.
+    if (user && isPublicPage) {
+        window.location.href = '/dashboard.html';
+        return; // Stop further script execution on this page
+    }
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
@@ -88,6 +102,7 @@ export function checkAccess() {
     }
 }
 
+
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -109,13 +124,9 @@ export async function performLogin(credentials) {
         const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
-            const user = getUserPayload();
-
-            if (user.force_reset) {
-                window.location.href = '/ProjectAnthem.html';
-            } else {
-                window.location.href = '/dashboard.html';
-            }
+            // After storing the token, reload the page.
+            // The logic at the top of the script will now handle the redirect correctly.
+            window.location.reload();
         } else {
             throw new Error("Login failed: No token returned.");
         }
