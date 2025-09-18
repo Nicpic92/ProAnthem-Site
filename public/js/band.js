@@ -31,6 +31,8 @@ function initializeBandPage(user) {
         document.querySelectorAll('.admin-only').forEach(el => {
             el.style.display = (el.tagName === 'TH' || el.tagName === 'TD') ? 'table-cell' : 'block';
         });
+    } else {
+        document.querySelectorAll('.non-admin-only').forEach(el => el.style.display = 'block');
     }
 
     setupTabs();
@@ -65,6 +67,7 @@ function setupEventListeners() {
     addListener('add-member-form', 'submit', handleAddMember);
     addListener('copy-link-btn', 'click', copyInviteLink);
     addListener('profile-form', 'submit', handleSaveProfile);
+    addListener('add-photo-btn', 'click', () => addPhotoInput(''));
     addListener('add-event-btn', 'click', () => openEventModal(null));
     addListener('event-form', 'submit', handleSaveEvent);
     addListener('cancel-event-btn', 'click', () => closeModal('event-modal'));
@@ -156,20 +159,76 @@ async function removeMember(userEmail) {
 
 // --- PROFILE LOGIC ---
 async function loadBandProfile() {
-    const formContainer = document.getElementById('profile-form');
-    // For now, this just populates the form if it exists. Full implementation is in band.html.
-    // In a more advanced framework, this would render the form dynamically.
-    if (!formContainer) return;
+    const form = document.getElementById('profile-form');
     try {
         const profile = await getBandProfile();
-        // Populate form fields if they exist
+        for (const key in profile) {
+            const el = form.elements[key];
+            if (el) {
+                if (el.type === 'checkbox') {
+                    el.checked = profile[key];
+                } else {
+                    el.value = profile[key] || '';
+                }
+            }
+        }
+        
+        const photoContainer = document.getElementById('photo-inputs-container');
+        photoContainer.innerHTML = ''; // Clear existing
+        if (profile.photo_gallery && profile.photo_gallery.length > 0) {
+            profile.photo_gallery.forEach(url => addPhotoInput(url));
+        } else {
+            addPhotoInput(''); // Add one empty input if gallery is empty
+        }
+
+        if (!isAdmin) {
+            Array.from(form.elements).forEach(el => el.disabled = true);
+        }
+
     } catch(err) {
         console.error("Could not load band profile data", err);
+        form.innerHTML = '<p class="text-red-500">Could not load profile data.</p>';
     }
 }
+
 async function handleSaveProfile(event) {
     event.preventDefault();
-    // Logic to collect form data and call updateBandProfile
+    const btn = document.getElementById('save-profile-btn');
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+
+    const form = event.target;
+    const formData = new FormData(form);
+    const payload = Object.fromEntries(formData.entries());
+    payload.press_kit_enabled = form.elements['press_kit_enabled'].checked;
+    
+    payload.photo_gallery = Array.from(document.querySelectorAll('.photo-gallery-input'))
+        .map(input => input.value.trim())
+        .filter(url => url !== '');
+    
+    try {
+        await updateBandProfile(payload);
+        alert('Profile saved successfully!');
+        document.getElementById('band-name-header').textContent = payload.band_name;
+    } catch(error) {
+        alert(`Error saving profile: ${error.message}`);
+    } finally {
+        btn.textContent = 'Save Profile';
+        btn.disabled = false;
+    }
+}
+
+function addPhotoInput(url) {
+    const container = document.getElementById('photo-inputs-container');
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'form-input photo-gallery-input';
+    input.placeholder = 'https://.../your-image.jpg';
+    input.value = url;
+    if (!isAdmin) {
+        input.disabled = true;
+    }
+    container.appendChild(input);
 }
 
 // --- CALENDAR LOGIC ---
@@ -198,6 +257,7 @@ async function loadCalendarEvents() {
         });
     } catch (error) { listEl.innerHTML = `<p class="text-red-500">Error loading events.</p>`; }
 }
+
 function openEventModal(event) {
     const form = document.getElementById('event-form');
     form.reset();
@@ -218,6 +278,7 @@ function openEventModal(event) {
     document.getElementById('public-event-fields').classList.toggle('hidden', !form.elements['is_public'].checked);
     document.getElementById('event-modal').classList.remove('hidden');
 }
+
 async function handleSaveEvent(e) {
     e.preventDefault();
     const form = e.target;
@@ -236,6 +297,7 @@ async function handleSaveEvent(e) {
         loadCalendarEvents();
     } catch(error) { alert(`Save failed: ${error.message}`); }
 }
+
 async function handleDeleteEvent() {
     const id = document.getElementById('event-id').value;
     if (id && confirm('Are you sure you want to delete this event?')) {
@@ -280,6 +342,7 @@ async function loadFinances() {
         balanceEl.className = total >= 0 ? 'text-green-400' : 'text-red-400';
     } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load transactions.</td></tr>`; }
 }
+
 function openTransactionModal(t) {
     const form = document.getElementById('transaction-form');
     form.reset();
@@ -291,6 +354,7 @@ function openTransactionModal(t) {
     document.getElementById('transaction-category').value = t ? t.category : 'Venue Payout';
     document.getElementById('transaction-modal').classList.remove('hidden');
 }
+
 async function handleSaveTransaction(e) {
     e.preventDefault();
     const id = document.getElementById('transaction-id').value;
@@ -334,6 +398,7 @@ async function loadMerch() {
         });
     } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load merch.</td></tr>`; }
 }
+
 function openMerchModal(item) {
     const form = document.getElementById('merch-form');
     form.reset();
@@ -345,6 +410,7 @@ function openMerchModal(item) {
     document.getElementById('merch-stock').value = item ? item.stock_quantity : '';
     document.getElementById('merch-modal').classList.remove('hidden');
 }
+
 async function handleSaveMerchItem(e) {
     e.preventDefault();
     const id = document.getElementById('merch-id').value;
