@@ -43,6 +43,17 @@
 
     <main class="flex-grow">
         <section class="container mx-auto px-6 py-12">
+
+            <!-- UPGRADE PROMPT BANNER (ADD THIS) -->
+            <div id="upgrade-prompt" class="hidden p-4 mb-8 bg-indigo-900/50 border border-indigo-700 text-indigo-200 rounded-lg text-center">
+                <p>
+                    <strong>You are on the Free Plan.</strong> 
+                    Unlock unlimited songs, the Show Builder, and all band tools by upgrading.
+                    <a href="/pricing.html" class="font-bold underline hover:text-white">View Plans & Upgrade</a>
+                </p>
+            </div>
+            <!-- END OF BANNER -->
+
             <div class="mb-12">
                 <h1 id="welcome-header" class="text-4xl md:text-5xl font-bold tracking-tight">Welcome!</h1>
                 <p class="mt-2 text-lg text-gray-400">Select a tool to get started.</p>
@@ -120,6 +131,15 @@
             // Personalize the welcome message
             const welcomeHeader = document.getElementById('welcome-header');
             welcomeHeader.textContent = `Welcome, ${user.name}!`;
+            
+            // --- THIS IS THE NEW LOGIC ---
+            // Show upgrade prompt for free users
+            if (user.subscription_status === 'free') {
+                const upgradePrompt = document.getElementById('upgrade-prompt');
+                if (upgradePrompt) {
+                    upgradePrompt.classList.remove('hidden');
+                }
+            }
 
             // Show band-specific cards only if the user is in a band
             const isBandUser = user.band_id && (user.role === 'band_admin' || user.role === 'band_member' || user.role === 'admin' || user.role === 'editor');
