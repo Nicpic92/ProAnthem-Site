@@ -13,9 +13,8 @@
   # The ":slug" is a placeholder that captures the band's unique name.
   from = "/bands/:slug"
 
-  # It rewrites the request internally to the bandpage serverless function.
-  # It passes the captured ":slug" as a query parameter, which the function expects.
-  to = "/.netlify/functions/bandpage?slug=:slug"
+  # It serves the content of the band-profile.html page for this request.
+  to = "/band-profile.html"
 
   # A 200 status means this is a rewrite, not a redirect. The user's browser URL
   # will remain the "pretty" URL (e.g., /bands/nick-picardi-band).
