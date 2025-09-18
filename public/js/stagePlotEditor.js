@@ -12,7 +12,6 @@ let plotDataState = {
 let isDirty = false;
 let draggedItemId = null; 
 
-// --- THIS IS THE FIX ---
 // Use the 'load' event to ensure all scripts and modules are ready before executing.
 window.addEventListener('load', () => {
     const user = getUserPayload();
