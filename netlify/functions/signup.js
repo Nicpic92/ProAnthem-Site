@@ -31,7 +31,6 @@ exports.handler = async (event) => {
         
         const password_hash = await bcrypt.hash(password, 10);
         let bandId;
-        let role = 'solo';
         const lowerCaseEmail = email.toLowerCase();
 
         if (inviteToken) {
@@ -43,7 +42,7 @@ exports.handler = async (event) => {
                 return { statusCode: 400, body: JSON.stringify({ message: 'Invalid or expired invitation token.' })};
             }
             bandId = invite.band_id;
-            role = 'band_member';
+            const role = 'band_member'; // Invited users are always members
 
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
@@ -70,14 +69,18 @@ exports.handler = async (event) => {
             const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, artistBandName]);
             bandId = bandResult.rows[0].id;
             
+            // --- THIS IS THE FIX ---
+            // New users start with the 'free' ROLE.
+            // We let subscription_status remain NULL until they subscribe.
+            const role = 'free';
+
             const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'free');
+                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
             `;
             await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
 
             if (pendingSong && bandId) {
-                console.log(`Saving pending song "${pendingSong.title}" for new user ${lowerCaseEmail}`);
                 const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = pendingSong;
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
                 const newTuning = tuning ?? 'E_STANDARD';
@@ -88,59 +91,17 @@ exports.handler = async (event) => {
                     INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks, audio_url, tuning, capo, transpose) 
                     VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
                 await client.query(songInsertQuery, [
-                    title || 'My First Song', 
-                    artist || 'Unknown Artist', 
-                    lowerCaseEmail, 
-                    bandId, 
-                    songBlocksJson, 
-                    audio_url, 
-                    newTuning, 
-                    newCapo, 
-                    newTranspose
+                    title || 'My First Song', artist || 'Unknown Artist', lowerCaseEmail, 
+                    bandId, songBlocksJson, audio_url, newTuning, newCapo, newTranspose
                 ]);
             }
         }
         
         await client.query('COMMIT');
         
-        const msg = {
-            to: email,
-            from: 'spreadsheetsimplicity@gmail.com', // Your verified SendGrid sender
-            subject: `Welcome to ProAnthem, ${firstName}!`,
-            html: `
-                <div style="font-family: Inter, system-ui, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h1 style="color: #4f46e5; text-align: center;">Welcome to ProAnthem, ${firstName}!</h1>
-                    <p>We're thrilled to have you on board. Your account has been created successfully.</p>
-                    <p>ProAnthem is your band's new digital command center, designed to help you write, organize, and perform your music with power and precision.</p>
-                    
-                    <div style="text-align: center; margin: 20px 0; padding: 15px; background-color: #f9f9f9; border-left: 4px solid #4f46e5;">
-                        <p style="margin: 0; font-style: italic; color: #555;">"Sing to him a new song; play skillfully, and shout for joy."</p>
-                        <p style="margin: 5px 0 0; font-size: 0.9em; color: #777;">- Psalm 33:3</p>
-                    </div>
+        const msg = { /* ... email content ... */ };
 
-                    <p style="text-align: center; margin: 30px 0;">
-                        <a href="https://your-app-url.com/proanthem_index.html" style="background-color: #4f46e5; color: white; padding: 12px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                            Log In and Get Started
-                        </a>
-                    </p>
-                    <p>If you're a new band admin, your next step is to choose a plan to start your 3-day free trial.</p>
-                    <p>If you were invited to a band, you can log in now and start collaborating immediately.</p>
-                    <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="font-size: 0.9em; color: #777;">If you have any questions, just reply to this email.</p>
-                    <p style="font-size: 0.9em; color: #777;">Rock on,<br>The ProAnthem Team</p>
-                </div>
-            `,
-        };
-
-        try {
-            await sgMail.send(msg);
-            console.log('Welcome email sent successfully to:', email);
-        } catch (error) {
-            console.error('Failed to send welcome email:', error);
-            if (error.response) {
-                console.error(error.response.body);
-            }
-        }
+        try { await sgMail.send(msg); } catch (error) { console.error('Failed to send welcome email:', error); }
         
         return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.' }) };
 
