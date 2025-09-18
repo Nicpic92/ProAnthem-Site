@@ -2,15 +2,12 @@
 
 import * as api from '../api.js';
 import * as UI from './ui.js';
-// --- FIX: Removed the problematic import that caused the circular dependency ---
-// import { reloadSong } from './songEditor.js';
 
 let isDemo = false;
 let selectedVersionData = null;
 let currentSongData = null;
 let renderPreviewCallback = null;
 let renderTransposedTabCallback = null;
-// --- FIX: Store the callback function in a local variable ---
 let reloadSongCallback = null; 
 
 const el = {};
@@ -25,7 +22,6 @@ function cacheDOMElements() {
     el.restoreVersionBtn = document.getElementById('restore-version-btn');
 }
 
-// --- FIX: Init now accepts the reloadSong function as a parameter ---
 export function init(isDemoMode, reloadCallback) {
     isDemo = isDemoMode;
     reloadSongCallback = reloadCallback; // Store the function
@@ -39,7 +35,6 @@ function attachEventListeners() {
     el.restoreVersionBtn?.addEventListener('click', handleRestoreVersion);
 }
 
-// --- FIX: The `reloadCallback` parameter is no longer needed here ---
 export async function openHistoryModal(songData, previewCallback, transposedTabCallback) {
     if (isDemo || !songData.id) {
         alert("Version history is only available for saved songs.");
@@ -132,7 +127,6 @@ async function handleRestoreVersion() {
         el.historyModal.classList.add('hidden');
         UI.setStatus(statusMessageEl, 'Song restored successfully!', false);
         
-        // --- FIX: Use the stored callback instead of the direct import ---
         if (reloadSongCallback) {
             reloadSongCallback(currentSongData.id);
         }
