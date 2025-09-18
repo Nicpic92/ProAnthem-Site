@@ -65,21 +65,17 @@ export function checkAccess() {
     const isProtected = protectedPages.some(page => currentPath.endsWith(page));
 
     if (!isProtected) {
-        // Not a protected page, so access is granted.
         return true;
     }
 
-    // Page is protected, so a user must exist.
     const user = getUserPayload();
     if (!user) {
         window.location.href = '/proanthem_index.html';
         return false;
     }
 
-    // User exists, now check their subscription status.
     const validStatuses = ['active', 'trialing', 'admin_granted', 'free'];
     if (user.role === 'admin' || validStatuses.includes(user.subscription_status)) {
-        // User has access, un-hide the main content.
         const content = document.querySelector('#tool-content, #band-content, #admin-content, #dashboard-content, #editor-content');
         if (content) {
             content.style.display = 'block';
@@ -87,7 +83,6 @@ export function checkAccess() {
         }
         return true;
     } else {
-        // User's status is invalid (e.g., 'canceled', 'inactive'), send to pricing.
         window.location.href = '/pricing.html';
         return false;
     }
@@ -114,9 +109,8 @@ export async function performLogin(credentials) {
         const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
-            const user = getUserPayload(); // Get the new user payload from the new token
+            const user = getUserPayload();
 
-            // Centralized redirection logic. This is now the single source of truth.
             if (user.force_reset) {
                 window.location.href = '/ProjectAnthem.html';
             } else {
