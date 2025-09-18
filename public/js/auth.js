@@ -25,8 +25,7 @@ export function getUserPayload() {
         }
         return payload.user || null;
     } catch (e) {
-        // --- THIS IS THE FIX ---
-        // If token is invalid, just remove it and return null. DO NOT redirect.
+        // If token is invalid, just remove it and return null.
         console.error('Failed to parse token, removing invalid token.', e);
         localStorage.removeItem('user_token');
         return null;
