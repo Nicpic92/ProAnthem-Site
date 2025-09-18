@@ -65,7 +65,7 @@ export function parseLineForRender(rawLine) {
     for (const part of parts) {
         if (part.startsWith('[') && part.endsWith(']')) {
             const chordName = part.slice(1, -1);
-            chordLine += chordName;
+            chordLine += `<span class="chord-span">${chordName}</span>`;
             lyricLine += ' '.repeat(chordName.length);
         } else {
             lyricLine += part;
@@ -180,7 +180,6 @@ export function populateTuningSelector(selectorEl, TUNINGS) {
 export async function loadSheetList(selectorEl, api, selectId = null) {
     if (!selectorEl) return [];
     try {
-        // --- FIX: Use the passed-in `api` object correctly ---
         const songs = await api.getSheets();
         songs.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
         selectorEl.innerHTML = '<option value="new">-- Create New Song --</option>';
@@ -191,10 +190,14 @@ export async function loadSheetList(selectorEl, api, selectId = null) {
         if (selectId) {
             selectorEl.value = selectId;
         }
-        return songs; // Return the fetched songs for the caller to use
+        return songs;
     } catch (e) {
         console.error('Failed to load songs:', e);
         selectorEl.innerHTML = '<option value="new">-- Create New Song --</option>';
-        throw e; // Re-throw the error so the caller can handle it
+        throw e;
     }
 }
+
+// Re-integrate Fretboard import, as it does not cause a circular dependency in this direction
+import * as Fretboard from './fretboard.js';
+export { Fretboard };
