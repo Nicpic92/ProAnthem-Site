@@ -43,8 +43,8 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE REWRITTEN AND FIXED LOGIC BLOCK ---
-        // This new structure is a strict hierarchy that prevents fall-through errors.
+        // --- THIS IS THE FINAL, CORRECTED LOGIC BLOCK ---
+        // This is now a single, unbroken if/else if chain, which prevents fall-through errors.
 
         // Priority 1: Check for manual overrides from the DB. These are definitive.
         if (user.subscription_status === 'admin_granted' || user.subscription_status === 'free') {
