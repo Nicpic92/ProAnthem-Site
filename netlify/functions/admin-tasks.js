@@ -97,8 +97,6 @@ exports.handler = async (event) => {
                 const tempPassword = band.band_number.toString();
                 const password_hash = await bcrypt.hash(tempPassword, 10);
 
-                // --- THIS IS THE FIX ---
-                // If the user being created is an admin, grant them access immediately.
                 const subscriptionStatus = (role === 'admin' || role === 'band_admin') ? 'admin_granted' : null;
 
                 const query = `INSERT INTO users (email, password_hash, first_name, last_name, role, band_id, password_reset_required, subscription_status)
