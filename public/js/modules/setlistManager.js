@@ -340,11 +340,116 @@ function recalculateSetlistTime() {
     el.setlistTotalTime.textContent = `Total Time: ${formatSecondsToTime(totalSeconds)}`;
 }
 
+// --- THIS FUNCTION IS NEW AND CORRECTED ---
+async function handlePrintSetlist(drummerMode = false) {
+    const setlistId = el.setlistSelector.value;
+    if (!setlistId) {
+        alert("Please select a setlist to print.");
+        return;
+    }
+
+    try {
+        const setlist = await api.getSetlist(setlistId);
+        const user = getUserPayload();
+        const bandDetails = await api.getBandDetails();
+
+        let extraData = { order: [], notes: [] };
+        try {
+            const parsedNotes = JSON.parse(setlist.notes || '{}');
+            if (parsedNotes.order && Array.isArray(parsedNotes.notes)) {
+                extraData = parsedNotes;
+            }
+        } catch (e) { /* ignore parsing errors */ }
+
+        const allItemsMap = new Map();
+        (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' }));
+        (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
+        
+        const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id))
+            .map(id => allItemsMap.get(id.toString()))
+            .filter(Boolean);
+
+        let printHtml = `
+            <html>
+            <head>
+                <title>${setlist.name} - ProAnthem</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; }
+                    .header { text-align: center; margin-bottom: 40px; }
+                    .setlist-title { font-size: 28px; font-weight: bold; }
+                    .details { font-size: 16px; color: #555; }
+                    .song { page-break-inside: avoid; margin-bottom: 30px; }
+                    .song-title { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
+                    .song-meta { font-style: italic; color: #666; margin-bottom: 15px; }
+                    .song-content { white-space: pre-wrap; font-family: 'Courier New', monospace; line-height: 1.6; }
+                    .note-item { background-color: #f0f0f0; padding: 15px; text-align: center; font-style: italic; }
+                    .chord { color: #000; font-weight: bold; }
+                    .lyrics-line { display: flex; flex-direction: column; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1 class="setlist-title">${setlist.name}</h1>
+                    <p class="details">${bandDetails.band_name || ''}</p>
+                    <p class="details">${setlist.venue || ''} - ${setlist.event_date ? new Date(setlist.event_date).toLocaleDateString() : ''}</p>
+                </div>
+        `;
+
+        orderedItems.forEach((item, index) => {
+            if (item.type === 'song') {
+                printHtml += `<div class="song">`;
+                printHtml += `<h2 class="song-title">${index + 1}. ${item.title}</h2>`;
+                printHtml += `<p class="song-meta">Artist: ${item.artist || 'Unknown'} | ${getSongKeyInfo(item)}</p>`;
+                printHtml += `<div class="song-content">`;
+                
+                const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
+
+                songBlocks.forEach(block => {
+                    if (block.type === 'lyrics') {
+                        printHtml += `<strong>${block.label}</strong>\n`;
+                        (block.content || '').split('\n').forEach(line => {
+                            let lineToParse = line;
+                            if (drummerMode) {
+                                lineToParse = lineToParse.replace(/\[([^\]]+)\]/g, ''); // Strip chords for drummer
+                            }
+                            const { chordLine, lyricLine } = UI.parseLineForRender(lineToParse);
+                            if (chordLine.trim() && !drummerMode) {
+                                printHtml += `<div class="chord">${chordLine}</div>`;
+                            }
+                            printHtml += `<div>${lyricLine}</div>`;
+                        });
+                        printHtml += '\n';
+                    } else if (block.type === 'drum_tab' && drummerMode) {
+                        printHtml += `<strong>${block.label} (Drums)</strong>\n`;
+                        printHtml += `${block.content}\n\n`;
+                    }
+                });
+                
+                printHtml += `</div></div>`;
+            } else { // Note item
+                 printHtml += `<div class="song note-item"><strong>${item.title} (${item.duration || 'N/A'})</strong></div>`;
+            }
+        });
+
+        printHtml += '</body></html>';
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 500);
+
+    } catch (error) {
+        alert("Failed to generate printable setlist: " + error.message);
+    }
+}
+
 function getSongKeyInfo(song) {
     const SHARP_SCALE = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
-    const TUNINGS = { E_STANDARD: { name: "E Standard" } };
+    const TUNINGS = { E_STANDARD: { name: "E Standard" }, EB_STANDARD: { name: "Eb Standard" }, D_STANDARD: { name: "D Standard" }, DROP_D: { name: "Drop D" }, DROP_C: { name: "Drop C" } };
     
     const transposeChord = (chord, amount) => {
+        if (!chord) return '';
         const regex = /^([A-G][b#]?)(.*)/;
         const match = chord.match(regex);
         if (!match) return chord;
@@ -361,7 +466,28 @@ function getSongKeyInfo(song) {
     };
 
     let parts = [];
-    const firstChordMatch = song.song_blocks?.[0]?.content?.match(/\[([^\]]+)\]/);
+    const songBlocks = (typeof song.song_blocks === 'string') ? JSON.parse(song.song_blocks || '[]') : (song.song_blocks || []);
+    const firstLyricsBlock = songBlocks.find(b => b.type === 'lyrics' && b.content);
+    const firstChordMatch = firstLyricsBlock?.content?.match(/\[([^\]]+)\]/);
+    
     if (firstChordMatch) {
         const originalKey = firstChordMatch[1];
-        const soundin
+        const soundingKey = transposeChord(originalKey, (song.transpose || 0) + (song.capo || 0));
+        parts.push(`Key: ${soundingKey}`);
+    }
+    if (song.capo > 0) { parts.push(`Capo ${song.capo}`); }
+    if (song.tuning && song.tuning !== 'E_STANDARD') {
+        const tuningName = TUNINGS[song.tuning]?.name || song.tuning;
+        parts.push(tuningName);
+    }
+    return parts.join(' | ');
+}
+
+function handleStartShow() {
+    const setlistId = el.setlistSelector.value;
+    if (setlistId) {
+        window.open(`/show.html?id=${setlistId}`, '_blank');
+    } else {
+        alert('Please select a setlist to start the show.');
+    }
+}
