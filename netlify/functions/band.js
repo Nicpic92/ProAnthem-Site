@@ -35,16 +35,12 @@ exports.handler = async (event) => {
         const pathParts = event.path.replace('/.netlify/functions', '').replace('/api', '').split('/').filter(Boolean);
         const resource = pathParts.length > 1 ? pathParts[1] : 'details';
         
-        // --- ROUTING FOR /api/band ---
-        
-        // GET /api/band (aliased as /api/band/details)
         if (event.httpMethod === 'GET' && resource === 'details') {
             const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
             if (!bandDetails) return { statusCode: 404, body: JSON.stringify({ message: 'Band not found.' }) };
             return { statusCode: 200, body: JSON.stringify(bandDetails) };
         }
         
-        // --- MEMBERS ---
         if (resource === 'members') {
             if (event.httpMethod === 'GET') {
                 const { rows } = await client.query('SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY role, first_name', [bandId]);
@@ -91,7 +87,6 @@ exports.handler = async (event) => {
             }
         }
         
-        // --- PROFILE ---
         if (resource === 'profile') {
             if (event.httpMethod === 'GET') {
                 const { rows: [profile] } = await client.query('SELECT * FROM bands WHERE id = $1', [bandId]);
