@@ -1,429 +1,153 @@
-// --- START OF FILE public/js/band.js ---
+// --- START OF FILE netlify/functions/band.js ---
 
-import { getUserPayload, checkAccess } from './auth.js';
-import { 
-    getBandDetails, getBandMembers, addBandMember, removeBandMember as apiRemoveMember,
-    getBandProfile, updateBandProfile,
-    getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
-    getTransactions, createTransaction, updateTransaction, deleteTransaction,
-    getMerchItems, createMerchItem, updateMerchItem, deleteMerchItem
-} from './api.js';
+const { Client } = require('pg');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const sgMail = require('@sendgrid/mail');
 
-let isAdmin = false;
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const JWT_SECRET = process.env.JWT_SECRET;
 
-document.addEventListener('DOMContentLoaded', () => {
-    if (!checkAccess()) return;
-    const user = getUserPayload();
-    if (!user || !user.band_id) {
-        document.getElementById('band-content').style.display = 'none';
-        const ad = document.getElementById('access-denied');
-        ad.innerHTML = `<h2 class="text-3xl font-bold text-red-500">Page Not Available</h2><p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p><a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>`;
-        ad.style.display = 'block';
-        return;
-    }
-    initializeBandPage(user);
-});
-
-function initializeBandPage(user) {
-    isAdmin = user.role === 'admin' || user.role === 'band_admin';
-
-    if (isAdmin) {
-        document.querySelectorAll('.admin-only').forEach(el => {
-            el.style.display = (el.tagName === 'TH' || el.tagName === 'TD') ? 'table-cell' : 'block';
-        });
-    } else {
-        document.querySelectorAll('.non-admin-only').forEach(el => el.style.display = 'block');
+exports.handler = async (event) => {
+    const authHeader = event.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    setupTabs();
-    setupEventListeners();
-
-    loadBandDetails();
-    loadBandMembers();
-    loadBandProfile();
-    loadCalendarEvents();
-    loadFinances();
-    loadMerch();
-}
-
-function setupTabs() {
-    const tabs = document.querySelectorAll('.tab-button');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`tab-content-${tab.dataset.tab}`).classList.remove('hidden');
-        });
-    });
-}
-
-function setupEventListeners() {
-    const addListener = (id, event, handler) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener(event, handler);
-    };
-
-    addListener('add-member-form', 'submit', handleAddMember);
-    addListener('copy-link-btn', 'click', copyInviteLink);
-    addListener('profile-form', 'submit', handleSaveProfile);
-    addListener('add-photo-btn', 'click', () => addPhotoInput(''));
-    addListener('add-event-btn', 'click', () => openEventModal(null));
-    addListener('event-form', 'submit', handleSaveEvent);
-    addListener('cancel-event-btn', 'click', () => closeModal('event-modal'));
-    addListener('delete-event-btn', 'click', handleDeleteEvent);
-    addListener('event-public', 'change', () => {
-        const publicFields = document.getElementById('public-event-fields');
-        if(publicFields) publicFields.classList.toggle('hidden', !document.getElementById('event-public').checked);
-    });
-    addListener('add-transaction-btn', 'click', () => openTransactionModal(null));
-    addListener('transaction-form', 'submit', handleSaveTransaction);
-    addListener('add-merch-btn', 'click', () => openMerchModal(null));
-    addListener('merch-form', 'submit', handleSaveMerchItem);
-}
-
-async function loadBandDetails() {
+    let decodedToken;
     try {
-        const details = await getBandDetails();
-        document.getElementById('band-name-header').textContent = details.band_name || 'Your Band';
-        document.getElementById('band-id-display').textContent = `Band Number: ${details.band_number || 'N/A'}`;
-    } catch(error) {
-        document.getElementById('band-id-display').textContent = `Could not load band info.`;
+        const token = authHeader.split(' ')[1];
+        decodedToken = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+        return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
-}
 
-// --- MEMBERS LOGIC ---
-async function loadBandMembers() {
-    const tableBody = document.getElementById('members-table-body');
-    tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center">Loading...</td></tr>`;
+    const { band_id: bandId, role: userRole, email: userEmail, name: userName } = decodedToken.user;
+    if (!bandId) {
+        return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
+    }
+    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin';
+
+    const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
+    
     try {
-        const members = await getBandMembers();
-        tableBody.innerHTML = '';
-        members.forEach(member => {
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700';
-            const name = (member.first_name && member.last_name) ? `${member.first_name} ${member.last_name}` : 'Pending Signup';
-            const roleDisplay = member.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        await client.connect();
+        const pathParts = event.path.replace('/.netlify/functions', '').replace('/api', '').split('/').filter(Boolean);
+        const resource = pathParts.length > 2 ? pathParts[2] : 'details'; // 'members', 'profile', 'events', etc.
+        const resourceId = pathParts.length > 3 ? parseInt(pathParts[3], 10) : null;
+        
+        // --- ROUTING FOR /api/band ---
+        
+        // GET /api/band (aliased as /api/band/details)
+        if (event.httpMethod === 'GET' && resource === 'details') {
+            const { rows: [bandDetails] } = await client.query('SELECT band_name, band_number FROM bands WHERE id = $1', [bandId]);
+            if (!bandDetails) return { statusCode: 404, body: JSON.stringify({ message: 'Band not found.' }) };
+            return { statusCode: 200, body: JSON.stringify(bandDetails) };
+        }
+        
+        // --- MEMBERS ---
+        if (resource === 'members') {
+            if (event.httpMethod === 'GET') {
+                const { rows } = await client.query('SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY role, first_name', [bandId]);
+                return { statusCode: 200, body: JSON.stringify(rows) };
+            }
+            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
             
-            let actionsHtml = (isAdmin && member.role !== 'band_admin' && member.role !== 'admin') 
-                ? `<button class="btn-sm text-red-400 hover:underline" data-email="${member.email}">Remove</button>` : '';
+            if (event.httpMethod === 'POST') {
+                const { firstName, lastName, email } = JSON.parse(event.body);
+                const token = crypto.randomBytes(32).toString('hex');
+                const inviteLink = `${process.env.SITE_URL}/pricing.html?invite_token=${token}`;
 
-            row.innerHTML = `
-                <td class="p-3">${member.email}</td>
-                <td class="p-3 text-gray-400">${name}</td>
-                <td class="p-3 text-gray-400">${roleDisplay}</td>
-                <td class="p-3 admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">${actionsHtml}</td>`;
-            
-            const removeBtn = row.querySelector('button[data-email]');
-            if (removeBtn) removeBtn.addEventListener('click', () => removeMember(member.email));
-            
-            tableBody.appendChild(row);
-        });
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="4" class="p-4 text-center text-red-500">Failed to load members.</td></tr>`; }
-}
+                await client.query(
+                    'INSERT INTO band_invites (band_id, inviter_email, email, token, status) VALUES ($1, $2, $3, $4, \'pending\')',
+                    [bandId, userEmail, email.toLowerCase(), token]
+                );
 
-async function handleAddMember(event) {
-    event.preventDefault();
-    const statusEl = document.getElementById('add-member-status');
-    statusEl.textContent = 'Creating...';
-    document.getElementById('add-member-status-container').classList.remove('hidden');
-    try {
-        const payload = {
-            firstName: document.getElementById('new-member-firstname').value,
-            lastName: document.getElementById('new-member-lastname').value,
-            email: document.getElementById('new-member-email').value,
-        };
-        const result = await addBandMember(payload);
-        document.getElementById('invite-link-input').value = result.link;
-        document.getElementById('invite-link-container').classList.remove('hidden');
-        statusEl.textContent = 'Invite link created successfully!';
-        event.target.reset();
-    } catch(error) { statusEl.textContent = `Error: ${error.message}`; }
-}
+                const { rows: [band] } = await client.query('SELECT band_name FROM bands WHERE id = $1', [bandId]);
 
-function copyInviteLink() {
-    document.getElementById('invite-link-input').select();
-    document.execCommand('copy');
-    document.getElementById('copy-link-btn').textContent = 'Copied!';
-    setTimeout(() => { document.getElementById('copy-link-btn').textContent = 'Copy'; }, 2000);
-}
+                const msg = {
+                    to: email,
+                    from: 'spreadsheetsimplicity@gmail.com',
+                    subject: `You're invited to join ${band.band_name} on ProAnthem!`,
+                    html: `<p>${userName} has invited you to join the band "${band.band_name}" on ProAnthem. Click the link to accept and create your account: <a href="${inviteLink}">${inviteLink}</a></p>`,
+                };
+                await sgMail.send(msg);
 
-async function removeMember(userEmail) {
-    if (confirm(`Remove ${userEmail} from the band?`)) {
-        try {
-            await apiRemoveMember(userEmail);
-            loadBandMembers();
-        } catch(error) { alert(`Failed to remove member: ${error.message}`); }
-    }
-}
+                return { statusCode: 200, body: JSON.stringify({ message: 'Invite sent successfully.', link: inviteLink }) };
+            }
 
-// --- PROFILE LOGIC ---
-async function loadBandProfile() {
-    const form = document.getElementById('profile-form');
-    try {
-        const profile = await getBandProfile();
-        for (const key in profile) {
-            const el = form.elements[key];
-            if (el) {
-                if (el.type === 'checkbox') {
-                    el.checked = profile[key];
-                } else {
-                    el.value = profile[key] || '';
+            if (event.httpMethod === 'DELETE') {
+                const { emailToRemove } = JSON.parse(event.body);
+                if (emailToRemove.toLowerCase() === userEmail.toLowerCase()) {
+                    return { statusCode: 400, body: JSON.stringify({ message: 'You cannot remove yourself from the band.' }) };
                 }
+                const { rowCount } = await client.query(
+                    "UPDATE users SET band_id = NULL, role = 'solo' WHERE email = $1 AND band_id = $2 AND role NOT IN ('admin', 'band_admin')",
+                    [emailToRemove, bandId]
+                );
+                if (rowCount === 0) {
+                    return { statusCode: 403, body: JSON.stringify({ message: 'Cannot remove this user. They may be a band admin or not in this band.' }) };
+                }
+                return { statusCode: 200, body: JSON.stringify({ message: 'User removed from band.' }) };
             }
         }
         
-        const photoContainer = document.getElementById('photo-inputs-container');
-        photoContainer.innerHTML = ''; // Clear existing
-        if (profile.photo_gallery && profile.photo_gallery.length > 0) {
-            profile.photo_gallery.forEach(url => addPhotoInput(url));
-        } else {
-            addPhotoInput(''); // Add one empty input if gallery is empty
-        }
-
-        if (!isAdmin) {
-            Array.from(form.elements).forEach(el => el.disabled = true);
-        }
-
-    } catch(err) {
-        console.error("Could not load band profile data", err);
-        form.innerHTML = '<p class="text-red-500">Could not load profile data.</p>';
-    }
-}
-
-async function handleSaveProfile(event) {
-    event.preventDefault();
-    const btn = document.getElementById('save-profile-btn');
-    btn.textContent = 'Saving...';
-    btn.disabled = true;
-
-    const form = event.target;
-    const formData = new FormData(form);
-    const payload = Object.fromEntries(formData.entries());
-    payload.press_kit_enabled = form.elements['press_kit_enabled'].checked;
-    
-    payload.photo_gallery = Array.from(document.querySelectorAll('.photo-gallery-input'))
-        .map(input => input.value.trim())
-        .filter(url => url !== '');
-    
-    try {
-        await updateBandProfile(payload);
-        alert('Profile saved successfully!');
-        document.getElementById('band-name-header').textContent = payload.band_name;
-    } catch(error) {
-        alert(`Error saving profile: ${error.message}`);
-    } finally {
-        btn.textContent = 'Save Profile';
-        btn.disabled = false;
-    }
-}
-
-function addPhotoInput(url) {
-    const container = document.getElementById('photo-inputs-container');
-    const input = document.createElement('input');
-    input.type = 'url';
-    input.className = 'form-input photo-gallery-input';
-    input.placeholder = 'https://.../your-image.jpg';
-    input.value = url;
-    if (!isAdmin) {
-        input.disabled = true;
-    }
-    container.appendChild(input);
-}
-
-// --- CALENDAR LOGIC ---
-async function loadCalendarEvents() {
-    const listEl = document.getElementById('calendar-event-list');
-    listEl.innerHTML = '<p>Loading events...</p>';
-    try {
-        const events = await getCalendarEvents();
-        listEl.innerHTML = '';
-        if (events.length === 0) {
-            listEl.innerHTML = '<p class="text-gray-400">No events scheduled.</p>';
-            return;
-        }
-        events.forEach(event => {
-            const eventEl = document.createElement('div');
-            eventEl.className = `p-4 rounded-lg border flex justify-between items-center ${new Date(event.event_date) < new Date() ? 'bg-gray-800 border-gray-700 opacity-60' : 'bg-gray-800/50 border-gray-700'}`;
-            eventEl.innerHTML = `<div><p class="font-bold">${event.title} <span class="text-sm px-2 py-0.5 rounded ${event.is_public ? 'bg-blue-600' : 'bg-gray-600'}">${event.is_public ? 'Public' : 'Private'}</span></p><p class="text-sm text-gray-400">${new Date(event.event_date).toLocaleString()}</p></div>`;
-            if (isAdmin) {
-                const editButton = document.createElement('button');
-                editButton.className = 'btn btn-secondary btn-sm';
-                editButton.textContent = 'Edit';
-                editButton.onclick = () => openEventModal(event);
-                eventEl.appendChild(editButton);
+        // --- PROFILE ---
+        if (resource === 'profile') {
+            if (event.httpMethod === 'GET') {
+                const { rows: [profile] } = await client.query('SELECT * FROM bands WHERE id = $1', [bandId]);
+                return { statusCode: 200, body: JSON.stringify(profile) };
             }
-            listEl.appendChild(eventEl);
-        });
-    } catch (error) { listEl.innerHTML = `<p class="text-red-500">Error loading events.</p>`; }
-}
+            if (event.httpMethod === 'PUT') {
+                 if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
+                const p = JSON.parse(event.body);
+                const query = `UPDATE bands SET band_name=$1, slug=$2, logo_url=$3, hero_image_url=$4, bio=$5, press_kit_enabled=$6, 
+                               contact_public_email=$7, contact_booking_email=$8, link_website=$9, link_spotify=$10, link_apple_music=$11, 
+                               link_youtube=$12, link_instagram=$13, link_facebook=$14, photo_gallery=$15 WHERE id=$16 RETURNING *`;
+                const slug = p.band_name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                const { rows: [updated] } = await client.query(query, [p.band_name, slug, p.logo_url, p.hero_image_url, p.bio, p.press_kit_enabled,
+                               p.contact_public_email, p.contact_booking_email, p.link_website, p.link_spotify, p.link_apple_music, p.link_youtube,
+                               p.link_instagram, p.link_facebook, JSON.stringify(p.photo_gallery || []), bandId]);
+                return { statusCode: 200, body: JSON.stringify(updated) };
+            }
+        }
 
-function openEventModal(event) {
-    const form = document.getElementById('event-form');
-    form.reset();
-    document.getElementById('event-modal-title').textContent = event ? 'Edit Event' : 'Add Event';
-    document.getElementById('event-id').value = event ? event.id : '';
-    form.elements['title'].value = event ? event.title : '';
-    if(event) {
-        const d = new Date(event.event_date);
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-        form.elements['event_date'].value = d.toISOString().slice(0, 16);
+        // --- EVENTS ---
+        if (resource === 'events') {
+            if (event.httpMethod === 'GET') {
+                const { rows } = await client.query('SELECT * FROM events WHERE band_id = $1 ORDER BY event_date DESC', [bandId]);
+                return { statusCode: 200, body: JSON.stringify(rows) };
+            }
+            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
+            
+            if (event.httpMethod === 'POST') {
+                const { title, event_date, venue_name, details, is_public, external_url } = JSON.parse(event.body);
+                const query = `INSERT INTO events (band_id, title, event_date, venue_name, details, is_public, external_url) 
+                               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
+                const { rows: [newEvent] } = await client.query(query, [bandId, title, event_date, venue_name, details, is_public, external_url]);
+                return { statusCode: 201, body: JSON.stringify(newEvent) };
+            }
+            if (event.httpMethod === 'PUT' && resourceId) {
+                const { title, event_date, venue_name, details, is_public, external_url } = JSON.parse(event.body);
+                const query = `UPDATE events SET title=$1, event_date=$2, venue_name=$3, details=$4, is_public=$5, external_url=$6 
+                               WHERE id=$7 AND band_id=$8 RETURNING *`;
+                const { rows: [updated] } = await client.query(query, [title, event_date, venue_name, details, is_public, external_url, resourceId, bandId]);
+                return { statusCode: 200, body: JSON.stringify(updated) };
+            }
+            if (event.httpMethod === 'DELETE' && resourceId) {
+                await client.query('DELETE FROM events WHERE id=$1 AND band_id=$2', [resourceId, bandId]);
+                return { statusCode: 204, body: '' };
+            }
+        }
+
+        return { statusCode: 404, body: JSON.stringify({ message: 'Band API endpoint not found.' }) };
+
+    } catch (error) {
+        console.error('API Error in /api/band:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
+    } finally {
+        if (client) await client.end();
     }
-    form.elements['venue_name'].value = event ? (event.venue_name || '') : '';
-    form.elements['details'].value = event ? (event.details || '') : '';
-    form.elements['is_public'].checked = event ? event.is_public : false;
-    form.elements['external_url'].value = event ? (event.external_url || '') : '';
-    
-    document.getElementById('delete-event-btn').classList.toggle('hidden', !event);
-    document.getElementById('public-event-fields').classList.toggle('hidden', !form.elements['is_public'].checked);
-    document.getElementById('event-modal').classList.remove('hidden');
-}
+};
 
-async function handleSaveEvent(e) {
-    e.preventDefault();
-    const form = e.target;
-    const id = form.elements['id'].value;
-    const payload = {
-        title: form.elements['title'].value,
-        event_date: form.elements['event_date'].value,
-        venue_name: form.elements['venue_name'].value,
-        details: form.elements['details'].value,
-        is_public: form.elements['is_public'].checked,
-        external_url: form.elements['external_url'].value,
-    };
-    try {
-        id ? await updateCalendarEvent(id, payload) : await createCalendarEvent(payload);
-        closeModal('event-modal');
-        loadCalendarEvents();
-    } catch(error) { alert(`Save failed: ${error.message}`); }
-}
-
-async function handleDeleteEvent() {
-    const id = document.getElementById('event-id').value;
-    if (id && confirm('Are you sure you want to delete this event?')) {
-        try {
-            await deleteCalendarEvent(id);
-            closeModal('event-modal');
-            loadCalendarEvents();
-        } catch(error) { alert(`Delete failed: ${error.message}`); }
-    }
-}
-
-// --- FINANCES LOGIC ---
-async function loadFinances() {
-    const tableBody = document.getElementById('transactions-table-body');
-    tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>`;
-    try {
-        const transactions = await getTransactions();
-        let total = 0;
-        tableBody.innerHTML = '';
-        transactions.forEach(t => {
-            const amount = parseFloat(t.amount);
-            total += amount;
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700 hover:bg-gray-800';
-            row.innerHTML = `
-                <td class="p-3">${new Date(t.transaction_date).toLocaleDateString()}</td>
-                <td class="p-3">${t.description}</td>
-                <td class="p-3 text-gray-400">${t.category}</td>
-                <td class="p-3 text-right font-mono ${amount >= 0 ? 'text-green-400' : 'text-red-400'}">${amount.toFixed(2)}</td>
-                <td class="p-3 text-right admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">
-                    <button class="text-sm text-indigo-400 hover:underline" data-action="edit">Edit</button>
-                    <button class="text-sm text-red-400 hover:underline ml-2" data-action="delete">Delete</button>
-                </td>`;
-            row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openTransactionModal(t));
-            row.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
-                if(confirm('Delete this transaction?')) { await deleteTransaction(t.id); loadFinances(); }
-            });
-            tableBody.appendChild(row);
-        });
-        const balanceEl = document.getElementById('total-balance');
-        balanceEl.textContent = `$${total.toFixed(2)}`;
-        balanceEl.className = total >= 0 ? 'text-green-400' : 'text-red-400';
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load transactions.</td></tr>`; }
-}
-
-function openTransactionModal(t) {
-    const form = document.getElementById('transaction-form');
-    form.reset();
-    document.getElementById('transaction-modal-title').textContent = t ? 'Edit Transaction' : 'Add Transaction';
-    document.getElementById('transaction-id').value = t ? t.id : '';
-    document.getElementById('transaction-date').value = t ? new Date(t.transaction_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-    document.getElementById('transaction-description').value = t ? t.description : '';
-    document.getElementById('transaction-amount').value = t ? t.amount : '';
-    document.getElementById('transaction-category').value = t ? t.category : 'Venue Payout';
-    document.getElementById('transaction-modal').classList.remove('hidden');
-}
-
-async function handleSaveTransaction(e) {
-    e.preventDefault();
-    const id = document.getElementById('transaction-id').value;
-    const payload = {
-        transaction_date: document.getElementById('transaction-date').value,
-        description: document.getElementById('transaction-description').value,
-        amount: document.getElementById('transaction-amount').value,
-        category: document.getElementById('transaction-category').value
-    };
-    try {
-        id ? await updateTransaction(id, payload) : await createTransaction(payload);
-        closeModal('transaction-modal');
-        loadFinances();
-    } catch(error) { alert(`Save failed: ${error.message}`); }
-}
-
-// --- MERCH LOGIC ---
-async function loadMerch() {
-    const tableBody = document.getElementById('merch-table-body');
-    tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center">Loading...</td></tr>`;
-    try {
-        const items = await getMerchItems();
-        tableBody.innerHTML = '';
-        items.forEach(item => {
-            const row = document.createElement('tr');
-            row.className = 'border-b border-gray-700';
-            row.innerHTML = `
-                <td class="p-3">${item.item_name}</td>
-                <td class="p-3">${item.variant_name || 'N/A'}</td>
-                <td class="p-3 text-right">${item.price ? `$${parseFloat(item.price).toFixed(2)}` : 'N/A'}</td>
-                <td class="p-3 text-right">${item.stock_quantity}</td>
-                <td class="p-3 text-right admin-only" style="display: ${isAdmin ? 'table-cell' : 'none'}">
-                    <button class="text-sm text-indigo-400 hover:underline" data-action="edit">Edit</button>
-                    <button class="text-sm text-red-400 hover:underline ml-2" data-action="delete">Delete</button>
-                </td>`;
-            row.querySelector('[data-action="edit"]')?.addEventListener('click', () => openMerchModal(item));
-            row.querySelector('[data-action="delete"]')?.addEventListener('click', async () => {
-                if(confirm('Delete this item?')) { await deleteMerchItem(item.id); loadMerch(); }
-            });
-            tableBody.appendChild(row);
-        });
-    } catch (error) { tableBody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-red-500">Failed to load merch.</td></tr>`; }
-}
-
-function openMerchModal(item) {
-    const form = document.getElementById('merch-form');
-    form.reset();
-    document.getElementById('merch-modal-title').textContent = item ? 'Edit Merch Item' : 'Add Merch Item';
-    document.getElementById('merch-id').value = item ? item.id : '';
-    document.getElementById('merch-item-name').value = item ? item.item_name : '';
-    document.getElementById('merch-variant-name').value = item ? item.variant_name : '';
-    document.getElementById('merch-price').value = item ? item.price : '';
-    document.getElementById('merch-stock').value = item ? item.stock_quantity : '';
-    document.getElementById('merch-modal').classList.remove('hidden');
-}
-
-async function handleSaveMerchItem(e) {
-    e.preventDefault();
-    const id = document.getElementById('merch-id').value;
-    const payload = {
-        item_name: document.getElementById('merch-item-name').value,
-        variant_name: document.getElementById('merch-variant-name').value,
-        price: document.getElementById('merch-price').value || null,
-        stock_quantity: document.getElementById('merch-stock').value
-    };
-    try {
-        id ? await updateMerchItem(id, payload) : await createMerchItem(payload);
-        closeModal('merch-modal');
-        loadMerch();
-    } catch(error) { alert(`Save failed: ${error.message}`); }
-}
-// --- END OF FILE public/js/band.js ---
+// --- END OF FILE netlify/functions/band.js ---
