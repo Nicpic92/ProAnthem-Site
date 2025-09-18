@@ -1,6 +1,6 @@
 // --- START OF FILE public/js/auth.js ---
 
-import { login } from '/js/api.js'; // Use absolute path
+import { login } from '/js/api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     updateNav();
