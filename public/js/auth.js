@@ -6,7 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     updateNav();
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
-        loginForm.addEventListener('submit', handleLogin);
+        // Use the new handler for the login form on the homepage
+        loginForm.addEventListener('submit', handleLoginAndRedirect);
     }
 });
 
@@ -81,8 +82,8 @@ export function checkAccess() {
     return true;
 }
 
-
-async function handleLogin(event) {
+// Renamed from handleLogin to be more specific to its use case on the homepage modal
+async function handleLoginAndRedirect(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
     loginError.textContent = 'Logging in...';
@@ -93,40 +94,30 @@ async function handleLogin(event) {
     };
     try {
         await performLogin(payload);
+        
+        // After login is successful and token is stored, redirect.
+        const user = getUserPayload();
+        if (user.force_reset) {
+            window.location.href = '/ProjectAnthem.html';
+        } else {
+            window.location.href = '/dashboard.html';
+        }
     } catch(error) {
         loginError.textContent = error.message;
     }
 }
 
+// This function now ONLY handles getting and storing the token. It does not redirect.
 export async function performLogin(credentials) {
     try {
         const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
-            const user = getUserPayload();
-
-            const validAccessStatuses = ['active', 'trialing', 'admin_granted', 'free'];
-            const hasAccess = user.role === 'admin' || validAccessStatuses.includes(user.subscription_status);
-            
-            if (user.force_reset) {
-                window.location.href = '/ProjectAnthem.html';
-            } else if (hasAccess) {
-                const userJustSignedUpAndChosePaidPlan = !user.subscription_status || user.subscription_status === 'free';
-                if (userJustSignedUpAndChosePaidPlan && (new URLSearchParams(window.location.search).get('checkout_plan'))) {
-                    // This scenario is handled by the pricing page's own logic now.
-                    // We just need to reload the pricing page as a logged-in user.
-                    window.location.href = '/pricing.html';
-                } else {
-                    window.location.href = '/dashboard.html';
-                }
-            } else {
-                window.location.href = '/pricing.html';
-            }
-
         } else {
             throw new Error("Login failed: No token returned.");
         }
     } catch(error) {
+        // Re-throw the error so the calling function can handle UI updates
         throw error;
     }
 }
@@ -141,7 +132,7 @@ function openModal(view) {
             loginView.classList.remove('hidden');
             const loginForm = document.getElementById('login-form');
             if (loginForm && !loginForm.dataset.listenerAttached) {
-                 loginForm.addEventListener('submit', handleLogin);
+                 // The event listener is now attached in DOMContentLoaded
                  loginForm.dataset.listenerAttached = 'true';
             }
         }
