@@ -6,12 +6,18 @@ function getToken() {
 
 export async function apiRequest(endpoint, data = null, method = 'GET') {
     const token = getToken();
-    const options = { method, headers: { 'Content-Type': 'application/json' } };
+    const options = { 
+        method, 
+        headers: {} // Start with empty headers
+    };
+
     if (token) {
         options.headers['Authorization'] = `Bearer ${token}`;
     }
 
     if (data && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
+        // Only add Content-Type header when sending data
+        options.headers['Content-Type'] = 'application/json';
         options.body = JSON.stringify(data);
     }
 
@@ -97,5 +103,3 @@ export const getMerchItems = () => apiRequest('merch');
 export const createMerchItem = (data) => apiRequest('merch', data, 'POST');
 export const updateMerchItem = (id, data) => apiRequest(`merch/${id}`, data, 'PUT');
 export const deleteMerchItem = (id) => apiRequest(`merch/${id}`, null, 'DELETE');
-
-// --- END OF FILE public/js/api.js ---
