@@ -54,6 +54,7 @@ exports.handler = async (event) => {
 
         } else {
             if (!artistBandName) {
+                await client.query('ROLLBACK');
                 return { statusCode: 400, body: JSON.stringify({ message: 'Artist/Band Name is required.' }) };
             }
             const customer = await stripe.customers.create({ email, name: `${firstName} ${lastName}` });
@@ -70,17 +71,17 @@ exports.handler = async (event) => {
             bandId = bandResult.rows[0].id;
             
             // --- THIS IS THE FIX ---
-            // New users start with the 'free' ROLE.
-            // We let subscription_status remain NULL until they subscribe.
+            // New free users get both role AND subscription_status set to 'free'
             const role = 'free';
+            const subscriptionStatus = 'free';
 
             const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
             `;
-            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
+            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role, subscriptionStatus]);
 
-            if (pendingSong && bandId) {
+            if (pendingSong && typeof pendingSong === 'object' && bandId) {
                 const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = pendingSong;
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
                 const newTuning = tuning ?? 'E_STANDARD';
@@ -116,5 +117,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-
-// --- END OF FILE netlify/functions/signup.js ---
