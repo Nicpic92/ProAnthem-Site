@@ -1,79 +1,299 @@
-<!-- START OF FILE public/band.html -->
+<!-- START OF FILE public/ProjectAnthem.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Band Management - ProAnthem</title>
+    <title>Project Anthem - Block Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="tool flex flex-col min-h-screen">
+<body class="tool p-4 md:p-8">
+    <div id="access-denied" class="hidden text-center p-20">
+        <h2 class="text-3xl font-bold text-red-500">Subscription Required</h2>
+        <p class="mt-4 text-lg text-gray-300">Your trial has ended or your subscription is inactive.</p>
+        <a href="/pricing.html" class="btn btn-primary mt-6">Manage Subscription</a>
+    </div>
 
-    <header class="container mx-auto p-6 flex justify-between items-center">
-        <a href="/dashboard.html" class="flex items-center space-x-4">
-            <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
-            <h1 class="text-4xl font-bold">ProAnthem</h1>
-        </a>
-        <div id="nav-auth-section"></div>
-    </header>
+    <div id="password-reset-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold text-center mb-6">Change Your Password</h2>
+            <p class="text-center text-gray-400 mb-6">Welcome! As a new band member, you must change your temporary password before you can use the tool.</p>
+            <form id="password-reset-form" class="space-y-4">
+                <input id="current-password" type="password" required class="form-input" placeholder="Current Temporary Password">
+                <input id="new-password" type="password" required class="form-input" placeholder="New Password (min. 6 characters)">
+                <input id="confirm-password" type="password" required class="form-input" placeholder="Confirm New Password">
+                <button type="submit" class="w-full btn btn-primary py-3">Set New Password</button>
+            </form>
+            <p id="password-reset-error" class="text-red-500 text-sm mt-4 text-center h-5"></p>
+        </div>
+    </div>
 
-    <main class="container mx-auto px-6 py-12 flex-grow">
-        <div id="band-content" class="main-content-area" style="display: none;">
-            <div class="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                 <div>
-                    <h1 id="band-name-header" class="text-4xl font-bold">Your Band</h1>
-                    <p id="band-id-display" class="text-lg text-gray-400 mt-2">Loading...</p>
-                 </div>
-                 <a href="/dashboard.html" class="btn btn-secondary w-full md:w-auto">← Back to Dashboard</a>
+    <div id="tool-content" class="main-content-area max-w-6xl mx-auto hidden">
+        <header class="border-b border-gray-700 pb-4 mb-6 flex justify-between items-center">
+             <a href="/proanthem_index.html" class="flex items-center space-x-4">
+                <img src="/assets/logo_pa.jpg" alt="ProAnthem Logo" class="h-12">
+                <h1 class="text-4xl font-bold">Project Anthem</h1>
+            </a>
+            <div id="nav-auth-section">
+                <!-- Populated by auth script -->
             </div>
-
-            <!-- TAB NAVIGATION -->
-            <div class="mt-8 border-b border-gray-700">
-                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
-                    <button class="tab-button active" data-tab="members">Members</button>
-                    <button class="tab-button" data-tab="profile">Public Profile</button>
-                    <button class="tab-button" data-tab="calendar">Calendar</button>
-                    <button class="tab-button" data-tab="finances">Finances</button>
-                    <button class="tab-button" data-tab="merch">Merchandise</button>
-                </nav>
-            </div>
-
-            <!-- TAB CONTENT -->
-
-            <!-- Members Tab -->
-            <div id="tab-content-members" class="tab-content mt-8">
-                <div id="add-member-section" class="bg-gray-900 p-6 rounded-lg shadow-md admin-only" style="display: none;">
-                    <h2 class="text-2xl font-bold mb-4">Add New Band Member</h2>
-                    <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                        <input type="text" id="new-member-firstname" required class="form-input" placeholder="First Name">
-                        <input type="text" id="new-member-lastname" required class="form-input" placeholder="Last Name">
-                        <input type="email" id="new-member-email" required class="form-input" placeholder="Email Address">
-                        <div class="md:col-span-3 text-right"><button type="submit" class="btn btn-primary">Create Invite Link</button></div>
-                    </form>
-                    <div id="add-member-status-container" class="mt-3 hidden">
-                        <p id="add-member-status" class="text-sm h-5"></p>
-                        <div id="invite-link-container" class="mt-2 hidden">
-                            <input type="text" id="invite-link-input" readonly class="form-input w-full mt-1 bg-gray-800"><button id="copy-link-btn" class="btn btn-sm btn-secondary mt-2">Copy</button>
+        </header>
+        <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <aside id="sidebar" class="md-col-span-1 h-full">
+                <div class="sticky top-8 flex flex-col space-y-6 max-h-[90vh] overflow-y-auto pr-2">
+                    <div class="space-y-2 flex-shrink-0">
+                        <label for="songSelector" class="block text-sm font-medium text-gray-300 mb-1">Load Song</label>
+                        <select id="songSelector" class="form-select"></select>
+                        <div class="flex gap-2">
+                            <button id="saveBtn" class="btn btn-primary w-full">Save Song</button>
+                            <button id="historyBtn" class="btn btn-neutral" disabled>History</button>
+                        </div>
+                        <button id="importBtn" class="btn btn-secondary w-full">Import Song</button>
+                        <button id="setlistBtn" class="btn btn-secondary w-full">Show Builder</button>
+                        <a href="/pricing.html" class="btn btn-secondary w-full text-center block">Manage Subscription</a>
+                        <button id="deleteBtn" class="btn btn-danger w-full">Delete Song</button>
+                        <div id="statusMessage" class="text-center text-sm text-gray-400 h-4"></div>
+                    </div>
+                    <div class="space-y-6 flex-shrink-0">
+                        <div class="space-y-3 pt-4 border-t border-gray-700">
+                            <h3 class="font-semibold text-lg">Chord Palette</h3>
+                            <p class="text-xs text-gray-400">Click to insert. Ctrl/Cmd+Click to add to queue.</p>
+                            <div id="chordPalette" class="flex flex-wrap gap-2"></div>
+                            <div class="flex gap-2">
+                                <input type="text" id="newChordInput" class="form-input text-sm" placeholder="e.g. F#m7">
+                                <button id="addChordBtn" class="btn btn-secondary btn-sm whitespace-nowrap">Add</button>
+                            </div>
+                        </div>
+                        <div class="space-y-3 pt-4 border-t border-gray-700">
+                            <h3 class="font-semibold text-lg">Musical Settings</h3>
+                            <div class="space-y-2 text-right">
+                                <div>
+                                    <label for="tuningSelector" class="block text-sm font-medium text-gray-400 mb-1">Tuning</label>
+                                    <select id="tuningSelector" class="form-select form-input text-sm"></select>
+                                </div>
+                                <div>
+                                    <label for="capoFretInput" class="block text-sm font-medium text-gray-400 mb-1">Capo Fret</label>
+                                    <input type="number" id="capoFretInput" class="form-input text-sm w-24 ml-auto" value="0" min="0" max="12">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Transpose All Chords</label>
+                                    <div class="flex items-center gap-2 justify-end">
+                                        <button id="transposeDownBtn" class="btn btn-secondary btn-sm">-</button>
+                                        <span id="transposeStatus" class="font-bold text-lg w-8 text-center">0</span>
+                                        <button id="transposeUpBtn" class="btn btn-secondary btn-sm">+</button>
+                                    </div>
+                                </div>
+                                <div class="pt-2">
+                                    <label class="block text-sm font-medium text-gray-400 mb-1">Sounding Key</label>
+                                    <div id="soundingKeyDisplay" class="sounding-key-box">-</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="mt-8 bg-gray-900 p-8 rounded-lg shadow-md">
-                    <h2 class="text-2xl font-bold mb-4">Current Members</h2>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full"><thead class="bg-gray-800"><tr>
-                            <th class="p-3 text-left">Email</th><th class="p-3 text-left">Name</th>
-                            <th class="p-3 text-left">Role</th><th class="p-3 text-left admin-only" style="display: none;">Actions</th>
-                        </tr></thead><tbody id="members-table-body"></tbody></table>
+            </aside>
+            <div class="md:col-span-3 space-y-4">
+                <input type="text" id="titleInput" class="form-input text-xl" placeholder="Song Title">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <input type="text" id="artistInput" class="form-input" placeholder="Artist Name">
+                    <input type="text" id="durationInput" class="form-input" placeholder="Duration (e.g., 4:30)">
+                </div>
+                
+                <div id="audioSection" class="p-4 bg-gray-900 rounded-md space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-lg font-semibold">Audio</h3>
+                        <button id="manage-stems-btn" class="btn btn-secondary btn-sm" disabled>Manage Stems</button>
+                    </div>
+                    <h4 class="text-md font-semibold text-gray-400">Voice Memo</h4>
+                    <div id="audioPlayerContainer" class="hidden">
+                        <audio id="audioPlayer" controls class="w-full"></audio>
+                        <button id="deleteAudioBtn" class="btn btn-danger btn-sm mt-2">Delete Recording</button>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <button id="recordBtn" class="btn btn-record">Record</button>
+                        <button id="stopBtn" class="btn btn-secondary" disabled>Stop</button>
+                        <span id="recordingStatus" class="text-gray-400"></span>
+                    </div>
+                    <div id="stem-mixer-container" class="hidden pt-4 border-t border-gray-700">
+                        <h4 class="text-md font-semibold text-gray-400 mb-2">Stem Mixer</h4>
+                        <div id="stem-tracks-container" class="space-y-3">
+                            <!-- Stem tracks will be rendered here by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Live Preview</h3>
+                    <div id="livePreview" class="live-preview min-h-[100px] overflow-x-auto"></div>
+                </div>
+                
+                <div class="mb-2">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">Chord Queue (Click in a lyrics block to place)</label>
+                    <div class="flex items-center gap-2 p-2 bg-gray-900 rounded-md min-h-[40px]">
+                        <div id="chordQueue" class="flex flex-wrap gap-2 flex-grow"></div>
+                        <button id="clearQueueBtn" class="btn btn-danger btn-sm">Clear</button>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold mb-2">Song Builder</h3>
+                    <div id="song-blocks-container" class="space-y-4"></div>
+                    <div id="add-block-buttons" class="mt-4 flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="setlistModal" class="modal-overlay hidden">
+        <div class="modal-content space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold">Show Builder</h2>
+                <button id="closeSetlistModalBtn" class="text-2xl">&times;</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="setlistSelector" class="block text-sm font-medium text-gray-300 mb-1">Select Setlist</label>
+                    <div class="flex gap-2">
+                        <select id="setlistSelector" class="form-select flex-grow"></select>
+                        <button id="clone-setlist-btn" class="btn btn-neutral" disabled>Clone</button>
+                    </div>
+                </div>
+                <div>
+                    <label for="newSetlistInput" class="block text-sm font-medium text-gray-300 mb-1">Or Create New</label>
+                    <div class="flex gap-2"><input type="text" id="newSetlistInput" class="form-input"><button id="createSetlistBtn" class="btn btn-primary">Create</button></div>
+                </div>
+            </div>
+            <div id="setlistDetailsSection" class="hidden space-y-3 p-4 border border-gray-600 rounded-lg">
+                <h3 class="text-lg font-semibold">Gig Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="setlistVenue" class="block text-sm">Venue</label><input type="text" id="setlistVenue" class="form-input"></div>
+                    <div><label for="setlistDate" class="block text-sm">Date</label><input type="date" id="setlistDate" class="form-input"></div>
+                </div>
+                <div><label for="setlistLogoUrl" class="block text-sm">Band Logo Image URL (for watermark)</label><input type="text" id="setlistLogoUrl" class="form-input" placeholder="https://.../logo.png"></div>
+                <textarea id="setlistNotes" class="form-input hidden" rows="2"></textarea>
+                <div class="text-right"><button id="saveSetlistDetailsBtn" class="btn btn-primary btn-sm">Save Details</button></div>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-md">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 id="currentSetlistTitle" class="text-xl font-semibold">Select a setlist</h3>
+                    <div id="setlistTotalTime" class="text-lg font-bold text-indigo-300"></div>
+                </div>
+                
+                <div id="add-song-to-setlist-section" class="hidden my-4 p-3 border border-gray-700 rounded-md">
+                    <label for="add-song-select" class="block text-sm font-medium text-gray-300 mb-1">Add a Song from Library</label>
+                    <div class="flex gap-2">
+                        <select id="add-song-select" class="form-select flex-grow"></select>
+                        <button id="add-selected-song-btn" class="btn btn-secondary whitespace-nowrap">Add to Setlist</button>
+                    </div>
+                </div>
+                
+                <p class="text-sm text-gray-400 mb-2">Drag and drop songs or notes to reorder.</p>
+                <div id="setlistNoteForm" class="hidden">
+                    <div class="grid grid-cols-3 gap-2 mb-4 items-center">
+                        <input type="text" id="newSetlistNoteInput" class="form-input text-sm col-span-2" placeholder="e.g., Intermission, Speech...">
+                        <input type="text" id="newSetlistNoteDuration" class="form-input text-sm" placeholder="Duration (e.g., 5:00)">
+                        <button id="addSetlistNoteBtn" class="btn btn-neutral btn-sm whitespace-nowrap col-span-3">Add Note/Break</button>
+                    </div>
+                </div>
+                <ul id="songsInSetlist" class="space-y-2"></ul>
+            </div>
+            <div class="flex justify-between items-center gap-2 flex-wrap pt-4 border-t border-gray-700">
+                <button id="deleteSetlistBtn" class="btn btn-danger" disabled>Delete Setlist</button>
+                <div class="flex justify-end gap-2 flex-wrap">
+                    <button id="printDrummerSetlistBtn" class="btn btn-secondary" disabled>Print for Drummer</button>
+                    <button id="printSetlistBtn" class="btn btn-secondary" disabled>Print Full Band</button>
+                    <button id="start-show-btn" class="btn btn-secondary" disabled>Start Show</button>
+                    <button id="addSongToSetlistBtn" class="btn btn-primary" disabled>Add Current Song</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="import-modal" class="modal-overlay hidden">
+        <div class="modal-content space-y-4">
+            <h2 class="text-2xl font-bold">Import Song</h2>
+            <textarea id="import-textarea" class="form-textarea w-full" rows="15"></textarea>
+            <div class="flex justify-end gap-4">
+                <button id="import-cancel-btn" class="btn btn-neutral">Cancel</button>
+                <button id="import-confirm-btn" class="btn btn-primary">Import</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="fret-selection-modal" class="hidden fixed z-50 bg-gray-800 border border-gray-600 rounded-lg shadow-xl p-4 space-y-2">
+        <label for="fret-number-selector" class="text-sm text-gray-300">Select Fret:</label>
+        <select id="fret-number-selector" class="form-select text-sm w-full"></select>
+        <div class="flex justify-end gap-2">
+            <button id="cancel-fret-btn" class="btn btn-neutral btn-sm">Cancel</button>
+            <button id="add-fret-btn" class="btn btn-primary btn-sm">Add</button>
+        </div>
+    </div>
+
+    <div id="history-modal" class="modal-overlay hidden">
+        <div class="modal-content !max-w-4xl space-y-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-2xl font-bold" id="history-modal-title">Version History</h2>
+                <button id="close-history-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 h-[60vh]">
+                <div class="md:col-span-1 bg-gray-800 p-4 rounded-lg overflow-y-auto">
+                    <ul id="history-version-list" class="space-y-2"></ul>
+                </div>
+                <div class="md:col-span-2 bg-gray-800 p-4 rounded-lg overflow-y-auto">
+                    <div id="history-preview-pane" class="live-preview !bg-transparent !border-0">
+                        <p class="text-gray-400">Select a version to preview its content.</p>
                     </div>
                 </div>
             </div>
+            <div class="flex justify-end gap-4 pt-4 border-t border-gray-700">
+                <button id="close-history-modal-btn-2" class="btn btn-neutral">Close</button>
+                <button id="restore-version-btn" class="btn btn-primary" disabled>Restore This Version</button>
+            </div>
+        </div>
+    </div>
 
-            <!-- Profile Tab -->
-            <div id="tab-content-profile" class="tab-content mt-8 hidden">
-                 <form id="profile-form" class="bg-gray-900 p-8 rounded-lg shadow-md space-y-6">
-                    <div class="flex justify-between items-start">
-                        <h2 class="text-2xl font-bold">Edit Public Profile & Press Kit</h2>
-                         <div class="flex items-center admin-only" style="display: none;">
-                            <label for="press_kit_enabled" class="mr-3 text-sm">Enable Public Page</label>
-                            <input type="checkbox" id="press
+    <div id="notation-palette" class="hidden absolute z-50 bg-gray-900 border border-gray-600 rounded-lg shadow-xl p-2 flex flex-col gap-1">
+        <button class="btn btn-sm btn-secondary" data-notation="h" title="Hammer-on">h</button>
+        <button class="btn btn-sm btn-secondary" data-notation="p" title="Pull-off">p</button>
+        <button class="btn btn-sm btn-secondary" data-notation="/" title="Slide Up">/</button>
+        <button class="btn btn-sm btn-secondary" data-notation="\\" title="Slide Down">\</button>
+        <button class="btn btn-sm btn-secondary" data-notation="b" title="Bend">b</button>
+        <button class="btn btn-sm btn-secondary" data-notation="~" title="Vibrato">~</button>
+    </div>
+
+    <div id="chord-diagram-popup" class="hidden absolute z-50 w-32 h-40 p-2 bg-white rounded-lg shadow-2xl border border-gray-400 pointer-events-none">
+        <!-- SVG will be injected here by JavaScript -->
+    </div>
+
+    <div id="stems-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2 class="text-2xl font-bold">Manage Stems for "<span id="stems-modal-song-title"></span>"</h2>
+            <div class="my-4">
+                <h3 class="font-semibold mb-2">Upload New Stem</h3>
+                <form id="stem-upload-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <input type="text" id="stem-instrument-name" required class="form-input" placeholder="Instrument (e.g., Drums)">
+                    <input type="file" id="stem-file-input" required class="form-input" accept="audio/*">
+                    <button type="submit" class="btn btn-primary">Upload</button>
+                </form>
+                <div id="stem-upload-status" class="text-sm mt-2 h-5"></div>
+            </div>
+            <div class="pt-4 border-t border-gray-700">
+                <h3 class="font-semibold mb-2">Current Stems</h3>
+                <div id="current-stems-list" class="space-y-2"></div>
+            </div>
+            <div class="text-right mt-6">
+                <button id="close-stems-modal-btn" class="btn btn-secondary">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>
+<!-- END OF FILE public/ProjectAnthem.html -->
