@@ -31,7 +31,7 @@
             <aside class="md:col-span-1">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-bold">Your Plots</h2>
-                    <a href="/band-dashboard.html" class="text-sm text-indigo-400 hover:underline">← Dashboard</a>
+                    <a href="/band.html" class="text-sm text-indigo-400 hover:underline">← Band Manager</a>
                 </div>
                 <div id="plot-list" class="space-y-2"></div>
                 <button id="new-plot-btn" class="btn btn-primary w-full mt-4">Create New Plot</button>
@@ -62,7 +62,6 @@
                     <div id="tab-content-layout" class="tab-content">
                         <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
                             <div id="item-palette" class="lg:col-span-1 bg-gray-900 p-4 rounded-lg h-full">
-                                <h3 class="font-bold mb-2">Drag Items to Stage</h3>
                                 <!-- Items will be populated by JS -->
                             </div>
                             <div id="stage-area" class="lg:col-span-4 bg-gray-800 min-h-[500px] rounded-lg relative border-2 border-dashed border-gray-600 overflow-hidden">
@@ -108,7 +107,7 @@
         <div id="access-denied" class="text-center py-20" style="display: none;">
             <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
             <p class="mt-4 text-lg text-gray-300">You must be part of a band to use the Stage Plot Editor.</p>
-            <a href="/band-dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>
+            <a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>
         </div>
     </main>
     
@@ -117,7 +116,6 @@
     </footer>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script type="module" src="/js/auth.js"></script>
     <script type="module" src="/js/stagePlotEditor.js"></script>
 </body>
 </html>
