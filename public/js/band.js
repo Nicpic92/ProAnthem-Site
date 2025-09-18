@@ -1,13 +1,13 @@
 // --- START OF FILE public/js/band.js ---
 
-import { getUserPayload, checkAccess } from './auth.js';
+import { getUserPayload, checkAccess } from '/js/auth.js';
 import { 
     getBandDetails, getBandMembers, addBandMember, removeBandMember as apiRemoveMember,
     getBandProfile, updateBandProfile,
     getCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
     getTransactions, createTransaction, updateTransaction, deleteTransaction,
     getMerchItems, createMerchItem, updateMerchItem, deleteMerchItem
-} from './api.js';
+} from '/js/api.js';
 
 let isAdmin = false;
 
@@ -17,8 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!user || !user.band_id) {
         document.getElementById('band-content').style.display = 'none';
         const ad = document.getElementById('access-denied');
-        ad.innerHTML = `<h2 class="text-3xl font-bold text-red-500">Page Not Available</h2><p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p><a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>`;
-        ad.style.display = 'block';
+        if (ad) {
+            ad.innerHTML = `<h2 class="text-3xl font-bold text-red-500">Page Not Available</h2><p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p><a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>`;
+            ad.style.display = 'block';
+        }
         return;
     }
     initializeBandPage(user);
@@ -426,4 +428,3 @@ async function handleSaveMerchItem(e) {
         loadMerch();
     } catch(error) { alert(`Save failed: ${error.message}`); }
 }
-// --- END OF FILE public/js/band.js ---
