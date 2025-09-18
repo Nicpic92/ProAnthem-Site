@@ -43,20 +43,17 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE FINAL, REWRITTEN LOGIC BLOCK ---
-        // It now correctly checks the ROLE first, aligning with the database schema.
-
-        // Priority 1: Check for special roles or manual DB statuses.
+        // --- THIS IS THE FINAL, CORRECTED LOGIC BLOCK ---
+        
+        // Priority 1: Handle special, non-Stripe roles first.
         if (user.role === 'free') {
             subStatus = 'free';
+        } else if (user.role === 'admin') {
+            subStatus = 'active'; // System admins are always active
         } else if (user.subscription_status === 'admin_granted') {
             subStatus = 'admin_granted';
         } 
-        // Priority 2: System admin always has access.
-        else if (user.role === 'admin') {
-            subStatus = 'active'; 
-        } 
-        // Priority 3: Band members inherit status from their admin.
+        // Priority 2: Handle band members, who inherit status.
         else if (user.role === 'band_member') {
             const { rows: [bandAdmin] } = await client.query(
                 `SELECT role, subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
@@ -74,7 +71,7 @@ exports.handler = async (event) => {
                 subStatus = 'inactive';
             }
         } 
-        // Priority 4 (Fallback): If no other rules match, the user must be a paying solo/band_admin. Check Stripe.
+        // Priority 3 (Fallback): If no other rules match, the user MUST be a paying solo/band_admin. Check Stripe.
         else {
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
@@ -83,7 +80,7 @@ exports.handler = async (event) => {
 
                 let newStatus = 'inactive';
                 let newPlan = null;
-                let newRole = user.role; 
+                let updatedRole = user.role; 
 
                 if (subscriptions.data.length > 0) {
                     const sub = subscriptions.data[0];
@@ -92,22 +89,23 @@ exports.handler = async (event) => {
 
                     if (priceId === BAND_PLAN_PRICE_ID) {
                         newPlan = 'band';
-                        newRole = 'band_admin';
+                        updatedRole = 'band_admin';
                     } else if (priceId === SOLO_PLAN_PRICE_ID) {
                         newPlan = 'solo';
-                        newRole = 'solo';
+                        updatedRole = 'solo';
                     }
                 }
                 
-                if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || newRole !== user.role) {
+                if (newStatus !== user.subscription_status || newPlan !== user.subscription_plan || updatedRole !== user.role) {
                     await client.query(
                         'UPDATE users SET subscription_status = $1, subscription_plan = $2, role = $3 WHERE email = $4', 
-                        [newStatus, newPlan, newRole, user.email]
+                        [newStatus, newPlan, updatedRole, user.email]
                     );
                 }
                 subStatus = newStatus;
-                userRole = newRole; // Update role in token if it changed
+                userRole = updatedRole; // Update role in token if it changed
             } else {
+                // User has no Stripe ID, no special role/status. They are inactive.
                 subStatus = 'inactive';
             }
         }
