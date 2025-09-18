@@ -108,15 +108,9 @@ export async function performLogin(credentials) {
     try {
         const result = await login(credentials);
         if (result.token) {
-            localStorage.setItem('user_token', result.token);
-            const user = getUserPayload(); // Get payload from the NEW token
-
-            // Centralized redirection logic. This is the single source of truth.
-            if (user.force_reset) {
-                window.location.href = '/ProjectAnthem.html';
-            } else {
-                window.location.href = '/dashboard.html';
-            }
+            // Redirect to the handler page with the new token.
+            // This is the single, authoritative action after a successful login.
+            window.location.href = `/auth-handler.html?token=${result.token}`;
         } else {
             throw new Error("Login failed: No token returned.");
         }
