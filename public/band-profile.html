@@ -1,0 +1,206 @@
+<!-- START OF FILE public/band-profile.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Band Profile - ProAnthem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        body {
+            background-color: #111827;
+            color: #f3f4f6;
+        }
+        .hero-image {
+            height: 50vh;
+            background-size: cover;
+            background-position: center;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <div id="loading-state" class="text-center p-20">
+        <h1 class="text-3xl font-bold">Loading Band Profile...</h1>
+    </div>
+
+    <div id="error-state" class="text-center p-20 hidden">
+        <h1 class="text-3xl font-bold text-red-500">Profile Not Found</h1>
+        <p id="error-message" class="mt-4 text-lg text-gray-300"></p>
+        <a href="/proanthem_index.html" class="btn btn-primary mt-6">Return Home</a>
+    </div>
+
+    <div id="profile-content" class="hidden">
+        <header id="hero-image-container" class="hero-image relative flex items-center justify-center">
+            <div class="absolute inset-0 bg-black opacity-50"></div>
+            <div class="relative text-center">
+                <img id="band-logo" src="" alt="Band Logo" class="h-24 mx-auto mb-4 hidden">
+                <h1 id="band-name" class="text-6xl font-extrabold text-white tracking-tight"></h1>
+            </div>
+        </header>
+
+        <main class="container mx-auto px-6 py-12">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                <!-- Left Column: Bio & Photos -->
+                <div class="lg:col-span-2">
+                    <section id="bio-section">
+                        <h2 class="text-3xl font-bold border-b-2 border-indigo-500 pb-2 mb-4">Bio</h2>
+                        <p id="band-bio" class="text-gray-300 leading-relaxed whitespace-pre-wrap"></p>
+                    </section>
+                    <section id="gallery-section" class="mt-12 hidden">
+                        <h2 class="text-3xl font-bold border-b-2 border-indigo-500 pb-2 mb-4">Gallery</h2>
+                        <div id="photo-gallery" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
+                    </section>
+                </div>
+
+                <!-- Right Column: Events & Links -->
+                <div>
+                    <section id="events-section" class="mb-12">
+                        <h2 class="text-3xl font-bold border-b-2 border-indigo-500 pb-2 mb-4">Upcoming Events</h2>
+                        <div id="events-list" class="space-y-4"></div>
+                    </section>
+                    <section id="links-section">
+                        <h2 class="text-3xl font-bold border-b-2 border-indigo-500 pb-2 mb-4">Links</h2>
+                        <div id="links-list" class="space-y-2"></div>
+                    </section>
+                     <section id="contact-section" class="mt-12">
+                        <h2 class="text-3xl font-bold border-b-2 border-indigo-500 pb-2 mb-4">Contact</h2>
+                        <div id="contact-list" class="space-y-2"></div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="text-center py-6 text-gray-500">
+        <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
+    </footer>
+
+    <script type="module">
+        document.addEventListener('DOMContentLoaded', async () => {
+            const loadingEl = document.getElementById('loading-state');
+            const errorEl = document.getElementById('error-state');
+            const profileEl = document.getElementById('profile-content');
+            
+            try {
+                // 1. Get the slug from the URL path
+                const pathParts = window.location.pathname.split('/').filter(Boolean);
+                const slug = pathParts[pathParts.length - 1];
+
+                if (!slug) {
+                    throw new Error("Could not determine the band's URL slug.");
+                }
+
+                // 2. Fetch data from the API endpoint using the slug
+                const response = await fetch(`/.netlify/functions/bandpage?slug=${slug}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Failed to fetch profile data.');
+                }
+                
+                // 3. Populate the page with the fetched data
+                const { profile, events } = data;
+
+                // Hero section
+                document.title = `${profile.band_name} - ProAnthem`;
+                document.getElementById('band-name').textContent = profile.band_name;
+                if (profile.hero_image_url) {
+                    document.getElementById('hero-image-container').style.backgroundImage = `url('${profile.hero_image_url}')`;
+                }
+                if (profile.logo_url) {
+                    const logo = document.getElementById('band-logo');
+                    logo.src = profile.logo_url;
+                    logo.classList.remove('hidden');
+                }
+
+                // Bio
+                document.getElementById('band-bio').textContent = profile.bio || 'No biography provided.';
+
+                // Photo Gallery
+                if (profile.photo_gallery && profile.photo_gallery.length > 0) {
+                    const galleryEl = document.getElementById('photo-gallery');
+                    profile.photo_gallery.forEach(url => {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        img.className = 'w-full h-full object-cover rounded-lg shadow-md';
+                        galleryEl.appendChild(img);
+                    });
+                    document.getElementById('gallery-section').classList.remove('hidden');
+                }
+                
+                // Events
+                const eventsList = document.getElementById('events-list');
+                if (events && events.length > 0) {
+                    events.forEach(event => {
+                        const eventDate = new Date(event.event_date);
+                        const eventEl = document.createElement('div');
+                        eventEl.className = 'bg-gray-800 p-4 rounded-lg';
+                        eventEl.innerHTML = `
+                            <p class="font-bold">${event.title}</p>
+                            <p class="text-sm text-gray-400">${event.venue_name || ''}</p>
+                            <p class="text-sm text-indigo-400">${eventDate.toLocaleString()}</p>
+                            ${event.external_url ? `<a href="${event.external_url}" target="_blank" class="text-sm text-red-400 hover:underline">More Info / Tickets</a>` : ''}
+                        `;
+                        eventsList.appendChild(eventEl);
+                    });
+                } else {
+                    eventsList.innerHTML = '<p class="text-gray-400">No upcoming public events.</p>';
+                }
+
+                // Links
+                const linksList = document.getElementById('links-list');
+                const socialLinks = {
+                    website: profile.links.website,
+                    spotify: profile.links.spotify,
+                    apple_music: profile.links.apple_music,
+                    youtube: profile.links.youtube,
+                    instagram: profile.links.instagram,
+                    facebook: profile.links.facebook,
+                };
+                let hasLinks = false;
+                for (const [name, url] of Object.entries(socialLinks)) {
+                    if (url) {
+                        hasLinks = true;
+                        const linkEl = document.createElement('a');
+                        linkEl.href = url;
+                        linkEl.target = '_blank';
+                        linkEl.className = 'block p-3 bg-gray-800 rounded-lg hover:bg-gray-700';
+                        linkEl.textContent = name.charAt(0).toUpperCase() + name.slice(1).replace('_', ' ');
+                        linksList.appendChild(linkEl);
+                    }
+                }
+                if (!hasLinks) linksList.innerHTML = '<p class="text-gray-400">No links provided.</p>';
+                
+                // Contact
+                const contactList = document.getElementById('contact-list');
+                 let hasContact = false;
+                if(profile.contact.public) {
+                    hasContact = true;
+                    contactList.innerHTML += `<div><strong>Public:</strong> <a href="mailto:${profile.contact.public}" class="text-indigo-400">${profile.contact.public}</a></div>`;
+                }
+                 if(profile.contact.booking) {
+                    hasContact = true;
+                    contactList.innerHTML += `<div><strong>Booking:</strong> <a href="mailto:${profile.contact.booking}" class="text-indigo-400">${profile.contact.booking}</a></div>`;
+                }
+                if(!hasContact) contactList.innerHTML = '<p class="text-gray-400">No contact info provided.</p>';
+
+
+                // Show content
+                loadingEl.classList.add('hidden');
+                profileEl.classList.remove('hidden');
+
+            } catch (err) {
+                loadingEl.classList.add('hidden');
+                document.getElementById('error-message').textContent = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
+<!-- END OF FILE public/band-profile.html -->
