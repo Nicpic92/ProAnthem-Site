@@ -234,14 +234,16 @@
                 if (pendingSongJSON) localStorage.removeItem('pendingSong');
                 const credentials = { email: payload.email, password: payload.password };
                 
-                // Log the user in, which will then handle redirection
                 await performLogin(credentials);
 
-                // After login, if a paid plan was selected, start checkout.
-                // This will only run if performLogin() doesn't redirect.
-                // NOTE: performLogin now handles redirection, so this part might be adjusted based on its final logic.
-                // For now, we'll keep it simple: signup, login, then user decides to upgrade.
-                // The updated performLogin will take them to the right place.
+                // This is the key change: after login, if a paid plan was chosen,
+                // we now start the checkout process.
+                if (planToCheckout) {
+                    await startCheckout(planToCheckout);
+                } else {
+                    // Otherwise, for free signups or invited users, go to the dashboard.
+                    window.location.href = '/dashboard.html';
+                }
 
             } catch(error) {
                 signupError.textContent = error.message;
