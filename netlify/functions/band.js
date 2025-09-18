@@ -32,9 +32,10 @@ exports.handler = async (event) => {
     
     try {
         await client.connect();
+        // --- THIS IS THE FIX: Corrected path parsing logic ---
         const pathParts = event.path.replace('/.netlify/functions', '').replace('/api', '').split('/').filter(Boolean);
-        const resource = pathParts.length > 2 ? pathParts[2] : 'details'; // 'members', 'profile', 'events', etc.
-        const resourceId = pathParts.length > 3 ? parseInt(pathParts[3], 10) : null;
+        const resource = pathParts.length > 1 ? pathParts[1] : 'details'; // Correctly gets 'members', 'profile', etc.
+        const resourceId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
         
         // --- ROUTING FOR /api/band ---
         
