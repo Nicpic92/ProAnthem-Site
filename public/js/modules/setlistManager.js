@@ -280,4 +280,107 @@ async function handleAddSongFromBuilder() {
 
 async function handleRemoveItemFromSetlist(itemLi) {
     if (isDemo) { UI.setStatus(document.getElementById('statusMessage'), 'Setlists not saved in demo.'); itemLi.remove(); recalculateSetlistTime(); return; }
- 
+    const setlistId = el.setlistSelector.value;
+    const itemId = itemLi.dataset.itemId;
+    const itemType = itemLi.dataset.itemType;
+    if (!setlistId || !itemId) return;
+    if (confirm("Are you sure you want to remove this item from the setlist?")) {
+        try {
+            if (itemType === 'song') {
+                await api.removeSongFromSetlist(setlistId, itemId);
+            }
+            itemLi.remove();
+            await saveSetlistOrderAndNotes();
+        } catch(error) {
+            UI.setStatus(document.getElementById('statusMessage'), `Failed to remove item: ${error.message}`, true);
+            await handleSetlistSelection(setlistId);
+        }
+    }
+}
+
+function handleAddSetlistNote() {
+    const noteText = el.newSetlistNoteInput.value.trim();
+    const noteDuration = el.newSetlistNoteDuration.value.trim();
+    if (!noteText) return;
+    const noteId = `note_${Date.now()}`;
+    const li = document.createElement('li');
+    li.className = 'flex justify-between items-center p-2 bg-gray-750 border border-dashed border-gray-600 rounded cursor-grab';
+    li.dataset.itemId = noteId;
+    li.dataset.itemType = 'note';
+    li.dataset.duration = noteDuration || '0:00';
+    const gripHandle = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical inline-block mr-2 text-gray-400" viewBox="0 0 16 16"><path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>`;
+    li.innerHTML = `<div class="flex-grow"><span>${gripHandle}<em class="text-indigo-300">${noteText}</em></span></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${noteDuration || '0:00'}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`;
+    el.songsInSetlist.appendChild(li);
+    el.newSetlistNoteInput.value = '';
+    el.newSetlistNoteDuration.value = '';
+    saveSetlistOrderAndNotes();
+}
+
+function parseTimeToSeconds(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return 0;
+    const parts = timeStr.split(':').map(Number);
+    if (parts.length === 2) { return (parts[0] * 60) + (parts[1] || 0); }
+    if (parts.length === 1) { return parts[0]; }
+    return 0;
+}
+
+function formatSecondsToTime(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.round(seconds % 60);
+    let timeStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    if (h > 0) { timeStr = `${h}:${timeStr}`; }
+    return timeStr;
+}
+
+function recalculateSetlistTime() {
+    const items = document.querySelectorAll('#songsInSetlist li');
+    let totalSeconds = 0;
+    items.forEach(item => { totalSeconds += parseTimeToSeconds(item.dataset.duration); });
+    el.setlistTotalTime.textContent = `Total Time: ${formatSecondsToTime(totalSeconds)}`;
+}
+
+function getSongKeyInfo(song) {
+    const SHARP_SCALE = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
+    const TUNINGS = { E_STANDARD: { name: "E Standard" } };
+    
+    const transposeChord = (chord, amount) => {
+        const regex = /^([A-G][b#]?)(.*)/;
+        const match = chord.match(regex);
+        if (!match) return chord;
+        let note = match[1];
+        let index = SHARP_SCALE.indexOf(note);
+        if (index === -1) {
+            const flatNotes = { 'Bb':'A#', 'Db':'C#', 'Eb':'D#', 'Gb':'F#', 'Ab':'G#'};
+            note = flatNotes[note] || note;
+            index = SHARP_SCALE.indexOf(note);
+        }
+        if (index === -1) return chord;
+        const newIndex = (index + amount + 12) % 12;
+        return SHARP_SCALE[newIndex] + match[2];
+    };
+
+    let parts = [];
+    const firstChordMatch = song.song_blocks?.[0]?.content?.match(/\[([^\]]+)\]/);
+    if (firstChordMatch) {
+        const originalKey = firstChordMatch[1];
+        const soundingKey = transposeChord(originalKey, (song.transpose || 0) + (song.capo || 0));
+        parts.push(`Key: ${soundingKey}`);
+    }
+    if (song.capo > 0) { parts.push(`Capo ${song.capo}`); }
+    if (song.tuning && song.tuning !== 'E_STANDARD') {
+        const tuningName = TUNINGS[song.tuning]?.name || song.tuning;
+        parts.push(tuningName);
+    }
+    return parts.join(' | ');
+}
+
+function handleStartShow() {
+    const setlistId = el.setlistSelector.value;
+    if (setlistId) {
+        window.open(`/show.html?id=${setlistId}`, '_blank');
+    } else {
+        alert('Please select a setlist to start the show.');
+    }
+}
+// --- END OF FILE public/js/modules/setlistManager.js ---
