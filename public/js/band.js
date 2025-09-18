@@ -11,11 +11,16 @@ import {
 
 let isAdmin = false;
 
-document.addEventListener('DOMContentLoaded', () => {
+// --- THIS IS THE FIX ---
+// Use the 'load' event to ensure all scripts and modules are ready before executing.
+window.addEventListener('load', () => {
     if (!checkAccess()) return;
     const user = getUserPayload();
     if (!user || !user.band_id) {
-        document.getElementById('band-content').style.display = 'none';
+        // Hide the main content area if it exists, in case of partial rendering
+        const bandContent = document.getElementById('band-content');
+        if (bandContent) bandContent.style.display = 'none';
+        
         const ad = document.getElementById('access-denied');
         if (ad) {
             ad.innerHTML = `<h2 class="text-3xl font-bold text-red-500">Page Not Available</h2><p class="mt-4 text-lg text-gray-300">This page is for users who are part of a band.</p><a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>`;
@@ -144,8 +149,10 @@ async function handleAddMember(event) {
 }
 
 function copyInviteLink() {
-    document.getElementById('invite-link-input').select();
-    document.execCommand('copy');
+    const input = document.getElementById('invite-link-input');
+    input.select();
+    input.setSelectionRange(0, 99999); // For mobile devices
+    navigator.clipboard.writeText(input.value);
     document.getElementById('copy-link-btn').textContent = 'Copied!';
     setTimeout(() => { document.getElementById('copy-link-btn').textContent = 'Copy'; }, 2000);
 }
@@ -266,10 +273,12 @@ function openEventModal(event) {
     document.getElementById('event-modal-title').textContent = event ? 'Edit Event' : 'Add Event';
     document.getElementById('event-id').value = event ? event.id : '';
     form.elements['title'].value = event ? event.title : '';
-    if(event) {
+    if(event && event.event_date) {
         const d = new Date(event.event_date);
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         form.elements['event_date'].value = d.toISOString().slice(0, 16);
+    } else {
+        form.elements['event_date'].value = '';
     }
     form.elements['venue_name'].value = event ? (event.venue_name || '') : '';
     form.elements['details'].value = event ? (event.details || '') : '';
