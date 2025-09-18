@@ -611,4 +611,3 @@ function renderTransposedTab(tabBlock) {
 function renderTransposedTabForHistory(tabBlock, historyData) {
      return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
-// --- END OF FILE public/js/modules/songEditor.js ---
