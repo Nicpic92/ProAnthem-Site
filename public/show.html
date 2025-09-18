@@ -13,7 +13,6 @@
         .scroll-controls, .view-controls { display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem; }
         .view-controls { border-left: 1px solid #333; }
         
-        /* --- CSS FIX: Make button text readable --- */
         .control-button { background: #222; border: 1px solid #555; padding: 0.5rem 1rem; cursor: pointer; border-radius: 8px; font-size: 1rem; color: #fff; }
         
         .control-button.active { background-color: #3b82f6; border-color: #2563eb; }
@@ -25,7 +24,6 @@
         .chord { color: #facc15; }
         .footer-nav { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-top: 1px solid #444; }
         
-        /* --- CSS FIX: Make button text readable --- */
         .nav-button { background: #222; border: 1px solid #555; padding: 1rem 2rem; cursor: pointer; border-radius: 8px; font-size: 2vw; color: #fff; }
         
         .next-song { text-align: right; }
@@ -138,7 +136,6 @@
             }
         });
         
-        // --- JAVASCRIPT FIX: Helper function to parse chords ---
         function parseLineForRender(rawLine) {
             if (!rawLine || !rawLine.trim()) return { chordLine: '&nbsp;', lyricLine: '&nbsp;' }; // Use &nbsp; for empty lines to maintain spacing
             let chordLine = ""; 
