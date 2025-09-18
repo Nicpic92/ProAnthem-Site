@@ -11,8 +11,10 @@ import { checkForcedReset } from './passwordResetHandler.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. First, check if the user has access to this page at all.
+    // The checkAccess function will also reveal the main content area.
     const hasAccess = checkAccess();
     if (!hasAccess) {
+        // If checkAccess fails, it handles the redirect, so we stop execution here.
         return; 
     }
 
@@ -23,7 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // We pass the isDemoMode flag so modules can adapt their behavior (e.g., disable saving).
     songEditor.init(isDemoMode);
     setlistManager.init(isDemoMode);
-    // --- FIX: Pass the reloadSong function from the songEditor into the historyManager ---
     historyManager.init(isDemoMode, songEditor.reloadSong);
 
     // 3. Handle the special case where a new user must reset their temporary password.
