@@ -109,7 +109,6 @@ export async function performLogin(credentials) {
         const result = await login(credentials);
         if (result.token) {
             // Redirect to the handler page with the new token.
-            // This is the single, authoritative action after a successful login.
             window.location.href = `/auth-handler.html?token=${result.token}`;
         } else {
             throw new Error("Login failed: No token returned.");
