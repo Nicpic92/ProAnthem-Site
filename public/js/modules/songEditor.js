@@ -1,6 +1,6 @@
 // --- START OF FILE public/js/modules/songEditor.js ---
 
-import * as api from '../api.js';
+import * as api from '/js/api.js';
 import * as UI from './ui.js';
 import * as songDataManager from './songDataManager.js';
 import * as fretboardController from './fretboardController.js';
@@ -9,9 +9,9 @@ import * as audioManager from './audioManager.js';
 import { parsePastedSong } from './importParser.js';
 import { openHistoryModal } from './historyManager.js';
 import { updateCurrentSong as updateSetlistSongContext } from './setlistManager.js';
-import { getUserPayload } from '../auth.js';
+import { getUserPayload } from '/js/auth.js';
 import * as diagramRenderer from './diagramRenderer.js';
-import { getChordDiagrams } from '../api.js';
+import { getChordDiagrams } from '/js/api.js';
 import * as stemManager from './stemManager.js';
 
 // --- STATE MANAGEMENT ---
