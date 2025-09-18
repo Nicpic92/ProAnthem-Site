@@ -43,11 +43,16 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE REWRITTEN AND FIXED LOGIC BLOCK ---
+        // --- THIS IS THE FIX ---
+        // Added a new high-priority check. If the user is on the free plan,
+        // we respect that status and do not proceed to check Stripe.
 
+        // Rule 0: Always respect a manually set 'free' status.
+        if (user.subscription_status === 'free') {
+            subStatus = 'free';
+        }
         // Rule 1: Always respect a manually granted admin status.
-        // This prevents the system from overwriting a grant with 'inactive' after a Stripe check.
-        if (user.subscription_status === 'admin_granted') {
+        else if (user.subscription_status === 'admin_granted') {
             subStatus = 'admin_granted';
         } else if (user.role === 'admin') {
             // Rule 2: System admins always have access.
@@ -59,8 +64,8 @@ exports.handler = async (event) => {
                 [user.band_id]
             );
 
-            if (bandAdmin && bandAdmin.subscription_status === 'admin_granted') {
-                subStatus = 'admin_granted';
+            if (bandAdmin && (bandAdmin.subscription_status === 'admin_granted' || bandAdmin.subscription_status === 'free')) {
+                subStatus = bandAdmin.subscription_status;
             } else if (bandAdmin && bandAdmin.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: bandAdmin.stripe_customer_id,
