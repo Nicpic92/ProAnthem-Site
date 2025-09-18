@@ -3,7 +3,6 @@
 import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
-    // This now ONLY handles UI updates and access checks, NOT redirection of logged-in users.
     updateNav();
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
@@ -89,7 +88,6 @@ export function checkAccess() {
     }
 }
 
-
 async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
@@ -111,9 +109,9 @@ export async function performLogin(credentials) {
         const result = await login(credentials);
         if (result.token) {
             localStorage.setItem('user_token', result.token);
-            const user = getUserPayload(); // Get the new user payload from the NEW token.
+            const user = getUserPayload(); // Get payload from the NEW token
 
-            // This is now the SINGLE SOURCE OF TRUTH for redirection after a successful login.
+            // Centralized redirection logic. This is the single source of truth.
             if (user.force_reset) {
                 window.location.href = '/ProjectAnthem.html';
             } else {
