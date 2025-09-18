@@ -1,3 +1,5 @@
+// --- START OF FILE netlify/functions/bandpage.js ---
+
 const { Client } = require('pg');
 
 exports.handler = async (event) => {
@@ -69,3 +71,4 @@ exports.handler = async (event) => {
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } 
 };
+// --- END OF FILE netlify/functions/bandpage.js ---
