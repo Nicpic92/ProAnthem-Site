@@ -1,0 +1,35 @@
+<!-- START OF FILE public/auth-handler.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Authenticating...</title>
+    <style>
+        body { background-color: #111827; color: #f3f4f6; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    </style>
+</head>
+<body>
+    <h1>Authenticating...</h1>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+
+            if (token) {
+                // Save the new token from the URL to local storage.
+                localStorage.setItem('user_token', token);
+
+                // Now, redirect to the dashboard. The dashboard page will load
+                // in a completely fresh state with the correct token already in place.
+                window.location.href = '/dashboard.html';
+            } else {
+                // If there's no token, something went wrong. Go back to the homepage.
+                console.error('Auth handler called without a token.');
+                window.location.href = '/proanthem_index.html';
+            }
+        });
+    </script>
+</body>
+</html>
+<!-- END OF FILE public/auth-handler.html -->
