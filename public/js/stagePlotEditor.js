@@ -1,8 +1,8 @@
 // --- START OF FILE public/js/stagePlotEditor.js ---
 
-import { checkAccess, getUserPayload } from './auth.js';
-import { getStagePlots, getStagePlot, createStagePlot, updateStagePlot, deleteStagePlot } from './api.js';
-import { ICONS } from './modules/stagePlotIcons.js'; // NEW: Import the icon library
+import { checkAccess, getUserPayload } from '/js/auth.js';
+import { getStagePlots, getStagePlot, createStagePlot, updateStagePlot, deleteStagePlot } from '/js/api.js';
+import { ICONS } from './modules/stagePlotIcons.js';
 
 let currentPlotId = null;
 let plots = [];
@@ -12,13 +12,17 @@ let plotDataState = {
 let isDirty = false;
 let draggedItemId = null; 
 
-document.addEventListener('DOMContentLoaded', () => {
+// --- THIS IS THE FIX ---
+// Use the 'load' event to ensure all scripts and modules are ready before executing.
+window.addEventListener('load', () => {
     const user = getUserPayload();
     if (checkAccess() && user && user.band_id) {
-        document.getElementById('editor-content').style.display = 'grid';
+        const editorContent = document.getElementById('editor-content');
+        if (editorContent) editorContent.style.display = 'grid';
         init();
     } else {
-        document.getElementById('access-denied').style.display = 'block';
+        const accessDenied = document.getElementById('access-denied');
+        if (accessDenied) accessDenied.style.display = 'block';
     }
 });
 
@@ -153,7 +157,10 @@ async function handleSavePlot() {
         setStatus('Saved successfully!', false);
         isDirty = false;
         await loadPlotList();
-        document.querySelector(`#plot-list [data-plot-id='${currentPlotId}']`).classList.add('bg-indigo-600', 'text-white');
+        const activePlotEl = document.querySelector(`#plot-list [data-plot-id='${currentPlotId}']`);
+        if(activePlotEl) {
+            activePlotEl.classList.add('bg-indigo-600', 'text-white');
+        }
     } catch (error) {
         setStatus(`Save failed: ${error.message}`, true);
     }
@@ -174,7 +181,6 @@ async function handleDeletePlot() {
     }
 }
 
-// MODIFIED: This function now renders icons in the palette.
 function populateItemPalette() {
     const paletteEl = document.getElementById('item-palette');
     paletteEl.innerHTML = '<h3 class="font-bold mb-2">Drag to Stage</h3>';
@@ -257,14 +263,12 @@ function setupStageAreaEvents() {
     });
 }
 
-// MODIFIED: This function now renders icons and labels for each stage item.
 function renderStagePlot() {
     const stageArea = document.getElementById('stage-area');
     stageArea.querySelectorAll('.stage-item').forEach(el => el.remove());
 
     plotDataState.items.forEach(item => {
         const itemEl = document.createElement('div');
-        // Setting a base size for items
         itemEl.className = 'stage-item absolute flex flex-col items-center justify-center cursor-move p-1 group';
         itemEl.style.width = '60px';
         itemEl.style.height = '60px';
@@ -324,7 +328,6 @@ function renderStagePlot() {
     });
 }
 
-// MODIFIED: This function is updated to render the SVG icons in the PDF.
 function handleExportPdf() {
     if (isDirty) {
         alert('Please save your changes before exporting to PDF.');
@@ -340,7 +343,6 @@ function handleExportPdf() {
 
     const plotName = document.getElementById('plot-name-input').value;
 
-    // --- PAGE 1: STAGE PLOT ---
     doc.setFontSize(22);
     doc.setTextColor(0, 0, 0);
     doc.text(`Stage Plot: ${plotName}`, doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
@@ -358,28 +360,21 @@ function handleExportPdf() {
         const itemX = stageX + (item.x / 100) * stageWidth;
         const itemY = stageY + (item.y / 100) * stageHeight;
         const rotation = item.rotation || 0;
-        const iconData = ICONS[item.type];
         
         doc.saveGraphicsState();
         doc.translate(itemX, itemY);
         doc.rotate(rotation);
-
-        // Draw the icon - this is a simplification. jsPDF can't render SVG strings directly.
-        // For a true render, we would need to convert SVG to a format jsPDF understands,
-        // which is very complex. We will draw a placeholder box with the icon type.
+        
         const boxSize = 30;
         doc.setFillColor('#4b5563');
         doc.roundedRect(-boxSize / 2, -boxSize / 2, boxSize, boxSize, 3, 3, 'F');
         doc.text(item.type.substring(0, 3).toUpperCase(), 0, 0, { align: 'center', baseline: 'middle' });
         
-        // Draw the label below the icon box
         doc.text(item.label, 0, (boxSize / 2) + 10, { align: 'center', baseline: 'middle' });
         
         doc.restoreGraphicsState();
     });
 
-    // --- PAGE 2: TECH RIDER ---
-    // (This part remains unchanged)
     const riderForm = document.getElementById('rider-form');
     const riderData = Object.fromEntries(new FormData(riderForm));
     doc.addPage('a4', 'portrait');
@@ -404,7 +399,6 @@ function handleExportPdf() {
     doc.save(`${plotName.replace(/\s/g, '_')}.pdf`);
 }
 
-
 function setStatus(message, isError = false) {
     const statusEl = document.getElementById('status-message');
     if (!statusEl) return;
@@ -416,4 +410,3 @@ function setStatus(message, isError = false) {
         }, 3000);
     }
 }
-// --- END OF FILE public/js/stagePlotEditor.js ---
