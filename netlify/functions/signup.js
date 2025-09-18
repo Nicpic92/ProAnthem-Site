@@ -35,6 +35,7 @@ exports.handler = async (event) => {
         const lowerCaseEmail = email.toLowerCase();
 
         if (inviteToken) {
+            // Invited users inherit their band's subscription status, so no change here.
             const inviteQuery = 'SELECT band_id FROM band_invites WHERE token = $1 AND status = \'pending\' AND lower(email) = $2';
             const { rows: [invite] } = await client.query(inviteQuery, [inviteToken, lowerCaseEmail]);
 
@@ -54,9 +55,12 @@ exports.handler = async (event) => {
             await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, bandId, role]);
 
         } else {
+            // --- THIS IS THE CHANGE ---
+            // New self-signup users start on the 'free' plan.
             if (!artistBandName) {
                 return { statusCode: 400, body: JSON.stringify({ message: 'Artist/Band Name is required.' }) };
             }
+            // Stripe customer is still created for a seamless upgrade path later.
             const customer = await stripe.customers.create({ email, name: `${firstName} ${lastName}` });
 
             let bandNumber;
@@ -71,13 +75,13 @@ exports.handler = async (event) => {
             bandId = bandResult.rows[0].id;
             
             const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'free');
             `;
             await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role]);
 
             if (pendingSong && bandId) {
-                console.log(`Saving pending song "${pendingSong.title}" for new user ${lowerCaseEmail}`);
+                // Logic to save a pending song from the demo page remains the same
                 const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = pendingSong;
                 const songBlocksJson = Array.isArray(song_blocks) ? JSON.stringify(song_blocks) : null;
                 const newTuning = tuning ?? 'E_STANDARD';
@@ -88,15 +92,8 @@ exports.handler = async (event) => {
                     INSERT INTO lyric_sheets(title, artist, user_email, band_id, song_blocks, audio_url, tuning, capo, transpose) 
                     VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)`;
                 await client.query(songInsertQuery, [
-                    title || 'My First Song', 
-                    artist || 'Unknown Artist', 
-                    lowerCaseEmail, 
-                    bandId, 
-                    songBlocksJson, 
-                    audio_url, 
-                    newTuning, 
-                    newCapo, 
-                    newTranspose
+                    title || 'My First Song', artist || 'Unknown Artist', lowerCaseEmail, 
+                    bandId, songBlocksJson, audio_url, newTuning, newCapo, newTranspose
                 ]);
             }
         }
@@ -107,7 +104,7 @@ exports.handler = async (event) => {
             to: email,
             from: 'spreadsheetsimplicity@gmail.com',
             subject: `Welcome to ProAnthem, ${firstName}!`,
-            html: `...`, // Email content omitted for brevity
+            html: `...`, // Omitted for brevity
         };
 
         try {
