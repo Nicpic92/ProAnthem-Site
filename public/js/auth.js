@@ -85,7 +85,9 @@ export function checkAccess() {
     if (user.role === 'admin' || validStatuses.includes(user.subscription_status)) {
         const content = document.querySelector('.main-content-area');
         if (content) {
-            content.style.display = 'block';
+            // --- THIS IS THE FIX ---
+            // Instead of changing the style, we remove the class that hides it.
+            // This is more robust against CSS specificity issues.
             content.classList.remove('hidden');
         }
         return true;
