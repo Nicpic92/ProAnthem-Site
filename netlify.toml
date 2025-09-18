@@ -1,26 +1,14 @@
 # --- START OF FILE netlify.toml ---
 
-# This is the build configuration for Netlify.
 [build]
-  # The directory where your serverless functions are located.
   functions = "netlify/functions"
-  # The directory that contains your built frontend files (HTML, CSS, JS).
   publish = "public"
 
-# This section defines URL rewriting and redirect rules.
-
-# --- THIS IS THE FIX ---
-# This is the general rule for ALL API calls.
-# It captures any request to /api/* (e.g., /api/finances, /api/calendar/123)
 [[redirects]]
   from = "/api/*"
-  # It rewrites the request to the corresponding serverless function.
-  # The ":splat" placeholder contains whatever was matched by the "*".
   to = "/.netlify/functions/:splat"
-  # A 200 status makes this a rewrite, not a redirect.
   status = 200
 
-# This is the specific rule for the public band profile pages.
 [[redirects]]
   from = "/bands/:slug"
   to = "/band-profile.html"
