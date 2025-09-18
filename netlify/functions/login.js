@@ -43,22 +43,19 @@ exports.handler = async (event) => {
         let userRole = user.role;
         const forceReset = user.password_reset_required || false;
 
-        // --- THIS IS THE FIX ---
-        // Added a new high-priority check. If the user is on the free plan,
-        // we respect that status and do not proceed to check Stripe.
+        // --- THIS IS THE REWRITTEN AND FIXED LOGIC BLOCK ---
+        // This new structure is a strict hierarchy that prevents fall-through errors.
 
-        // Rule 0: Always respect a manually set 'free' status.
-        if (user.subscription_status === 'free') {
-            subStatus = 'free';
-        }
-        // Rule 1: Always respect a manually granted admin status.
-        else if (user.subscription_status === 'admin_granted') {
-            subStatus = 'admin_granted';
-        } else if (user.role === 'admin') {
-            // Rule 2: System admins always have access.
+        // Priority 1: Check for manual overrides from the DB.
+        if (user.subscription_status === 'admin_granted' || user.subscription_status === 'free') {
+            subStatus = user.subscription_status;
+        } 
+        // Priority 2: Check for system admin role.
+        else if (user.role === 'admin') {
             subStatus = 'active'; 
-        } else if (user.role === 'band_member') {
-            // Rule 3: For a band member, check their band admin's status.
+        } 
+        // Priority 3: Check for band members, who inherit status.
+        else if (user.role === 'band_member') {
             const { rows: [bandAdmin] } = await client.query(
                 `SELECT subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
                 [user.band_id]
@@ -76,8 +73,9 @@ exports.handler = async (event) => {
             } else {
                 subStatus = 'inactive';
             }
-        } else {
-            // Rule 4: For 'solo' or 'band_admin', their access depends on their own Stripe subscription.
+        } 
+        // Priority 4 (Fallback): Check Stripe for paying solo/band_admin users.
+        else {
             if (user.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: user.stripe_customer_id,
@@ -114,7 +112,7 @@ exports.handler = async (event) => {
                     subStatus = newStatus;
                 }
             } else {
-                // User has no Stripe ID and no grant, so they are inactive.
+                // User has no Stripe ID, no grant, and is not on free plan.
                 subStatus = 'inactive';
             }
         }
