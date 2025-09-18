@@ -34,7 +34,6 @@ exports.handler = async (event) => {
         await client.connect();
         const pathParts = event.path.replace('/.netlify/functions', '').replace('/api', '').split('/').filter(Boolean);
         const resource = pathParts.length > 1 ? pathParts[1] : 'details';
-        const resourceId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
         
         // --- ROUTING FOR /api/band ---
         
