@@ -1,3 +1,5 @@
+// --- START OF FILE netlify/functions/stripe.js ---
+
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
@@ -31,9 +33,29 @@ exports.handler = async (event) => {
         const path = event.path.replace('/.netlify/functions', '').replace('/api', '');
         const resource = path.split('/')[2];
         
-        const { rows: [user] } = await client.query('SELECT stripe_customer_id FROM users WHERE email = $1', [userEmail]);
-        if (!user || !user.stripe_customer_id) {
-            return { statusCode: 404, body: JSON.stringify({ message: 'User or Stripe customer not found' }) };
+        // --- THIS IS THE FIX ---
+        // Fetch more user data to create a Stripe customer if one doesn't exist.
+        const { rows: [user] } = await client.query('SELECT id, stripe_customer_id, first_name, last_name FROM users WHERE email = $1', [userEmail]);
+        
+        if (!user) {
+            // This is a hard error - the user from the token doesn't exist in the DB.
+            return { statusCode: 404, body: JSON.stringify({ message: 'User not found in database.' }) };
+        }
+
+        let stripeCustomerId = user.stripe_customer_id;
+
+        // If the user exists but has no Stripe ID (e.g., they were an invited member),
+        // create one for them now.
+        if (!stripeCustomerId) {
+            console.log(`User ${userEmail} does not have a Stripe customer ID. Creating one now.`);
+            const customer = await stripe.customers.create({
+                email: userEmail,
+                name: `${user.first_name} ${user.last_name}`,
+            });
+            stripeCustomerId = customer.id;
+
+            // Save the new Stripe customer ID back to our database for future use.
+            await client.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [stripeCustomerId, user.id]);
         }
         
         if (resource === 'create-checkout-session' && event.httpMethod === 'POST') {
@@ -45,7 +67,7 @@ exports.handler = async (event) => {
             const priceId = plan === 'band' ? BAND_PLAN_PRICE_ID : SOLO_PLAN_PRICE_ID;
 
             const session = await stripe.checkout.sessions.create({
-                customer: user.stripe_customer_id,
+                customer: stripeCustomerId, // Use the (potentially newly created) customer ID
                 payment_method_types: ['card'],
                 line_items: [{ price: priceId, quantity: 1 }],
                 mode: 'subscription',
@@ -53,7 +75,7 @@ exports.handler = async (event) => {
                     trial_period_days: 3
                 },
                 allow_promotion_codes: true,
-                success_url: `${process.env.SITE_URL}/ProjectAnthem.html?checkout_success=true`,
+                success_url: `${process.env.SITE_URL}/dashboard.html?checkout_success=true`,
                 cancel_url: `${process.env.SITE_URL}/pricing.html?checkout_canceled=true`,
             });
 
@@ -62,8 +84,8 @@ exports.handler = async (event) => {
         
         if (resource === 'create-customer-portal' && event.httpMethod === 'POST') {
             const portalSession = await stripe.billingPortal.sessions.create({
-                customer: user.stripe_customer_id,
-                return_url: `${process.env.SITE_URL}/ProjectAnthem.html`,
+                customer: stripeCustomerId, // Use the customer ID here as well
+                return_url: `${process.env.SITE_URL}/dashboard.html`,
             });
             return { statusCode: 200, body: JSON.stringify({ url: portalSession.url }) };
         }
@@ -76,3 +98,5 @@ exports.handler = async (event) => {
         await client.end();
     }
 };
+
+// --- END OF FILE netlify/functions/stripe.js ---
