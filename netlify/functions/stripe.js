@@ -34,11 +34,11 @@ exports.handler = async (event) => {
         const resource = path.split('/')[2];
         
         // --- THIS IS THE FIX ---
-        // Fetch more user data to create a Stripe customer if one doesn't exist.
-        const { rows: [user] } = await client.query('SELECT id, stripe_customer_id, first_name, last_name FROM users WHERE email = $1', [userEmail]);
+        // The 'users' table uses 'email' as the primary key, not 'id'.
+        // This query is updated to reflect the correct schema.
+        const { rows: [user] } = await client.query('SELECT stripe_customer_id, first_name, last_name FROM users WHERE email = $1', [userEmail]);
         
         if (!user) {
-            // This is a hard error - the user from the token doesn't exist in the DB.
             return { statusCode: 404, body: JSON.stringify({ message: 'User not found in database.' }) };
         }
 
@@ -54,8 +54,9 @@ exports.handler = async (event) => {
             });
             stripeCustomerId = customer.id;
 
-            // Save the new Stripe customer ID back to our database for future use.
-            await client.query('UPDATE users SET stripe_customer_id = $1 WHERE id = $2', [stripeCustomerId, user.id]);
+            // Save the new Stripe customer ID back to our database for future use,
+            // using 'email' as the key.
+            await client.query('UPDATE users SET stripe_customer_id = $1 WHERE email = $2', [stripeCustomerId, userEmail]);
         }
         
         if (resource === 'create-checkout-session' && event.httpMethod === 'POST') {
@@ -67,7 +68,7 @@ exports.handler = async (event) => {
             const priceId = plan === 'band' ? BAND_PLAN_PRICE_ID : SOLO_PLAN_PRICE_ID;
 
             const session = await stripe.checkout.sessions.create({
-                customer: stripeCustomerId, // Use the (potentially newly created) customer ID
+                customer: stripeCustomerId,
                 payment_method_types: ['card'],
                 line_items: [{ price: priceId, quantity: 1 }],
                 mode: 'subscription',
@@ -84,7 +85,7 @@ exports.handler = async (event) => {
         
         if (resource === 'create-customer-portal' && event.httpMethod === 'POST') {
             const portalSession = await stripe.billingPortal.sessions.create({
-                customer: stripeCustomerId, // Use the customer ID here as well
+                customer: stripeCustomerId,
                 return_url: `${process.env.SITE_URL}/dashboard.html`,
             });
             return { statusCode: 200, body: JSON.stringify({ url: portalSession.url }) };
