@@ -29,14 +29,13 @@
     </header>
 
     <main class="flex-grow">
-        <!-- ... (all the main page content is correct and remains unchanged) ... -->
         <section class="text-center py-20 px-6">
             <div class="container mx-auto">
                 <h2 class="text-5xl md:text-7xl font-extrabold tracking-tight">
-                    Your Band's <span class="headline-gradient">Stage-Ready Command Center.</span>
+                    From <span class="headline-gradient">Riff to Rider.</span> Your Music, Perfected.
                 </h2>
                 <p class="mt-6 max-w-3xl mx-auto text-lg md:text-xl text-gray-300">
-                    From the writer's room to the main stage, ProAnthem is the professional toolkit for Christian rock bands. Tame the chaos of complex songs, build powerful setlists, and keep every member perfectly in sync. It's time to unleash your sound.
+                    Stop wrestling with bloated, overpriced band software. ProAnthem is the modern creative suite for songwriters and performing musicians. Craft complex songs with interactive tabs, build dynamic setlists, and sync everything with your band in real-time.
                 </p>
                 <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
                     <a href="/pricing.html" class="btn btn-primary w-full sm:w-auto font-bold text-lg rounded-full py-4 px-10">
@@ -45,6 +44,31 @@
                     <a href="/demo.html" class="btn btn-secondary w-full sm:w-auto font-bold text-lg rounded-full py-4 px-10">
                         Try a Live Demo
                     </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="py-20 px-6">
+            <div class="container mx-auto max-w-5xl">
+                <div class="bg-gray-800 rounded-2xl p-8 md:p-12 border border-indigo-500/30">
+                    <h3 class="text-4xl font-bold text-center">Why Choose ProAnthem?</h3>
+                    <p class="mt-4 text-lg text-gray-400 text-center max-w-3xl mx-auto">
+                        Other tools are built for administration. ProAnthem is built for creation.
+                    </p>
+                    <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="text-center">
+                            <h4 class="text-2xl font-bold text-indigo-400">Write Intuitively</h4>
+                            <p class="mt-2 text-gray-300">Our interactive tab editor brings your songs to life. Don't just store lyrics—build your sound with a tool that understands musicians.</p>
+                        </div>
+                        <div class="text-center">
+                            <h4 class="text-2xl font-bold text-indigo-400">Simple, Fair Pricing</h4>
+                            <p class="mt-2 text-gray-300">No confusing tiers or per-user fees. Get every feature for your entire band for one low monthly price. It's the most powerful value in music software.</p>
+                        </div>
+                        <div class="text-center">
+                            <h4 class="text-2xl font-bold text-indigo-400">Stay Inspired</h4>
+                            <p class="mt-2 text-gray-300">Capture ideas instantly with voice memos attached directly to your song sheets. Never let a great riff or melody slip away again.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -100,9 +124,9 @@
 
          <section class="text-center py-20 px-6">
             <div class="container mx-auto">
-                <h3 class="text-4xl font-bold">Ready to Organize Your Music?</h3>
+                <h3 class="text-4xl font-bold">The Professional Toolkit You Can Actually Afford.</h3>
                  <p class="mt-4 text-lg text-gray-400 max-w-2xl mx-auto">
-                    Spend less time managing files and more time making music. Create your account and get instant access to the entire ProAnthem toolkit.
+                    Stop compromising. Get the features you need to write, organize, and perform, at a price that makes sense for working musicians.
                 </p>
                 <div class="mt-8">
                     <a href="/pricing.html" class="btn btn-primary font-bold text-lg rounded-full py-4 px-10">
@@ -165,9 +189,6 @@
     <script type="module" src="/js/auth.js"></script>
     
     <script>
-        // --- THIS IS THE FIX ---
-        // This classic script only handles logic specific to this page.
-        // It does not need to be a module.
         const authModal = document.getElementById('auth-modal');
         const closeModalButton = document.getElementById('close-modal-button');
         
