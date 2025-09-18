@@ -69,8 +69,6 @@ export const getBandMembers = () => apiRequest('band/members');
 export const addBandMember = (data) => apiRequest('band/members', data, 'POST');
 export const removeBandMember = (email) => apiRequest('band/members', { emailToRemove: email }, 'DELETE');
 
-// --- THIS IS THE FIX ---
-// The old endpoints are replaced with the new, correct, consolidated endpoints.
 export const getBandProfile = () => apiRequest('band/profile');
 export const updateBandProfile = (data) => apiRequest('band/profile', data, 'PUT');
 export const getCalendarEvents = () => apiRequest('calendar');
