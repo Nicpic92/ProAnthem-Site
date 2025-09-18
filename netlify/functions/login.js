@@ -46,14 +46,13 @@ exports.handler = async (event) => {
         // --- THIS IS THE FINAL, CORRECTED LOGIC BLOCK ---
         
         // Priority 1: Handle special, non-Stripe roles first.
-        // THIS IS THE MOST IMPORTANT FIX: Check for the 'free' role explicitly.
-        if (user.role === 'free') {
-            subStatus = 'free';
-        } else if (user.role === 'admin') {
+        if (user.role === 'admin') {
             subStatus = 'active'; // System admins are always active
         } else if (user.subscription_status === 'admin_granted') {
             subStatus = 'admin_granted';
-        } 
+        } else if (user.subscription_status === 'free') {
+            subStatus = 'free'; // Explicitly trust the 'free' status from the DB
+        }
         // Priority 2: Handle band members, who inherit status.
         else if (user.role === 'band_member') {
             const { rows: [bandAdmin] } = await client.query(
@@ -61,8 +60,8 @@ exports.handler = async (event) => {
                 [user.band_id]
             );
 
-            if (bandAdmin && (bandAdmin.subscription_status === 'admin_granted' || bandAdmin.role === 'free')) {
-                subStatus = bandAdmin.subscription_status || bandAdmin.role;
+            if (bandAdmin && (bandAdmin.subscription_status === 'admin_granted' || bandAdmin.subscription_status === 'free')) {
+                subStatus = bandAdmin.subscription_status;
             } else if (bandAdmin && bandAdmin.stripe_customer_id) {
                 const subscriptions = await stripe.subscriptions.list({
                     customer: bandAdmin.stripe_customer_id, status: 'all', limit: 1,
@@ -137,5 +136,3 @@ exports.handler = async (event) => {
         }
     }
 };
-
-// --- END OF FILE netlify/functions/login.js ---
