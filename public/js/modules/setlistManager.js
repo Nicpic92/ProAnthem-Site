@@ -2,7 +2,7 @@
 
 import * as api from '../api.js';
 import * as UI from './ui.js';
-import { getUserPayload } from '../auth.js';
+import { getUserPayload } from '/js/auth.js';
 
 let isDemo = false;
 let currentSongData = null; // To hold the currently loaded song from the editor
