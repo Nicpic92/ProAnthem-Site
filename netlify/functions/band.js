@@ -32,9 +32,8 @@ exports.handler = async (event) => {
     
     try {
         await client.connect();
-        // --- THIS IS THE FIX: Corrected path parsing logic ---
         const pathParts = event.path.replace('/.netlify/functions', '').replace('/api', '').split('/').filter(Boolean);
-        const resource = pathParts.length > 1 ? pathParts[1] : 'details'; // Correctly gets 'members', 'profile', etc.
+        const resource = pathParts.length > 1 ? pathParts[1] : 'details';
         const resourceId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
         
         // --- ROUTING FOR /api/band ---
@@ -110,34 +109,6 @@ exports.handler = async (event) => {
                                p.contact_public_email, p.contact_booking_email, p.link_website, p.link_spotify, p.link_apple_music, p.link_youtube,
                                p.link_instagram, p.link_facebook, JSON.stringify(p.photo_gallery || []), bandId]);
                 return { statusCode: 200, body: JSON.stringify(updated) };
-            }
-        }
-
-        // --- EVENTS ---
-        if (resource === 'events') {
-            if (event.httpMethod === 'GET') {
-                const { rows } = await client.query('SELECT * FROM events WHERE band_id = $1 ORDER BY event_date DESC', [bandId]);
-                return { statusCode: 200, body: JSON.stringify(rows) };
-            }
-            if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
-            
-            if (event.httpMethod === 'POST') {
-                const { title, event_date, venue_name, details, is_public, external_url } = JSON.parse(event.body);
-                const query = `INSERT INTO events (band_id, title, event_date, venue_name, details, is_public, external_url) 
-                               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
-                const { rows: [newEvent] } = await client.query(query, [bandId, title, event_date, venue_name, details, is_public, external_url]);
-                return { statusCode: 201, body: JSON.stringify(newEvent) };
-            }
-            if (event.httpMethod === 'PUT' && resourceId) {
-                const { title, event_date, venue_name, details, is_public, external_url } = JSON.parse(event.body);
-                const query = `UPDATE events SET title=$1, event_date=$2, venue_name=$3, details=$4, is_public=$5, external_url=$6 
-                               WHERE id=$7 AND band_id=$8 RETURNING *`;
-                const { rows: [updated] } = await client.query(query, [title, event_date, venue_name, details, is_public, external_url, resourceId, bandId]);
-                return { statusCode: 200, body: JSON.stringify(updated) };
-            }
-            if (event.httpMethod === 'DELETE' && resourceId) {
-                await client.query('DELETE FROM events WHERE id=$1 AND band_id=$2', [resourceId, bandId]);
-                return { statusCode: 204, body: '' };
             }
         }
 
