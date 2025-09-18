@@ -84,7 +84,7 @@ export function updateCurrentSong(songData) {
 }
 
 async function openSetlistManager() {
-    if (document.getElementById('tool-content')?.classList.contains('hidden')) return;
+    if (document.getElementById('tool-content')?.classList.contains('hidden') && !isDemo) return;
 
     el.setlistModal.classList.remove('hidden');
     try {
@@ -142,7 +142,7 @@ async function handleSetlistSelection(setlistId) {
     }
 
     try {
-        const setlist = isDemo ? {name: "Demo Setlist", songs: []} : await api.getSetlist(setlistId);
+        const setlist = isDemo ? {name: "Demo Setlist", songs: [], notes: "{}"} : await api.getSetlist(setlistId);
         el.currentSetlistTitle.textContent = setlist.name;
         document.getElementById('setlistVenue').value = setlist.venue || '';
         document.getElementById('setlistDate').value = setlist.event_date ? setlist.event_date.split('T')[0] : '';
@@ -154,10 +154,12 @@ async function handleSetlistSelection(setlistId) {
         el.addSongToSetlistSection.classList.remove('hidden');
         el.songsInSetlist.innerHTML = '';
         const allItemsMap = new Map(); (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' })); (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
-        const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => allItemsMap.get(id.toString())).filter(Boolean);
+        const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id)) .map(id => String(id)).map(id => allItemsMap.get(id)).filter(Boolean);
         orderedItems.forEach(item => { const li = document.createElement('li'); li.className = 'flex justify-between items-center p-2 bg-gray-700 rounded cursor-grab'; const gripHandle = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-grip-vertical inline-block mr-2 text-gray-400" viewBox="0 0 16 16"><path d="M7 2a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 5a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM7 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm-3 3a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm3 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>`; if (item.type === 'song') { li.dataset.itemId = item.id; li.dataset.itemType = 'song'; const duration = item.duration || '0:00'; const keyInfo = getSongKeyInfo(item); li.dataset.duration = duration; li.innerHTML = `<div class="flex-grow"><span>${gripHandle}${item.title} - <em class="text-gray-400">${item.artist}</em></span><div class="text-xs text-indigo-300 ml-6">${keyInfo}</div></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } else { li.dataset.itemId = item.id; li.dataset.itemType = 'note'; const duration = item.duration || '0:00'; li.dataset.duration = duration; li.classList.add('bg-gray-750', 'border', 'border-dashed', 'border-gray-600'); li.innerHTML = `<div class="flex-grow"><span>${gripHandle}<em class="text-indigo-300">${item.title}</em></span></div><div class="flex items-center gap-4"><span class="font-mono text-sm">${duration}</span><button data-action="remove-item" class="btn btn-danger btn-sm">Remove</button></div>`; } el.songsInSetlist.appendChild(li); });
         recalculateSetlistTime();
-        el.songsInSetlist.sortableInstance = new Sortable(el.songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', onEnd: saveSetlistOrderAndNotes });
+        if (typeof Sortable !== 'undefined') {
+            el.songsInSetlist.sortableInstance = new Sortable(el.songsInSetlist, { animation: 150, ghostClass: 'sortable-ghost', onEnd: saveSetlistOrderAndNotes });
+        }
         buttonsToManage.forEach(b => { if (b) b.disabled = false; });
         el.addSongToSetlistBtn.disabled = !currentSongData || !currentSongData.id;
     } catch (error) {
@@ -171,7 +173,9 @@ async function saveSetlistOrderAndNotes() {
     if (!setlistId) return;
     UI.setStatus(document.getElementById('statusMessage'), 'Saving setlist...');
     const listItems = Array.from(el.songsInSetlist.children);
-    const song_ids = [], notes = [], order = [];
+    const song_ids = [];
+    const notes = [];
+    const order = [];
     listItems.forEach(li => { const id = li.dataset.itemId; const type = li.dataset.itemType; order.push(id); if (type === 'song') { song_ids.push(id); } else if (type === 'note') { notes.push({ id: id, type: 'note', title: li.querySelector('em').textContent, duration: li.dataset.duration }); } });
     const extraDataPayload = { order, notes };
     document.getElementById('setlistNotes').value = JSON.stringify(extraDataPayload);
@@ -340,93 +344,54 @@ function recalculateSetlistTime() {
     el.setlistTotalTime.textContent = `Total Time: ${formatSecondsToTime(totalSeconds)}`;
 }
 
-// --- THIS FUNCTION IS NEW AND CORRECTED ---
 async function handlePrintSetlist(drummerMode = false) {
     const setlistId = el.setlistSelector.value;
-    if (!setlistId) {
-        alert("Please select a setlist to print.");
+    if (!setlistId || isDemo) {
+        alert("Please select a saved setlist to print.");
         return;
     }
 
+    UI.setStatus(document.getElementById('statusMessage'), 'Generating PDF...');
+
     try {
         const setlist = await api.getSetlist(setlistId);
-        const user = getUserPayload();
         const bandDetails = await api.getBandDetails();
-
+        
         let extraData = { order: [], notes: [] };
         try {
             const parsedNotes = JSON.parse(setlist.notes || '{}');
-            if (parsedNotes.order && Array.isArray(parsedNotes.notes)) {
-                extraData = parsedNotes;
-            }
-        } catch (e) { /* ignore parsing errors */ }
-
+            if (parsedNotes.order && Array.isArray(parsedNotes.notes)) extraData = parsedNotes;
+        } catch (e) { /* ignore */ }
+        
         const allItemsMap = new Map();
         (setlist.songs || []).forEach(s => allItemsMap.set(s.id.toString(), { ...s, type: 'song' }));
         (extraData.notes || []).forEach(n => allItemsMap.set(n.id.toString(), n));
         
         const orderedItems = (extraData.order.length > 0 ? extraData.order : (setlist.songs || []).map(s => s.id))
-            .map(id => allItemsMap.get(id.toString()))
-            .filter(Boolean);
+            .map(id => String(id)).map(id => allItemsMap.get(id)).filter(Boolean);
 
-        let printHtml = `
-            <html>
-            <head>
-                <title>${setlist.name} - ProAnthem</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 40px; }
-                    .header { text-align: center; margin-bottom: 40px; }
-                    .setlist-title { font-size: 28px; font-weight: bold; }
-                    .details { font-size: 16px; color: #555; }
-                    .song { page-break-inside: avoid; margin-bottom: 30px; }
-                    .song-title { font-size: 20px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-bottom: 10px; }
-                    .song-meta { font-style: italic; color: #666; margin-bottom: 15px; }
-                    .song-content { white-space: pre-wrap; font-family: 'Courier New', monospace; line-height: 1.6; }
-                    .note-item { background-color: #f0f0f0; padding: 15px; text-align: center; font-style: italic; }
-                    .chord { color: #000; font-weight: bold; }
-                    .lyrics-line { display: flex; flex-direction: column; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1 class="setlist-title">${setlist.name}</h1>
-                    <p class="details">${bandDetails.band_name || ''}</p>
-                    <p class="details">${setlist.venue || ''} - ${setlist.event_date ? new Date(setlist.event_date).toLocaleDateString() : ''}</p>
-                </div>
-        `;
+        let printHtml = `<html><head><title>${setlist.name}</title><style>body{font-family:Arial,sans-serif;margin:40px;}.header{text-align:center;margin-bottom:40px;}.setlist-title{font-size:28px;font-weight:bold;}.details{font-size:16px;color:#555;}.song{page-break-inside:avoid;margin-bottom:30px;}.song-title{font-size:20px;font-weight:bold;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:10px;}.song-meta{font-style:italic;color:#666;margin-bottom:15px;}.song-content{white-space:pre-wrap;font-family:'Courier New',monospace;line-height:1.6;}.note-item{background-color:#f0f0f0;padding:15px;text-align:center;font-style:italic;margin:20px 0;}.chord{color:#000;font-weight:bold;}</style></head><body><div class="header"><h1 class="setlist-title">${setlist.name}</h1><p class="details">${bandDetails.band_name||''}</p><p class="details">${setlist.venue||''} - ${setlist.event_date?new Date(setlist.event_date).toLocaleDateString():''}</p></div>`;
 
         orderedItems.forEach((item, index) => {
             if (item.type === 'song') {
-                printHtml += `<div class="song">`;
-                printHtml += `<h2 class="song-title">${index + 1}. ${item.title}</h2>`;
-                printHtml += `<p class="song-meta">Artist: ${item.artist || 'Unknown'} | ${getSongKeyInfo(item)}</p>`;
-                printHtml += `<div class="song-content">`;
-                
+                printHtml += `<div class="song"><h2 class="song-title">${index + 1}. ${item.title}</h2><p class="song-meta">Artist: ${item.artist||'Unknown'} | ${getSongKeyInfo(item)}</p><div class="song-content">`;
                 const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
-
                 songBlocks.forEach(block => {
                     if (block.type === 'lyrics') {
                         printHtml += `<strong>${block.label}</strong>\n`;
                         (block.content || '').split('\n').forEach(line => {
-                            let lineToParse = line;
-                            if (drummerMode) {
-                                lineToParse = lineToParse.replace(/\[([^\]]+)\]/g, ''); // Strip chords for drummer
-                            }
+                            let lineToParse = drummerMode ? line.replace(/\[([^\]]+)\]/g, '') : line;
                             const { chordLine, lyricLine } = UI.parseLineForRender(lineToParse);
-                            if (chordLine.trim() && !drummerMode) {
-                                printHtml += `<div class="chord">${chordLine}</div>`;
-                            }
+                            if (chordLine.trim() && !drummerMode) printHtml += `<div class="chord">${chordLine}</div>`;
                             printHtml += `<div>${lyricLine}</div>`;
                         });
                         printHtml += '\n';
                     } else if (block.type === 'drum_tab' && drummerMode) {
-                        printHtml += `<strong>${block.label} (Drums)</strong>\n`;
-                        printHtml += `${block.content}\n\n`;
+                        printHtml += `<strong>${block.label} (Drums)</strong>\n${block.content}\n\n`;
                     }
                 });
-                
                 printHtml += `</div></div>`;
-            } else { // Note item
+            } else {
                  printHtml += `<div class="song note-item"><strong>${item.title} (${item.duration || 'N/A'})</strong></div>`;
             }
         });
@@ -438,9 +403,10 @@ async function handlePrintSetlist(drummerMode = false) {
         printWindow.document.close();
         printWindow.focus();
         setTimeout(() => { printWindow.print(); }, 500);
+        UI.setStatus(document.getElementById('statusMessage'), '');
 
     } catch (error) {
-        alert("Failed to generate printable setlist: " + error.message);
+        UI.setStatus(document.getElementById('statusMessage'), `Print failed: ${error.message}`, true);
     }
 }
 
