@@ -3,11 +3,23 @@
 import { login } from './api.js';
 
 document.addEventListener('DOMContentLoaded', () => {
+    // This runs on every page load
     updateNav();
+    
+    // Logic to redirect logged-in users away from public pages
+    const user = getUserPayload();
+    const currentPath = window.location.pathname.toLowerCase();
+    const isPublicPage = ['/proanthem_index.html', '/pricing.html', '/demo.html'].some(page => currentPath.endsWith(page));
+
+    if (user && isPublicPage) {
+        // If a logged-in user somehow lands on the homepage or pricing, send them to the dashboard.
+        // This is the second part of the fix.
+        window.location.href = '/dashboard.html';
+    }
+
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
-        // Use the new handler for the login form on the homepage
-        loginForm.addEventListener('submit', handleLoginAndRedirect);
+        loginForm.addEventListener('submit', handleLogin);
     }
 });
 
@@ -82,8 +94,8 @@ export function checkAccess() {
     return true;
 }
 
-// Renamed from handleLogin to be more specific to its use case on the homepage modal
-async function handleLoginAndRedirect(event) {
+
+async function handleLogin(event) {
     event.preventDefault();
     const loginError = document.getElementById('login-error');
     loginError.textContent = 'Logging in...';
@@ -94,20 +106,13 @@ async function handleLoginAndRedirect(event) {
     };
     try {
         await performLogin(payload);
-        
-        // After login is successful and token is stored, redirect.
-        const user = getUserPayload();
-        if (user.force_reset) {
-            window.location.href = '/ProjectAnthem.html';
-        } else {
-            window.location.href = '/dashboard.html';
-        }
+        // Force a full page reload. The script's DOMContentLoaded logic will then handle the redirect.
+        window.location.reload();
     } catch(error) {
         loginError.textContent = error.message;
     }
 }
 
-// This function now ONLY handles getting and storing the token. It does not redirect.
 export async function performLogin(credentials) {
     try {
         const result = await login(credentials);
@@ -117,7 +122,6 @@ export async function performLogin(credentials) {
             throw new Error("Login failed: No token returned.");
         }
     } catch(error) {
-        // Re-throw the error so the calling function can handle UI updates
         throw error;
     }
 }
@@ -132,7 +136,7 @@ function openModal(view) {
             loginView.classList.remove('hidden');
             const loginForm = document.getElementById('login-form');
             if (loginForm && !loginForm.dataset.listenerAttached) {
-                 // The event listener is now attached in DOMContentLoaded
+                 loginForm.addEventListener('submit', handleLogin);
                  loginForm.dataset.listenerAttached = 'true';
             }
         }
