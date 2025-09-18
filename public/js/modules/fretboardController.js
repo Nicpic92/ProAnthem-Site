@@ -166,7 +166,6 @@ function handleMouseMove(e) {
             }
         }
     }
-// --- THIS IS THE FIX: The closing brace was missing ---
 }
 
 function handleMouseUp() {
