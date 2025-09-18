@@ -11,7 +11,6 @@ import {
 
 let isAdmin = false;
 
-// --- THIS IS THE FIX ---
 // Use the 'load' event to ensure all scripts and modules are ready before executing.
 window.addEventListener('load', () => {
     if (!checkAccess()) return;
@@ -437,3 +436,5 @@ async function handleSaveMerchItem(e) {
         loadMerch();
     } catch(error) { alert(`Save failed: ${error.message}`); }
 }
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
