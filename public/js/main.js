@@ -7,9 +7,9 @@ import * as historyManager from './modules/historyManager.js';
 import { checkForcedReset } from './passwordResetHandler.js';
 
 // This is the new main entry point for the entire application.
-// Its only job is to check for access and initialize the correct modules.
+// We now use 'load' instead of 'DOMContentLoaded' to ensure all module scripts are ready.
 
-document.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('load', () => {
     // 1. First, check if the user has access to this page at all.
     // The checkAccess function will also reveal the main content area.
     const hasAccess = checkAccess();
