@@ -84,7 +84,7 @@ export function updateCurrentSong(songData) {
 }
 
 async function openSetlistManager() {
-    if (document.getElementById('tool-content')?.classList.contains('hidden') && !isDemo) return;
+    if (document.querySelector('.main-content-area')?.classList.contains('hidden') && !isDemo) return;
 
     el.setlistModal.classList.remove('hidden');
     try {
@@ -409,6 +409,7 @@ async function handlePrintSetlist(drummerMode = false) {
         UI.setStatus(document.getElementById('statusMessage'), `Print failed: ${error.message}`, true);
     }
 }
+
 
 function getSongKeyInfo(song) {
     const SHARP_SCALE = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
