@@ -46,7 +46,7 @@ exports.handler = async (event) => {
         // --- THIS IS THE REWRITTEN AND FIXED LOGIC BLOCK ---
         // This new structure is a strict hierarchy that prevents fall-through errors.
 
-        // Priority 1: Check for manual overrides from the DB.
+        // Priority 1: Check for manual overrides from the DB. These are definitive.
         if (user.subscription_status === 'admin_granted' || user.subscription_status === 'free') {
             subStatus = user.subscription_status;
         } 
@@ -54,7 +54,7 @@ exports.handler = async (event) => {
         else if (user.role === 'admin') {
             subStatus = 'active'; 
         } 
-        // Priority 3: Check for band members, who inherit status.
+        // Priority 3: Check for band members, who inherit status from their admin.
         else if (user.role === 'band_member') {
             const { rows: [bandAdmin] } = await client.query(
                 `SELECT subscription_status, stripe_customer_id FROM users WHERE band_id = $1 AND (role = 'band_admin' OR role = 'admin') LIMIT 1`,
