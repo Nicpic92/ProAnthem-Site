@@ -40,7 +40,6 @@ async function handlePasswordReset(event) {
         await changePassword({ currentPassword, newPassword });
         
         alert('Password updated successfully! You will now be taken to your dashboard.');
-        // --- THIS IS THE FIX ---
         // Redirect to the new main dashboard after successful reset.
         window.location.href = '/dashboard.html';
         
@@ -48,4 +47,3 @@ async function handlePasswordReset(event) {
         errorEl.textContent = error.message;
     }
 }
-// --- END OF FILE public/js/passwordResetHandler.js ---
