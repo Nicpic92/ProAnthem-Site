@@ -1,12 +1,24 @@
-{
-  "name": "proanthem-site",
-  "version": "1.0.0",
-  "description": "Standalone site for the ProAnthem music management tool.",
-  "dependencies": {
-    "@sendgrid/mail": "^8.1.1",
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
-    "pg": "^8.12.0",
-    "stripe": "^15.12.0"
-  }
-}
+# --- START OF FILE netlify.toml ---
+
+# This is the build configuration for Netlify.
+[build]
+  # The directory where your serverless functions are located.
+  functions = "netlify/functions"
+  # The directory that contains your built frontend files (HTML, CSS, JS).
+  publish = "public"
+
+# This section defines URL rewriting and redirect rules.
+[[redirects]]
+  # This rule captures any request to a URL starting with /bands/ followed by some text.
+  # The ":slug" is a placeholder that captures the band's unique name.
+  from = "/bands/:slug"
+
+  # It rewrites the request internally to the bandpage serverless function.
+  # It passes the captured ":slug" as a query parameter, which the function expects.
+  to = "/.netlify/functions/bandpage?slug=:slug"
+
+  # A 200 status means this is a rewrite, not a redirect. The user's browser URL
+  # will remain the "pretty" URL (e.g., /bands/nick-picardi-band).
+  status = 200
+
+# --- END OF FILE netlify.toml ---
