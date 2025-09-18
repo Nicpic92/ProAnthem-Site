@@ -1,6 +1,6 @@
 // --- START OF FILE public/js/modules/setlistManager.js ---
 
-import * as api from '../api.js';
+import * as api from '/js/api.js';
 import * as UI from './ui.js';
 import { getUserPayload } from '/js/auth.js';
 
@@ -364,23 +364,4 @@ function getSongKeyInfo(song) {
     const firstChordMatch = song.song_blocks?.[0]?.content?.match(/\[([^\]]+)\]/);
     if (firstChordMatch) {
         const originalKey = firstChordMatch[1];
-        const soundingKey = transposeChord(originalKey, (song.transpose || 0) + (song.capo || 0));
-        parts.push(`Key: ${soundingKey}`);
-    }
-    if (song.capo > 0) { parts.push(`Capo ${song.capo}`); }
-    if (song.tuning && song.tuning !== 'E_STANDARD') {
-        const tuningName = TUNINGS[song.tuning]?.name || song.tuning;
-        parts.push(tuningName);
-    }
-    return parts.join(' | ');
-}
-
-function handleStartShow() {
-    const setlistId = el.setlistSelector.value;
-    if (setlistId) {
-        window.open(`/show.html?id=${setlistId}`, '_blank');
-    } else {
-        alert('Please select a setlist to start the show.');
-    }
-}
-// --- END OF FILE public/js/modules/setlistManager.js ---
+        const soundin
