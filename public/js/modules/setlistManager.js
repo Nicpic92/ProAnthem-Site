@@ -75,7 +75,6 @@ function attachEventListeners() {
     el.addSelectedSongBtn?.addEventListener('click', handleAddSongFromBuilder);
 }
 
-// Public function for other modules to update the current song context
 export function updateCurrentSong(songData) {
     currentSongData = songData;
     if (el.setlistSelector && el.setlistSelector.value) {
@@ -409,7 +408,6 @@ async function handlePrintSetlist(drummerMode = false) {
         UI.setStatus(document.getElementById('statusMessage'), `Print failed: ${error.message}`, true);
     }
 }
-
 
 function getSongKeyInfo(song) {
     const SHARP_SCALE = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'];
