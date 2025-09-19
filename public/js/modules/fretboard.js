@@ -94,54 +94,74 @@ export function getFretFromClick(evt, svgEl, numStrings, STRING_CONFIG, FRETBOAR
     return null;
 }
 
+// =======================================================================
+// === THIS IS THE COMPLETELY REWRITTEN AND CORRECTED FUNCTION ===
+// =======================================================================
 export function renderTransposedTab(tabBlock, tuning, capo, transpose, TUNINGS, FRETBOARD_CONFIG) {
-    if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) return 'No tab data.';
+    if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) {
+        return 'No tab data in this section. Click "Edit" and then click on the fretboard to add notes.';
+    }
     
     const numStrings = tabBlock.strings || 6;
     const tuningInfo = TUNINGS[tuning];
     const stringNames = tuningInfo?.strings?.slice(0, numStrings) || Array(numStrings).fill('?');
     const totalOffset = (tuningInfo?.offset ?? 0) + capo + transpose;
 
-    const positionMap = new Map();
-    const sortedNotes = [...tabBlock.data.notes].sort((a,b) => a.position - b.position);
+    const CHARACTER_WIDTH = 12; // Estimated width of one monospace character in pixels
+    const timeline = new Map();
 
-    sortedNotes.forEach(note => {
+    // 1. Create a timeline of notes based on their character position
+    tabBlock.data.notes.forEach(note => {
         if (note.string >= numStrings) return;
+        
         const transposedFret = note.fret - totalOffset;
-        if (transposedFret < 0) return;
+        if (transposedFret < 0) return; // Skip notes that are out of range
 
-        const charPosition = Math.floor((note.position - FRETBOARD_CONFIG.nutWidth) / 10);
-        if (charPosition < 0) return;
-        if (!positionMap.has(charPosition)) {
-            positionMap.set(charPosition, Array(numStrings).fill(null));
+        const charPosition = Math.max(0, Math.floor((note.position - FRETBOARD_CONFIG.nutWidth) / CHARACTER_WIDTH));
+
+        if (!timeline.has(charPosition)) {
+            timeline.set(charPosition, []);
         }
-        positionMap.get(charPosition)[note.string] = transposedFret;
+        timeline.get(charPosition).push({ string: note.string, fret: transposedFret.toString() });
     });
 
-    if (positionMap.size === 0) return 'Notes out of range for current settings.';
-    
-    const sortedPositions = [...positionMap.keys()].sort((a,b) => a - b);
-    const lines = stringNames.map(name => `${name.padEnd(2, ' ')}|`);
+    if (timeline.size === 0) {
+        return 'Notes are out of range with current Tuning/Capo/Transpose settings.';
+    }
+
+    // 2. Build the tab string from the timeline
+    const sortedPositions = [...timeline.keys()].sort((a, b) => a - b);
+    const lines = stringNames.map(name => `${name.padEnd(2, ' ')}|-`);
     let lastCharPos = 0;
-    
+
     sortedPositions.forEach(charPos => {
-        const notesAtPos = positionMap.get(charPos);
-        const padding = charPos - lastCharPos;
-        if (padding > 1) {
-            lines.forEach((_, i) => lines[i] += '-'.repeat(padding - 1));
+        const notesAtPos = timeline.get(charPos);
+        
+        // Find the maximum width needed for this column (for multi-digit frets)
+        const maxWidth = notesAtPos.reduce((max, note) => Math.max(max, note.fret.length), 1);
+        
+        // Add padding dashes
+        const padding = charPos - lastCharPos - 1;
+        if (padding > 0) {
+            for (let i = 0; i < numStrings; i++) {
+                lines[i] += '-'.repeat(padding);
+            }
         }
-        let maxFretWidth = 1;
-        notesAtPos.forEach(fret => {
-            if (fret !== null) maxFretWidth = Math.max(maxFretWidth, String(fret).length)
-        });
-        lines.forEach((_, i) => {
-            lines[i] += (notesAtPos[i] !== null) ? String(notesAtPos[i]).padEnd(maxFretWidth, '-') : '-'.repeat(maxFretWidth)
-        });
-        lastCharPos = charPos + maxFretWidth - 1;
+
+        // Add the notes or dashes for the current position
+        for (let i = 0; i < numStrings; i++) {
+            const noteOnString = notesAtPos.find(n => n.string === i);
+            const displayChar = noteOnString ? noteOnString.fret : '-';
+            lines[i] += displayChar.padEnd(maxWidth, '-');
+        }
+
+        lastCharPos = charPos + maxWidth - 1;
     });
+
+    // Add a trailing dash for readability
+    for (let i = 0; i < numStrings; i++) {
+        lines[i] += '-|';
+    }
     
     return lines.join('\n');
 }
-
-
-// --- END OF FILE public/js/modules/fretboard.js ---
