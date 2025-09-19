@@ -15,7 +15,6 @@ import { getChordDiagrams } from '/js/api.js';
 import * as stemManager from './stemManager.js';
 
 // --- STATE MANAGEMENT ---
-let isDemo = false;
 let userPermissions = {}; // Store user permissions here
 let chordQueue = [];
 let chordQueueIndex = 0;
@@ -26,8 +25,7 @@ let activeResize = {};
 const el = {};
 
 // --- INITIALIZATION ---
-export function init(isDemoMode) {
-    isDemo = isDemoMode;
+export function init() {
     const user = getUserPayload();
     userPermissions = user ? user.permissions : {}; // Get permissions from JWT
 
@@ -44,23 +42,25 @@ export function init(isDemoMode) {
 }
 
 async function loadInitialData() {
-    // Demo mode is now handled by the main marketing page
-    const user = getUserPayload();
-    if (user && user.permissions) {
-        userPermissions = user.permissions;
+    // FIXED: Simplified logic. If there's a user with permissions, load their data.
+    // No more demo mode logic in this file.
+    if (userPermissions && userPermissions.role) {
         try {
             await loadChords(true);
             UI.setStatus(el.statusMessage, 'Loading songs...');
             const sheets = await UI.loadSheetList(el.songSelector, api);
+            // This is the key logic: if songs exist, load the first one. Otherwise, create a new one.
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
             await handleLoadSong(initialSongId);
             UI.setStatus(el.statusMessage, '');
         } catch (error) {
             console.error("Error during data load.", error);
             UI.setStatus(el.statusMessage, `Error: ${error.message}. Please refresh.`, true);
+            // Fallback to a new song if loading fails
+            await handleLoadSong('new');
         }
     } else {
-        // This case should ideally not be hit if auth.js is working, but it's a safe fallback.
+        // This should not happen if auth.js is working correctly.
         UI.setStatus(el.statusMessage, 'Authentication error. Please log in.', true);
         document.getElementById('tool-content').innerHTML = '<p class="text-center text-red-500">Could not verify user permissions. Please try logging in again.</p>';
     }
@@ -281,7 +281,7 @@ async function handleSave() {
     el.saveBtn.disabled = true;
     UI.setStatus(el.statusMessage, 'Saving...');
     try {
-        const savedSong = await songDataManager.saveSong(false); // isDemo is always false here
+        const savedSong = await songDataManager.saveSong(false);
         if (savedSong) {
             UI.setStatus(el.statusMessage, 'Saved successfully!');
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
@@ -401,7 +401,6 @@ function handleSongBlockClick(e) {
 
     const action = e.target.dataset.action;
     if (action) {
-        // ADDED: Permission guard for edit-tab action
         if (action === 'edit-tab' && !userPermissions.can_use_setlists) {
             alert("Interactive tab editors are a premium feature. Please upgrade your plan.");
             return;
@@ -667,11 +666,15 @@ function renderPreview() {
 
 function renderTransposedTab(tabBlock) {
     const songData = songDataManager.getSongData();
-    return UI.Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose);
+    const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, D_STANDARD: { name: "D Standard", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'D'] }, DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } };
+    const FRETBOARD_CONFIG = { nutWidth: 15 };
+    return UI.Fretboard.renderTransposedTab(tabBlock, songData.tuning, songData.capo, songData.transpose, TUNINGS, FRETBOARD_CONFIG);
 }
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
-     return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
+     const TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, D_STANDARD: { name: "D Standard", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'D'] }, DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } };
+     const FRETBOARD_CONFIG = { nutWidth: 15 };
+     return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose, TUNINGS, FRETBOARD_CONFIG);
 }
 
 async function handlePrintPDF() {
