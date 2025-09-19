@@ -24,7 +24,6 @@ exports.handler = async (event) => {
     try {
         await client.connect();
         
-        // NEW, SIMPLIFIED QUERY JOINING THE 'roles' TABLE
         const userQuery = `
             SELECT 
                 u.email, u.password_hash, u.first_name, u.band_id, u.password_reset_required, u.subscription_status,
@@ -33,7 +32,8 @@ exports.handler = async (event) => {
                 r.song_limit,
                 r.can_manage_band,
                 r.can_use_setlists,
-                r.can_use_stems
+                r.can_use_stems,
+                r.can_use_stage_plots -- ADDED THIS LINE
             FROM users u
             JOIN roles r ON u.role_id = r.id
             WHERE u.email = $1;
@@ -44,21 +44,21 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
-        // NEW JWT PAYLOAD WITH A DEDICATED 'permissions' OBJECT
         const tokenPayload = {
             user: {
                 email: user.email, 
                 name: user.first_name,
                 band_id: user.band_id,
                 force_reset: user.password_reset_required || false,
-                subscription_status: user.subscription_status, // Keep for UI logic (e.g., "Upgrade" banner)
+                subscription_status: user.subscription_status,
                 permissions: {
                     role: user.role_name,
                     can_access_tool: user.can_access_tool,
                     song_limit: user.song_limit,
                     can_manage_band: user.can_manage_band,
                     can_use_setlists: user.can_use_setlists,
-                    can_use_stems: user.can_use_stems
+                    can_use_stems: user.can_use_stems,
+                    can_use_stage_plots: user.can_use_stage_plots // ADDED THIS LINE
                 }
             }
         };
