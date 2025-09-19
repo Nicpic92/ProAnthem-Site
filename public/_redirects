@@ -1,0 +1,22 @@
+# --- START OF FILE public/_redirects ---
+
+# API Rule: Rewrite API calls to the correct function endpoint.
+# This is a rewrite (200), not a redirect, so the URL stays the same.
+/api/*    /.netlify/functions/:splat    200
+
+# Page Rules: Explicitly serve the .html file for each page route.
+# These are rewrites (200), meaning if a user visits "/projectanthem",
+# the server will show them the content of "/projectanthem.html" without
+# changing the URL in the browser bar. This handles both cases gracefully.
+/projectanthem       /ProjectAnthem.html      200
+/demo                /Demo.html               200
+/band                /band.html               200
+/dashboard           /dashboard.html          200
+/admin               /admin.html              200
+/pricing             /pricing.html            200
+/stage-plot-editor   /stage-plot-editor.html  200
+/show                /show.html               200
+
+# Fallback Rule: If any other URL is requested, serve the main homepage.
+# This should be the last rule.
+/*                   /proanthem_index.html    200
