@@ -34,7 +34,7 @@
                     <a href="/band.html" class="text-sm text-indigo-400 hover:underline">← Band Manager</a>
                 </div>
                 <div id="plot-list" class="space-y-2"></div>
-                <button id="new-plot-btn" class="btn btn-primary w-full mt-4">Create New Plot</button>
+                <button id="new-plot-btn" class="btn btn-primary w-full mt-4 write-permission-only hidden">Create New Plot</button>
             </aside>
 
             <!-- Main Editor Area -->
@@ -43,9 +43,9 @@
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
                         <input type="text" id="plot-name-input" class="form-input text-2xl font-bold bg-transparent border-0 border-b-2 border-gray-700 focus:ring-0 focus:border-indigo-500 p-0" placeholder="My Awesome Stage Plot">
                         <div class="flex gap-2">
-                            <button id="save-plot-btn" class="btn btn-primary">Save</button>
+                            <button id="save-plot-btn" class="btn btn-primary write-permission-only hidden">Save</button>
                             <button id="export-pdf-btn" class="btn btn-secondary">Export PDF</button>
-                            <button id="delete-plot-btn" class="btn btn-danger">Delete</button>
+                            <button id="delete-plot-btn" class="btn btn-danger write-permission-only hidden">Delete</button>
                         </div>
                     </div>
                      <div id="status-message" class="text-center text-sm text-gray-400 h-5 mb-4"></div>
@@ -54,6 +54,7 @@
                     <div class="border-b border-gray-700 mb-4">
                         <nav class="-mb-px flex space-x-8" aria-label="Tabs">
                             <button class="tab-button active" data-tab="layout">Stage Layout</button>
+                            <!-- FIXED: Removed write-permission-only class -->
                             <button class="tab-button" data-tab="rider">Tech Rider</button>
                         </nav>
                     </div>
@@ -74,6 +75,7 @@
                     </div>
 
                     <!-- Tech Rider Tab -->
+                    <!-- FIXED: Removed write-permission-only class -->
                     <div id="tab-content-rider" class="tab-content hidden">
                         <form id="rider-form" class="space-y-6 bg-gray-900 p-6 rounded-lg">
                            <div>
@@ -106,7 +108,7 @@
 
         <div id="access-denied" class="text-center py-20" style="display: none;">
             <h2 class="text-3xl font-bold text-red-500">Access Denied</h2>
-            <p class="mt-4 text-lg text-gray-300">You must be part of a band to use the Stage Plot Editor.</p>
+            <p class="mt-4 text-lg text-gray-300">This feature is not available for your current plan.</p>
             <a href="/dashboard.html" class="btn btn-primary mt-6">Return to Dashboard</a>
         </div>
     </main>
