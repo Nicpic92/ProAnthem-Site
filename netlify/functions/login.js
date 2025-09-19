@@ -33,7 +33,8 @@ exports.handler = async (event) => {
                 r.can_manage_band,
                 r.can_use_setlists,
                 r.can_use_stems,
-                r.can_use_stage_plots -- ADDED THIS LINE
+                r.can_use_stage_plots,
+                r.can_view_band_page -- ADDED THIS LINE
             FROM users u
             JOIN roles r ON u.role_id = r.id
             WHERE u.email = $1;
@@ -58,7 +59,8 @@ exports.handler = async (event) => {
                     can_manage_band: user.can_manage_band,
                     can_use_setlists: user.can_use_setlists,
                     can_use_stems: user.can_use_stems,
-                    can_use_stage_plots: user.can_use_stage_plots // ADDED THIS LINE
+                    can_use_stage_plots: user.can_use_stage_plots,
+                    can_view_band_page: user.can_view_band_page // ADDED THIS LINE
                 }
             }
         };
