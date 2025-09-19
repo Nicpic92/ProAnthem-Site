@@ -1,13 +1,22 @@
 # --- START OF FILE public/_redirects ---
 
-# API Rule: Rewrite API calls to the correct function endpoint.
-# This is a rewrite (200), not a redirect, so the URL stays the same.
+# ==============================================================================
+#  IMPORTANT: Rules are processed from top to bottom.
+#  The first rule that matches a request is the one that is applied.
+# ==============================================================================
+
+# Rule 1: API Proxy
+# Proxies all calls from /api/... to the corresponding Netlify function.
+# This is the most specific and important rule, so it comes first.
 /api/*    /.netlify/functions/:splat    200
 
-# Page Rules: Explicitly serve the .html file for each page route.
-# These are rewrites (200), meaning if a user visits "/projectanthem",
-# the server will show them the content of "/projectanthem.html" without
-# changing the URL in the browser bar. This handles both cases gracefully.
+# Rule 2: Public Band Pages
+# Rewrites /bands/any-slug-name to the band profile page so the JS can run.
+# This is more specific than the single page rules below.
+/bands/*    /band-profile.html    200
+
+# Rule 3: Pretty URLs for Main App Pages
+# Allows users to visit clean URLs like /dashboard instead of /dashboard.html
 /projectanthem       /ProjectAnthem.html      200
 /demo                /Demo.html               200
 /band                /band.html               200
@@ -17,6 +26,8 @@
 /stage-plot-editor   /stage-plot-editor.html  200
 /show                /show.html               200
 
-# Fallback Rule: If any other URL is requested, serve the main homepage.
-# This should be the last rule.
+# Rule 4: The Fallback (Catch-All)
+# This rule MUST BE LAST. It serves the homepage for any other URL.
 /*                   /proanthem_index.html    200
+
+# --- END OF FILE public/_redirects ---
