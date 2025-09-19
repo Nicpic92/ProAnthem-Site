@@ -20,7 +20,7 @@ function initializeNewSongData() {
 `[Verse 1]
 [G]This is where your lyrics go.
 Put chords in [C]brackets, right where they should [G]be.
-The [D]live preview below will update as you [G]type.`;
+The [D]live preview above will update as you [G]type.`;
 
     songData = { 
         id: null, title: '', artist: '', duration: '', audio_url: null, 
