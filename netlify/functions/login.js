@@ -3,7 +3,6 @@
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-// Stripe is no longer needed here.
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -25,7 +24,6 @@ exports.handler = async (event) => {
     try {
         await client.connect();
         
-        // New Query: Fetch the user AND their role permissions in one go.
         const userQuery = `
             SELECT 
                 u.email, u.password_hash, u.first_name, u.band_id, u.password_reset_required,
@@ -42,24 +40,21 @@ exports.handler = async (event) => {
         const { rows: [user] } = await client.query(userQuery, [email.toLowerCase()]);
 
         if (!user) {
-            await client.end();
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
-            await client.end();
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
-        // The user's permissions are now directly from the roles table. Clean and simple.
         const tokenPayload = {
             user: {
                 email: user.email, 
                 name: user.first_name,
                 band_id: user.band_id,
                 force_reset: user.password_reset_required || false,
-                permissions: { // Embed the permissions object directly in the token.
+                permissions: {
                     role: user.role_name,
                     can_access_tool: user.can_access_tool,
                     song_limit: user.song_limit,
@@ -76,12 +71,17 @@ exports.handler = async (event) => {
             await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
         }
         
-        await client.end();
         return { statusCode: 200, body: JSON.stringify({ message: 'Login successful.', token: token }) };
 
     } catch (error) {
-        console.error('Login Error:', error);
-        if (client) await client.end();
-        return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error' }) };
+        // Log the actual error to the Netlify function logs for debugging
+        console.error('Login Function Error:', error);
+        return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
+    } finally {
+        // This block ensures the database connection is ALWAYS closed,
+        // whether the function succeeds or fails. This is crucial for stability.
+        if (client) {
+            await client.end();
+        }
     }
 };
