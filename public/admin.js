@@ -1,3 +1,5 @@
+// --- START OF FILE public/admin.js ---
+
 import { getUserPayload } from './js/auth.js';
 import { apiRequest } from './js/api.js';
 
@@ -6,7 +8,7 @@ let allSongs = [];
 
 document.addEventListener('DOMContentLoaded', async () => {
     const user = getUserPayload();
-    if (!user || user.role !== 'admin') {
+    if (!user || user.permissions.role !== 'admin') {
         document.getElementById('access-denied').style.display = 'block';
         return;
     }
@@ -50,7 +52,8 @@ async function loadUsers() {
     try {
         const users = await apiRequest('admin-tasks/users'); 
         tableBody.innerHTML = '';
-        const roles = ['solo', 'band_member', 'editor', 'band_admin', 'admin'];
+        // FIXED: Use the actual role names from the database schema
+        const roles = ['free', 'solo', 'band_member', 'editor', 'band_admin', 'admin', 'inactive'];
 
         users.forEach(user => {
             const row = document.createElement('tr');
@@ -75,7 +78,6 @@ async function loadUsers() {
             tableBody.appendChild(row);
         });
 
-        // Add event listeners after rows are created
         tableBody.querySelectorAll('button[data-action="save-role"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const email = e.target.dataset.email;
@@ -95,10 +97,11 @@ async function loadUsers() {
     }
 }
 
-async function handleUpdateRole(email, newRole) {
-    if (!confirm(`Are you sure you want to change ${email}'s role to ${newRole}?`)) return;
+async function handleUpdateRole(email, newRoleName) {
+    if (!confirm(`Are you sure you want to change ${email}'s role to ${newRoleName}?`)) return;
     try {
-        await apiRequest('admin-tasks/update-role', { email, newRole }, 'POST');
+        // FIXED: Send 'newRoleName' in the payload
+        await apiRequest('admin-tasks/update-role', { email, newRoleName }, 'POST');
         alert('Role updated successfully!');
         loadUsers();
     } catch (error) {
@@ -130,7 +133,8 @@ async function confirmAddUser(event) {
         firstName: document.getElementById('add-user-firstname').value,
         lastName: document.getElementById('add-user-lastname').value,
         email: document.getElementById('add-user-email').value,
-        role: document.getElementById('add-user-role').value,
+        // FIXED: Send 'roleName'
+        roleName: document.getElementById('add-user-role').value,
         bandId: document.getElementById('add-user-band').value,
     };
     try {
@@ -201,6 +205,5 @@ async function confirmCopySong() {
     }
 }
 
-// Make functions globally available for inline onclick attributes used in admin.html
 window.openCopySongModal = openCopySongModal;
 window.closeModal = closeModal;
