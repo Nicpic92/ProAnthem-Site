@@ -16,6 +16,7 @@ import * as stemManager from './stemManager.js';
 
 // --- STATE MANAGEMENT ---
 let isDemo = false;
+let userPermissions = {}; // Store user permissions here
 let chordQueue = [];
 let chordQueueIndex = 0;
 let lastFocusedLyricsBlock = null;
@@ -27,6 +28,9 @@ const el = {};
 // --- INITIALIZATION ---
 export function init(isDemoMode) {
     isDemo = isDemoMode;
+    const user = getUserPayload();
+    userPermissions = user ? user.permissions : {}; // Get permissions from JWT
+
     cacheDOMElements();
     attachEventListeners();
     
@@ -40,23 +44,21 @@ export function init(isDemoMode) {
 }
 
 async function loadInitialData() {
-    const user = getUserPayload();
-
     if (isDemo) {
         setupDemoMode();
         return;
     }
     
-    if (user) {
+    if (userPermissions.role) { // Check if permissions were loaded
         try {
-            await loadChords(user);
+            await loadChords(true); // Assuming logged in
             UI.setStatus(el.statusMessage, 'Loading songs...');
             const sheets = await UI.loadSheetList(el.songSelector, api);
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
             await handleLoadSong(initialSongId);
             UI.setStatus(el.statusMessage, '');
         } catch (error) {
-            console.log("Authentication error during data load. Redirecting...");
+            console.error("Authentication error during data load.", error);
             if (!error.message.includes("Session expired")) {
                 UI.setStatus(el.statusMessage, `Error: ${error.message}. Loading demo.`, true);
                 setupDemoMode();
@@ -69,10 +71,10 @@ async function loadInitialData() {
 
 function setupDemoMode() {
     isDemo = true;
+    userPermissions = { can_use_stems: false, can_use_setlists: true, song_limit: 3 }; // Simulate some permissions
     songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-    loadChords(null);
+    loadChords(false);
     renderSong();
-    if (el.recordBtn) el.recordBtn.disabled = true;
     if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
     UI.setStatus(el.statusMessage, "This is a demo. Your work will not be saved.");
 }
@@ -109,14 +111,16 @@ function cacheDOMElements() {
     el.historyBtn = document.getElementById('historyBtn');
     el.notationPalette = document.getElementById('notation-palette');
     el.manageStemsBtn = document.getElementById('manage-stems-btn');
+    el.printPdfBtn = document.getElementById('printPdfBtn'); // Get the new print button
 }
 
 function attachEventListeners() {
+    // Input event listeners remain the same...
     el.titleInput?.addEventListener('input', () => songDataManager.updateSongField('title', el.titleInput.value));
     el.artistInput?.addEventListener('input', () => songDataManager.updateSongField('artist', el.artistInput.value));
     el.durationInput?.addEventListener('input', () => songDataManager.updateSongField('duration', el.durationInput.value));
 
-    el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) { songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA); renderSong(); }});
+    el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) { setupDemoMode(); }});
     el.songSelector?.addEventListener('change', () => handleLoadSong(el.songSelector.value));
 
     [el.tuningSelector, el.capoFretInput].forEach(elem => elem?.addEventListener('input', handleMusicalSettingsChange));
@@ -135,6 +139,7 @@ function attachEventListeners() {
     el.songBlocksContainer?.addEventListener('click', handleSongBlockClick);
     el.addBlockButtonsContainer?.addEventListener('click', handleAddBlockClick);
     
+    // Resize handlers remain the same...
     el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
     document.addEventListener('mousemove', (e) => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } });
     document.addEventListener('mouseup', () => { if (activeResize.element) { songDataManager.updateBlockData(activeResize.blockId, null, null, activeResize.element.offsetHeight); activeResize = {}; document.body.style.cursor = ''; } });
@@ -151,6 +156,7 @@ function attachEventListeners() {
     setupChordHover();
 
     el.manageStemsBtn?.addEventListener('click', () => stemManager.openModal(songDataManager.getSongData()));
+    el.printPdfBtn?.addEventListener('click', handlePrintPDF);
 }
 
 function renderSong() {
@@ -174,6 +180,7 @@ function renderSong() {
     });
 
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
+    enforcePermissionsOnUI(); // Apply permission checks to the UI
     renderPreview();
     updateSoundingKey();
     updateSetlistSongContext(songData);
@@ -200,6 +207,36 @@ function updateUIFromData(songData) {
     el.transposeStatus.textContent = steps > 0 ? `+${steps}` : String(steps);
     el.historyBtn.disabled = !songData.id;
     el.manageStemsBtn.disabled = !songData.id;
+    el.printPdfBtn.disabled = !songData.id; // Can only print saved songs
+}
+
+// NEW FUNCTION: Enforces UI state based on user permissions
+function enforcePermissionsOnUI() {
+    const canUseStems = userPermissions.can_use_stems;
+    const canUseSetlists = userPermissions.can_use_setlists;
+    
+    // Voice Memos & Stems
+    el.recordBtn.disabled = !canUseStems;
+    el.manageStemsBtn.disabled = !canUseStems || !songDataManager.getSongData().id;
+    if (!canUseStems) {
+        const audioSection = document.getElementById('audioSection');
+        if (!audioSection.querySelector('.upgrade-prompt')) {
+            const prompt = document.createElement('p');
+            prompt.className = 'upgrade-prompt text-sm text-yellow-400';
+            prompt.textContent = 'Voice Memos & Stem Mixer are premium features. Upgrade to enable.';
+            audioSection.appendChild(prompt);
+        }
+    }
+
+    // Interactive Editors (Tab & Drum)
+    document.querySelectorAll('[data-action="add"][data-type="tab"], [data-action="add"][data-type="drum_tab"]')
+        .forEach(button => {
+            button.disabled = !canUseSetlists; // Tab/Drum editors are tied to setlist/paid plans
+            if (!canUseSetlists) {
+                button.title = "Upgrade to a paid plan to use interactive editors.";
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
 }
 
 export async function handleLoadSong(id) {
@@ -212,7 +249,9 @@ export async function handleLoadSong(id) {
         }
         renderSong();
         UI.setStatus(el.statusMessage, 'Song loaded.');
-        stemManager.loadStemsForMixer(id === 'new' ? null : id);
+        if (userPermissions.can_use_stems) {
+            stemManager.loadStemsForMixer(id === 'new' ? null : id);
+        }
     } catch (error) {
         UI.setStatus(el.statusMessage, `Error loading song: ${error.message}`, true);
         await songDataManager.loadSong('new');
@@ -221,6 +260,19 @@ export async function handleLoadSong(id) {
 }
 
 async function handleSave() {
+    // FIXED: Add song limit check here
+    if (!isDemo && userPermissions.song_limit !== -1) {
+        const songData = songDataManager.getSongData();
+        if (!songData.id) { // Only check for new songs
+            const songs = await api.getSheets();
+            if (songs.length >= userPermissions.song_limit) {
+                alert(`You have reached the ${userPermissions.song_limit}-song limit for the free plan. Please upgrade to save more songs.`);
+                UI.setStatus(el.statusMessage, 'Song limit reached.', true);
+                return;
+            }
+        }
+    }
+
     el.saveBtn.disabled = true;
     UI.setStatus(el.statusMessage, 'Saving...');
     try {
@@ -230,7 +282,7 @@ async function handleSave() {
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
                 await UI.loadSheetList(el.songSelector, api, savedSong.id);
             }
-            if (!el.manageStemsBtn.disabled) {
+            if (userPermissions.can_use_stems) {
                  stemManager.loadStemsForMixer(savedSong.id);
             }
             renderSong();
@@ -242,6 +294,9 @@ async function handleSave() {
     }
 }
 
+// Other functions (handleDelete, handleMusicalSettingsChange, etc.) remain the same...
+
+// ... (Rest of the file is unchanged, just pasting it for completeness)
 async function handleDelete() {
     if (isDemo) { UI.setStatus(el.statusMessage, 'Deleting is disabled in the demo.', true); return; }
     const songData = songDataManager.getSongData();
@@ -281,6 +336,8 @@ function handleTranspose(amount) {
 
 function handleAddBlockClick(e) {
     const target = e.target;
+    if (target.disabled) return; // Prevent adding disabled blocks
+
     const songData = songDataManager.getSongData();
     const songBlocks = songData.song_blocks;
 
@@ -471,14 +528,14 @@ function setupChordHover() {
     });
 }
 
-async function loadChords(user) {
+async function loadChords(isUserLoggedIn) {
     try {
-        const chords = !user
+        const chords = !isUserLoggedIn
             ? ['A', 'Am', 'B', 'C', 'Cmaj7', 'D', 'Dm', 'E', 'Em', 'E7', 'F', 'G'].map(name => ({name}))
             : await api.getChords();
         UI.renderChordPalette(el.chordPalette, chords, handleChordClick);
     } catch(e) { 
-        if (user) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
+        if (isUserLoggedIn) UI.setStatus(el.statusMessage, 'Failed to load chords.', true);
     }
 }
 
@@ -490,7 +547,7 @@ async function handleAddChord() {
         await api.createChord({ name });
         el.newChordInput.value = '';
         UI.setStatus(el.statusMessage, `'${name}' added.`);
-        await loadChords(getUserPayload());
+        await loadChords(true);
     } catch (e) {
         UI.setStatus(el.statusMessage, e.message, true);
     }
@@ -610,4 +667,51 @@ function renderTransposedTab(tabBlock) {
 
 function renderTransposedTabForHistory(tabBlock, historyData) {
      return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
+}
+
+// NEW FUNCTION: Handle PDF printing from the tool
+async function handlePrintPDF() {
+    const songData = songDataManager.getSongData();
+    if (!songData.id) {
+        alert("Please save the song before printing.");
+        return;
+    }
+    UI.setStatus(el.statusMessage, 'Generating PDF...');
+
+    try {
+        let printHtml = `<html><head><title>${songData.title}</title><style>body{font-family:Arial,sans-serif;margin:40px;}.song-title{font-size:28px;font-weight:bold;}.song-meta{font-size:16px;color:#555;margin-bottom:20px;}.block{page-break-inside:avoid;margin-bottom:20px;}.block-label{font-size:20px;font-weight:bold;border-bottom:1px solid #ccc;padding-bottom:5px;margin-bottom:10px;}.block-content{white-space:pre-wrap;font-family:'Courier New',monospace;line-height:1.6;}.chord{color:#000;font-weight:bold;}</style></head><body>`;
+        
+        printHtml += `<h1 class="song-title">${songData.title}</h1>`;
+        printHtml += `<p class="song-meta">Artist: ${songData.artist || 'Unknown'}</p>`;
+
+        songData.song_blocks.forEach(block => {
+            let blockToRender = block.type === 'reference' ? (songData.song_blocks.find(b => b.id === block.originalId) || block) : block;
+            printHtml += `<div class="block"><h2 class="block-label">${blockToRender.label}</h2><div class="block-content">`;
+            
+            if (blockToRender.type === 'lyrics' && blockToRender.content) {
+                blockToRender.content.split('\n').forEach(line => {
+                    const { chordLine, lyricLine } = UI.parseLineForRender(line);
+                    if (chordLine.trim()) printHtml += `<div class="chord">${chordLine.replace(/<span class="chord-span">/g, '').replace(/<\/span>/g, '')}</div>`;
+                    printHtml += `<div>${lyricLine}</div>`;
+                });
+            } else if (blockToRender.type === 'tab') {
+                printHtml += renderTransposedTab(blockToRender);
+            } else if (blockToRender.type === 'drum_tab') {
+                printHtml += blockToRender.content || '';
+            }
+            
+            printHtml += `</div></div>`;
+        });
+        
+        printHtml += '</body></html>';
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => { printWindow.print(); }, 500);
+        UI.setStatus(el.statusMessage, '');
+    } catch (error) {
+        UI.setStatus(el.statusMessage, `Print failed: ${error.message}`, true);
+    }
 }
