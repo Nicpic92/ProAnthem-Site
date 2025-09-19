@@ -9,6 +9,10 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const generateBandNumber = () => Math.floor(10000 + Math.random() * 90000);
 
+// Define Role IDs for clarity
+const ROLE_ID_FREE = 6;
+const ROLE_ID_BAND_MEMBER = 4;
+
 exports.handler = async (event) => {
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
@@ -42,15 +46,15 @@ exports.handler = async (event) => {
                 return { statusCode: 400, body: JSON.stringify({ message: 'Invalid or expired invitation token.' })};
             }
             bandId = invite.band_id;
-            const role = 'band_member'; // Invited users are always members
+            const roleId = ROLE_ID_BAND_MEMBER;
 
             await client.query('UPDATE band_invites SET status = \'accepted\' WHERE token = $1', [inviteToken]);
             
              const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, band_id, role)
+                INSERT INTO users (email, password_hash, first_name, last_name, band_id, role_id)
                 VALUES ($1, $2, $3, $4, $5, $6);
             `;
-            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, bandId, role]);
+            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, bandId, roleId]);
 
         } else {
             if (!artistBandName) {
@@ -70,16 +74,14 @@ exports.handler = async (event) => {
             const bandResult = await client.query('INSERT INTO bands (band_number, band_name) VALUES ($1, $2) RETURNING id', [bandNumber, artistBandName]);
             bandId = bandResult.rows[0].id;
             
-            // --- THIS IS THE FIX ---
-            // New free users get both role AND subscription_status set to 'free'
-            const role = 'free';
+            const roleId = ROLE_ID_FREE;
             const subscriptionStatus = 'free';
 
             const userInsertQuery = `
-                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role, subscription_status)
+                INSERT INTO users (email, password_hash, first_name, last_name, artist_band_name, band_id, stripe_customer_id, role_id, subscription_status)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);
             `;
-            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, role, subscriptionStatus]);
+            await client.query(userInsertQuery, [lowerCaseEmail, password_hash, firstName, lastName, artistBandName, bandId, customer.id, roleId, subscriptionStatus]);
 
             if (pendingSong && typeof pendingSong === 'object' && bandId) {
                 const { title, artist, song_blocks, audio_url, tuning, capo, transpose } = pendingSong;
