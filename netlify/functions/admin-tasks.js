@@ -36,6 +36,7 @@ exports.handler = async (event) => {
         const resource = path.split('/')[2];
 
         if (event.httpMethod === 'GET' && resource === 'users') {
+            // FIXED QUERY: Join roles table to get r.name
             const query = `SELECT u.email, r.name as role, u.created_at, b.band_name, u.band_id FROM users u LEFT JOIN bands b ON u.band_id = b.id JOIN roles r ON u.role_id = r.id ORDER BY u.created_at DESC;`;
             const result = await client.query(query);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
@@ -69,8 +70,9 @@ exports.handler = async (event) => {
             }
 
             if (resource === 'update-role') {
+                // FIXED: Expect 'newRoleName' to match the database role name
                 const { email, newRoleName } = body;
-                if (!email || !newRoleName) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRoleName are required.' })};
+                if (!email || !newRoleName) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRole are required.' })};
 
                 if (email.toLowerCase() === adminEmail.toLowerCase() && newRoleName !== 'admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Admins cannot change their own role.' })};
@@ -85,11 +87,12 @@ exports.handler = async (event) => {
             }
 
             if (resource === 'add-user') {
+                // FIXED: Expect roleName and use it to find the role_id
                 const { email, firstName, lastName, roleName, bandId } = body;
                 if (!email || !firstName || !lastName || !roleName || !bandId) {
                     return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required to add a user.' })};
                 }
-                
+
                 const { rows: [role] } = await client.query('SELECT id, name FROM roles WHERE name = $1', [roleName]);
                 if (!role) {
                     return { statusCode: 404, body: JSON.stringify({ message: 'The selected role was not found.' })};
