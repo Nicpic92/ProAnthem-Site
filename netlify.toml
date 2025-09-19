@@ -1,11 +1,10 @@
 # --- START OF FILE netlify.toml ---
 
-# Base build settings
 [build]
-  # This tells Netlify where your site's publishable files are.
   publish = "public"
-  # This tells Netlify where your serverless functions are located.
   functions = "netlify/functions"
 
-# All redirect/rewrite rules have been moved to the public/_redirects file
-# to ensure they are processed correctly by Netlify's CDN.
+# Increase the timeout for all functions to 20 seconds.
+# This gives a sleeping serverless database enough time to wake up.
+[functions]
+  timeout = 20
