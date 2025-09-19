@@ -84,6 +84,7 @@ function setupEventListeners() {
     addListener('transaction-form', 'submit', handleSaveTransaction);
     addListener('add-merch-btn', 'click', () => openMerchModal(null));
     addListener('merch-form', 'submit', handleSaveMerchItem);
+    addListener('copy-profile-link-btn', 'click', copyPublicProfileLink);
 }
 
 async function loadBandDetails() {
@@ -147,7 +148,7 @@ async function handleAddMember(event) {
 function copyInviteLink() {
     const input = document.getElementById('invite-link-input');
     input.select();
-    input.setSelectionRange(0, 99999);
+    input.setSelectionRange(0, 99999); // For mobile devices
     navigator.clipboard.writeText(input.value);
     document.getElementById('copy-link-btn').textContent = 'Copied!';
     setTimeout(() => { document.getElementById('copy-link-btn').textContent = 'Copy'; }, 2000);
@@ -177,6 +178,14 @@ async function loadBandProfile() {
             }
         }
         
+        if (profile.slug) {
+            const linkContainer = document.getElementById('public-profile-link-container');
+            const linkInput = document.getElementById('public-profile-link');
+            const fullUrl = `${window.location.origin}/bands/${profile.slug}`;
+            linkInput.value = fullUrl;
+            linkContainer.classList.remove('hidden');
+        }
+
         const photoContainer = document.getElementById('photo-inputs-container');
         photoContainer.innerHTML = '';
         if (profile.photo_gallery && profile.photo_gallery.length > 0) {
@@ -214,6 +223,8 @@ async function handleSaveProfile(event) {
         await updateBandProfile(payload);
         alert('Profile saved successfully!');
         document.getElementById('band-name-header').textContent = payload.band_name;
+        // Reload profile to show updated slug link if band name changed
+        loadBandProfile();
     } catch(error) {
         alert(`Error saving profile: ${error.message}`);
     } finally {
@@ -233,6 +244,15 @@ function addPhotoInput(url) {
         input.disabled = true;
     }
     container.appendChild(input);
+}
+
+function copyPublicProfileLink() {
+    const input = document.getElementById('public-profile-link');
+    input.select();
+    navigator.clipboard.writeText(input.value);
+    const btn = document.getElementById('copy-profile-link-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
 }
 
 async function loadCalendarEvents() {
