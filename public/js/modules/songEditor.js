@@ -44,39 +44,26 @@ export function init(isDemoMode) {
 }
 
 async function loadInitialData() {
-    if (isDemo) {
-        setupDemoMode();
-        return;
-    }
-    
-    if (userPermissions.role) { // Check if permissions were loaded
+    // Demo mode is now handled by the main marketing page
+    const user = getUserPayload();
+    if (user && user.permissions) {
+        userPermissions = user.permissions;
         try {
-            await loadChords(true); // Assuming logged in
+            await loadChords(true);
             UI.setStatus(el.statusMessage, 'Loading songs...');
             const sheets = await UI.loadSheetList(el.songSelector, api);
             const initialSongId = sheets.length > 0 ? sheets[0].id : 'new';
             await handleLoadSong(initialSongId);
             UI.setStatus(el.statusMessage, '');
         } catch (error) {
-            console.error("Authentication error during data load.", error);
-            if (!error.message.includes("Session expired")) {
-                UI.setStatus(el.statusMessage, `Error: ${error.message}. Loading demo.`, true);
-                setupDemoMode();
-            }
+            console.error("Error during data load.", error);
+            UI.setStatus(el.statusMessage, `Error: ${error.message}. Please refresh.`, true);
         }
     } else {
-        setupDemoMode();
+        // This case should ideally not be hit if auth.js is working, but it's a safe fallback.
+        UI.setStatus(el.statusMessage, 'Authentication error. Please log in.', true);
+        document.getElementById('tool-content').innerHTML = '<p class="text-center text-red-500">Could not verify user permissions. Please try logging in again.</p>';
     }
-}
-
-function setupDemoMode() {
-    isDemo = true;
-    userPermissions = { can_use_stems: false, can_use_setlists: true, song_limit: 3 }; // Simulate some permissions
-    songDataManager.replaceSongData(songDataManager.DEMO_SONG_DATA);
-    loadChords(false);
-    renderSong();
-    if (el.saveBtn) el.saveBtn.textContent = "Save Song & Sign Up";
-    UI.setStatus(el.statusMessage, "This is a demo. Your work will not be saved.");
 }
 
 function cacheDOMElements() {
@@ -107,20 +94,17 @@ function cacheDOMElements() {
     el.importTextarea = document.getElementById('import-textarea');
     el.importConfirmBtn = document.getElementById('import-confirm-btn');
     el.importCancelBtn = document.getElementById('import-cancel-btn');
-    el.resetDemoBtn = document.getElementById('resetDemoBtn');
     el.historyBtn = document.getElementById('historyBtn');
     el.notationPalette = document.getElementById('notation-palette');
     el.manageStemsBtn = document.getElementById('manage-stems-btn');
-    el.printPdfBtn = document.getElementById('printPdfBtn'); // Get the new print button
+    el.printPdfBtn = document.getElementById('printPdfBtn');
 }
 
 function attachEventListeners() {
-    // Input event listeners remain the same...
     el.titleInput?.addEventListener('input', () => songDataManager.updateSongField('title', el.titleInput.value));
     el.artistInput?.addEventListener('input', () => songDataManager.updateSongField('artist', el.artistInput.value));
     el.durationInput?.addEventListener('input', () => songDataManager.updateSongField('duration', el.durationInput.value));
 
-    el.resetDemoBtn?.addEventListener('click', () => { if (confirm('Are you sure?')) { setupDemoMode(); }});
     el.songSelector?.addEventListener('change', () => handleLoadSong(el.songSelector.value));
 
     [el.tuningSelector, el.capoFretInput].forEach(elem => elem?.addEventListener('input', handleMusicalSettingsChange));
@@ -139,7 +123,6 @@ function attachEventListeners() {
     el.songBlocksContainer?.addEventListener('click', handleSongBlockClick);
     el.addBlockButtonsContainer?.addEventListener('click', handleAddBlockClick);
     
-    // Resize handlers remain the same...
     el.songBlocksContainer?.addEventListener('mousedown', (e) => { if (e.target.classList.contains('resize-handle')) { e.preventDefault(); const blockEl = e.target.closest('.song-block'); const textarea = blockEl.querySelector('.form-textarea'); if (textarea) { activeResize = { element: textarea, startY: e.clientY, startHeight: textarea.offsetHeight, blockId: blockEl.dataset.blockId }; document.body.style.cursor = 'ns-resize'; } } });
     document.addEventListener('mousemove', (e) => { if (activeResize.element) { const height = activeResize.startHeight + e.clientY - activeResize.startY; activeResize.element.style.height = `${Math.max(50, height)}px`; } });
     document.addEventListener('mouseup', () => { if (activeResize.element) { songDataManager.updateBlockData(activeResize.blockId, null, null, activeResize.element.offsetHeight); activeResize = {}; document.body.style.cursor = ''; } });
@@ -180,7 +163,7 @@ function renderSong() {
     });
 
     UI.renderAddBlockButtons(el.addBlockButtonsContainer, songData.song_blocks);
-    enforcePermissionsOnUI(); // Apply permission checks to the UI
+    enforcePermissionsOnUI();
     renderPreview();
     updateSoundingKey();
     updateSetlistSongContext(songData);
@@ -207,36 +190,54 @@ function updateUIFromData(songData) {
     el.transposeStatus.textContent = steps > 0 ? `+${steps}` : String(steps);
     el.historyBtn.disabled = !songData.id;
     el.manageStemsBtn.disabled = !songData.id;
-    el.printPdfBtn.disabled = !songData.id; // Can only print saved songs
+    el.printPdfBtn.disabled = !songData.id;
 }
 
-// NEW FUNCTION: Enforces UI state based on user permissions
 function enforcePermissionsOnUI() {
     const canUseStems = userPermissions.can_use_stems;
-    const canUseSetlists = userPermissions.can_use_setlists;
-    
+    const canUseSetlists = userPermissions.can_use_setlists; // This permission now also governs tab editors
+
     // Voice Memos & Stems
     el.recordBtn.disabled = !canUseStems;
     el.manageStemsBtn.disabled = !canUseStems || !songDataManager.getSongData().id;
-    if (!canUseStems) {
-        const audioSection = document.getElementById('audioSection');
-        if (!audioSection.querySelector('.upgrade-prompt')) {
-            const prompt = document.createElement('p');
-            prompt.className = 'upgrade-prompt text-sm text-yellow-400';
-            prompt.textContent = 'Voice Memos & Stem Mixer are premium features. Upgrade to enable.';
-            audioSection.appendChild(prompt);
-        }
+    const audioSection = document.getElementById('audioSection');
+    const existingAudioPrompt = audioSection.querySelector('.upgrade-prompt');
+    if (!canUseStems && !existingAudioPrompt) {
+        const prompt = document.createElement('p');
+        prompt.className = 'upgrade-prompt text-sm text-yellow-400';
+        prompt.textContent = 'Voice Memos & Stem Mixer are premium features. Upgrade to enable.';
+        audioSection.appendChild(prompt);
+    } else if (canUseStems && existingAudioPrompt) {
+        existingAudioPrompt.remove();
     }
 
-    // Interactive Editors (Tab & Drum)
+    // Interactive Editors (Add Buttons)
     document.querySelectorAll('[data-action="add"][data-type="tab"], [data-action="add"][data-type="drum_tab"]')
         .forEach(button => {
-            button.disabled = !canUseSetlists; // Tab/Drum editors are tied to setlist/paid plans
+            button.disabled = !canUseSetlists;
             if (!canUseSetlists) {
                 button.title = "Upgrade to a paid plan to use interactive editors.";
                 button.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                button.title = "";
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
             }
         });
+        
+    // Interactive Editors (Edit Buttons on existing blocks)
+    document.querySelectorAll('.song-block').forEach(blockEl => {
+        const editButton = blockEl.querySelector('[data-action="edit-tab"]');
+        if (editButton) {
+            editButton.disabled = !canUseSetlists;
+            if (!canUseSetlists) {
+                editButton.title = "Upgrade to edit tabs.";
+                editButton.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                editButton.title = "";
+                editButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+    });
 }
 
 export async function handleLoadSong(id) {
@@ -260,14 +261,18 @@ export async function handleLoadSong(id) {
 }
 
 async function handleSave() {
-    // FIXED: Add song limit check here
-    if (!isDemo && userPermissions.song_limit !== -1) {
+    if (userPermissions.song_limit !== -1) {
         const songData = songDataManager.getSongData();
-        if (!songData.id) { // Only check for new songs
-            const songs = await api.getSheets();
-            if (songs.length >= userPermissions.song_limit) {
-                alert(`You have reached the ${userPermissions.song_limit}-song limit for the free plan. Please upgrade to save more songs.`);
-                UI.setStatus(el.statusMessage, 'Song limit reached.', true);
+        if (!songData.id) {
+            try {
+                const songs = await api.getSheets();
+                if (songs.length >= userPermissions.song_limit) {
+                    alert(`You have reached the ${userPermissions.song_limit}-song limit for the free plan. Please upgrade to save more songs.`);
+                    UI.setStatus(el.statusMessage, 'Song limit reached.', true);
+                    return;
+                }
+            } catch(e) {
+                UI.setStatus(el.statusMessage, `Could not verify song count: ${e.message}`, true);
                 return;
             }
         }
@@ -276,7 +281,7 @@ async function handleSave() {
     el.saveBtn.disabled = true;
     UI.setStatus(el.statusMessage, 'Saving...');
     try {
-        const savedSong = await songDataManager.saveSong(isDemo);
+        const savedSong = await songDataManager.saveSong(false); // isDemo is always false here
         if (savedSong) {
             UI.setStatus(el.statusMessage, 'Saved successfully!');
             if (!el.songSelector.querySelector(`option[value="${savedSong.id}"]`)) {
@@ -290,15 +295,11 @@ async function handleSave() {
     } catch (error) {
         UI.setStatus(el.statusMessage, `Save failed: ${error.message}`, true);
     } finally {
-        if (!isDemo) el.saveBtn.disabled = false;
+        el.saveBtn.disabled = false;
     }
 }
 
-// Other functions (handleDelete, handleMusicalSettingsChange, etc.) remain the same...
-
-// ... (Rest of the file is unchanged, just pasting it for completeness)
 async function handleDelete() {
-    if (isDemo) { UI.setStatus(el.statusMessage, 'Deleting is disabled in the demo.', true); return; }
     const songData = songDataManager.getSongData();
     if (!songData.id) { UI.setStatus(el.statusMessage, "Cannot delete an unsaved song.", true); return; }
 
@@ -336,8 +337,7 @@ function handleTranspose(amount) {
 
 function handleAddBlockClick(e) {
     const target = e.target;
-    if (target.disabled) return; // Prevent adding disabled blocks
-
+    if (target.disabled) return;
     const songData = songDataManager.getSongData();
     const songBlocks = songData.song_blocks;
 
@@ -401,6 +401,12 @@ function handleSongBlockClick(e) {
 
     const action = e.target.dataset.action;
     if (action) {
+        // ADDED: Permission guard for edit-tab action
+        if (action === 'edit-tab' && !userPermissions.can_use_setlists) {
+            alert("Interactive tab editors are a premium feature. Please upgrade your plan.");
+            return;
+        }
+
         const songData = songDataManager.getSongData();
         const block = songData.song_blocks.find(b => b.id === blockId);
 
@@ -540,7 +546,6 @@ async function loadChords(isUserLoggedIn) {
 }
 
 async function handleAddChord() {
-    if (isDemo) { UI.setStatus(el.statusMessage, 'Cannot save new chords in demo.', true); return; }
     const name = el.newChordInput.value.trim();
     if (!name) return;
     try {
@@ -669,7 +674,6 @@ function renderTransposedTabForHistory(tabBlock, historyData) {
      return UI.Fretboard.renderTransposedTab(tabBlock, historyData.tuning, historyData.capo, historyData.transpose);
 }
 
-// NEW FUNCTION: Handle PDF printing from the tool
 async function handlePrintPDF() {
     const songData = songDataManager.getSongData();
     if (!songData.id) {
