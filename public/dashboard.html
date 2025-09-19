@@ -11,20 +11,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <style>
+        /* This applies the dark "tool" theme from your style.css */
         body {
-            background-color: #111827;
-            color: #f3f4f6;
+            background-color: #111827; /* Dark BG */
+            color: #f3f4f6; /* Light Text */
         }
         .feature-card {
-            background-color: #1f2937;
-            border: 1px solid #374151;
+            background-color: #1f2937; /* gray-800 */
+            border: 1px solid #374151; /* gray-700 */
             transition: all 0.2s ease-in-out;
             display: flex;
             flex-direction: column;
         }
         .feature-card:hover {
             transform: translateY(-5px);
-            border-color: #4f46e5;
+            border-color: #4f46e5; /* indigo-600 */
         }
     </style>
 </head>
@@ -43,6 +44,7 @@
     <main class="flex-grow">
         <section class="container mx-auto px-6 py-12">
 
+            <!-- UPGRADE PROMPT BANNER (ADD THIS) -->
             <div id="upgrade-prompt" class="hidden p-4 mb-8 bg-indigo-900/50 border border-indigo-700 text-indigo-200 rounded-lg text-center">
                 <p>
                     <strong>You are on the Free Plan.</strong> 
@@ -50,14 +52,17 @@
                     <a href="/pricing.html" class="font-bold underline hover:text-white">View Plans & Upgrade</a>
                 </p>
             </div>
+            <!-- END OF BANNER -->
 
             <div class="mb-12">
                 <h1 id="welcome-header" class="text-4xl md:text-5xl font-bold tracking-tight">Welcome!</h1>
                 <p class="mt-2 text-lg text-gray-400">Select a tool to get started.</p>
             </div>
 
+            <!-- Feature Grid -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
 
+                <!-- Tile 1: ProAnthem Core Tool -->
                 <div class="feature-card rounded-lg p-8 lg:col-span-2">
                     <h2 class="text-2xl font-bold">ProAnthem Tool</h2>
                     <div class="my-3">
@@ -71,6 +76,7 @@
                     </a>
                 </div>
 
+                <!-- Tile 2: Band Management -->
                 <div id="band-management-card" class="feature-card rounded-lg p-8 band-only hidden">
                     <h2 class="text-2xl font-bold">Band Management</h2>
                     <div class="my-3">
@@ -84,6 +90,7 @@
                     </a>
                 </div>
                 
+                <!-- Tile 3: Stage Plot & Rider -->
                 <div class="feature-card rounded-lg p-8 band-only hidden">
                     <h2 class="text-2xl font-bold">Stage Plot & Tech Rider</h2>
                     <div class="my-3">
@@ -110,18 +117,22 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             if (!checkAccess()) {
+                // If checkAccess fails, it will handle the redirect.
                 return;
             }
 
             const user = getUserPayload();
             if (!user) {
+                // Should not happen if checkAccess passes, but as a fallback.
                 window.location.href = '/proanthem_index.html';
                 return;
             }
 
+            // Personalize the welcome message
             const welcomeHeader = document.getElementById('welcome-header');
             welcomeHeader.textContent = `Welcome, ${user.name}!`;
             
+            // Show upgrade prompt for free users
             if (user.permissions && user.permissions.role === 'free') {
                 const upgradePrompt = document.getElementById('upgrade-prompt');
                 if (upgradePrompt) {
@@ -129,7 +140,8 @@
                 }
             }
 
-            if (user.band_id) {
+            // Show band-specific cards only if the user has permission to manage the band
+            if (user.permissions && user.permissions.can_manage_band) {
                 document.querySelectorAll('.band-only').forEach(el => {
                     el.classList.remove('hidden');
                 });
@@ -139,3 +151,4 @@
     <script type="module" src="/js/auth.js"></script>
 </body>
 </html>
+<!-- END OF FILE public/dashboard.html -->
