@@ -1,17 +1,8 @@
 # --- START OF FILE netlify.toml ---
 
-# This rule tells Netlify how to handle public band profile pages.
-# It's a REWRITE (status = 200), not a redirect.
-
 [[redirects]]
-  # Match any URL that starts with /bands/ followed by anything.
   from = "/bands/*"
-
-  # Serve the band-profile.html file instead.
   to = "/band-profile.html"
-
-  # The status code 200 makes this a rewrite.
-  # The original URL remains in the browser's address bar.
   status = 200
 
 # --- END OF FILE netlify.toml ---
