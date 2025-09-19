@@ -9,7 +9,7 @@
 # The ."*" is a wildcard.
 [functions."*"]
   # Increase the function timeout to 20 seconds.
-  timeout = 20```
+  timeout = 20
 
 #### **Step 2: The Final, Robust `login.js`**
 
