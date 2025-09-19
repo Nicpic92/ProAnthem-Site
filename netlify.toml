@@ -1,14 +1,17 @@
 # --- START OF FILE netlify.toml ---
-# This is the final, syntactically correct version.
 
-[build]
-  publish = "public"
-  functions = "netlify/functions"
+# This rule tells Netlify how to handle public band profile pages.
+# It's a REWRITE (status = 200), not a redirect.
 
-# This block applies settings to ALL serverless functions.
-# The ."*" is a wildcard.
-[functions."*"]
-  # Increase the function timeout to 20 seconds.
-  timeout = 30
+[[redirects]]
+  # Match any URL that starts with /bands/ followed by anything.
+  from = "/bands/*"
 
+  # Serve the band-profile.html file instead.
+  to = "/band-profile.html"
 
+  # The status code 200 makes this a rewrite.
+  # The original URL remains in the browser's address bar.
+  status = 200
+
+# --- END OF FILE netlify.toml ---
