@@ -1,7 +1,6 @@
 // --- START OF FILE public/js/modules/songDataManager.js ---
 
 import * as api from '../api.js';
-import * as drumEditor from './drumEditor.js';
 
 let songData = {};
 
@@ -14,24 +13,9 @@ export function getSongData() {
 }
 
 /**
- * Creates the initial data structure for the demo song.
- */
-function initializeDemoSongData() {
-    songData = { 
-        id: 'demo-song', title: 'The ProAnthem Feature Tour', artist: 'The Dev Team', audio_url: null, duration: '4:15',
-        song_blocks: [
-            { id: 'block_1', type: 'lyrics', label: 'Lyrics & Chords', content: '[G]Just type your lyrics [D]in this space,\nPut [Em]chords in brackets, [C]right in place.\nThe [G]preview updates, [D]as you go,\nA [C]perfect layout for your [G]show.', height: 140 },
-            { id: 'block_2', type: 'tab', label: 'Guitar Riff Example', strings: 6, data: { notes: [{string: 3, fret: 5, position: 200}, {string: 3, fret: 7, position: 350, notation: 'h'}, {string: 2, fret: 5, position: 500}, {string: 2, fret: 7, position: 650, notation: 'p'}]}, editMode: false }
-        ],
-        tuning: 'E_STANDARD', capo: 0, transpose: 0
-    };
-}
-
-/**
- * Creates the data structure for a blank new song.
+ * Creates the data structure for a blank new song with a helpful starting template.
  */
 function initializeNewSongData() {
-    // NEW: Start with a helpful lyrics block instead of a drum tab.
     const welcomeContent = 
 `[Verse 1]
 [G]This is where your lyrics go.
@@ -96,22 +80,11 @@ export async function loadSong(id) {
 
 /**
  * Saves the current song data to the API.
- * @param {boolean} isDemo - Whether the app is in demo mode.
+ * @param {boolean} isDemo - This parameter is now deprecated but kept for compatibility.
  * @returns {Promise<object>} The saved song data.
  */
 export async function saveSong(isDemo) {
-    if (isDemo) {
-        const hasContent = songData.song_blocks.some(b => (b.content && b.content.trim() !== '') || (b.data && b.data.notes && b.data.notes.length > 0));
-        if (!hasContent && !songData.title) {
-            alert("Please add a title or some content before saving!");
-            return null;
-        }
-        alert("Let's save your work! We'll take you to the signup page. Your song will be waiting for you in your new account.");
-        localStorage.setItem('pendingSong', JSON.stringify(songData));
-        window.location.href = '/pricing.html';
-        return null;
-    }
-
+    // Demo logic has been removed from here and is handled by the UI layer.
     const savedSong = songData.id ? await api.updateSheet(songData.id, songData) : await api.createSheet(songData);
     songData.id = savedSong.id;
     return savedSong;
@@ -170,8 +143,3 @@ export function setSongBlocks(newBlocks) {
 export function replaceSongData(newData) {
     songData = newData;
 }
-
-
-// Initialize demo data if needed by other modules on first load
-initializeDemoSongData();
-export const DEMO_SONG_DATA = songData;
