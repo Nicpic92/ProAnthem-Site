@@ -1,21 +1,8 @@
 # --- START OF FILE netlify.toml ---
 
-# This file configures the core deployment settings for your site on Netlify.
-
-# [build] section: Tells Netlify where your files are.
 [build]
-  # This is the directory that contains your HTML, CSS, and JS files.
   publish = "public"
-  # This is the directory that contains your backend serverless functions.
   functions = "netlify/functions"
 
-# [functions] section: Configures settings for your serverless functions.
 [functions]
-  # Increase the default timeout from 10 seconds to 20 seconds.
-  # This is crucial to prevent crashes when a serverless database (like Neon)
-  # needs extra time to "wake up" on the first request.
   timeout = 20
-
-# NOTE: All redirect and rewrite rules have been moved to the `public/_redirects` file.
-# This is done to ensure they have the highest priority and to avoid potential
-# conflicts with Netlify's default "Pretty URL" settings.
