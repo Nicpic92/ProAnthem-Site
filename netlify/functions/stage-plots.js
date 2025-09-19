@@ -23,7 +23,13 @@ exports.handler = async (event) => {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
     
-    const isAuthorizedToWrite = permissions.can_manage_band;
+    // UPDATED PERMISSION CHECK
+    if (!permissions.can_use_stage_plots) {
+        return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: This feature is not available for your plan.' }) };
+    }
+
+    // Only band admins or system admins can create, update, or delete plots.
+    const isAuthorizedToWrite = permissions.role === 'admin' || permissions.role === 'band_admin';
 
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
