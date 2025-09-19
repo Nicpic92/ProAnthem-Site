@@ -16,23 +16,22 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    const { band_id: bandId, role: userRole } = decodedToken.user;
+    const { band_id: bandId, permissions } = decodedToken.user;
     if (!bandId) {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
-    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin' || userRole === 'editor';
+    const isAuthorizedToWrite = permissions.can_use_stems; // Use the specific permission for stems
 
     const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
 
     try {
         await client.connect();
-        const pathParts = event.path.split('/').filter(Boolean); // e.g., ['api', 'song-stems', '123']
+        const pathParts = event.path.split('/').filter(Boolean);
         const songId = event.queryStringParameters.song_id ? parseInt(event.queryStringParameters.song_id, 10) : null;
         const stemId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
 
         if (event.httpMethod === 'GET') {
             if (!songId) return { statusCode: 400, body: JSON.stringify({ message: 'Song ID is required.' })};
-            // Security check: ensure the song belongs to the user's band
             const songCheck = await client.query('SELECT id FROM lyric_sheets WHERE id = $1 AND band_id = $2', [songId, bandId]);
             if (songCheck.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Song not found or access denied.' })};
 
@@ -46,7 +45,6 @@ exports.handler = async (event) => {
 
         if (event.httpMethod === 'POST') {
             const { song_id, instrument_name, file_url } = JSON.parse(event.body);
-            // Security check: ensure the song belongs to the user's band
             const songCheck = await client.query('SELECT id FROM lyric_sheets WHERE id = $1 AND band_id = $2', [song_id, bandId]);
             if (songCheck.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Song not found or access denied.' })};
             
@@ -57,7 +55,6 @@ exports.handler = async (event) => {
         }
 
         if (event.httpMethod === 'DELETE' && stemId) {
-            // Security check: ensure the stem belongs to the user's band
             const result = await client.query('DELETE FROM song_stems WHERE id = $1 AND band_id = $2', [stemId, bandId]);
             if (result.rowCount === 0) return { statusCode: 404, body: JSON.stringify({ message: 'Stem not found or access denied.' })};
             return { statusCode: 204, body: '' };
@@ -72,4 +69,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-// --- END OF FILE netlify/functions/song-stems.js ---
