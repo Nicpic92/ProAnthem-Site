@@ -84,7 +84,6 @@
                     </a>
                 </div>
                 
-                <!-- THIS IS THE CORRECTED LINE -->
                 <div id="stage-plot-card" class="feature-card rounded-lg p-8 stage-plot-only hidden">
                     <h2 class="text-2xl font-bold">Stage Plot & Tech Rider</h2>
                     <div class="my-3">
@@ -130,12 +129,12 @@
                 }
             }
 
-            // Show Band Management card based on its specific permission
-            if (user.permissions && user.permissions.can_manage_band) {
+            // FIXED: Show Band Management card based on the NEW can_view_band_page permission
+            if (user.permissions && user.permissions.can_view_band_page) {
                 document.getElementById('band-management-card').classList.remove('hidden');
             }
             
-            // Show Stage Plot card based on ITS specific permission
+            // Show Stage Plot card based on its specific permission
             if (user.permissions && user.permissions.can_use_stage_plots) {
                 document.getElementById('stage-plot-card').classList.remove('hidden');
             }
