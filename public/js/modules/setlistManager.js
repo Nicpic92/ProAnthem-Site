@@ -9,6 +9,57 @@ let currentSongData = null; // To hold the currently loaded song from the editor
 
 const el = {};
 
+// --- HELPER FUNCTIONS FOR PDF TAB RENDERING (COPIED FROM FRETBOARD.JS) ---
+const PDF_TUNINGS = { E_STANDARD: { name: "E Standard", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'E'] }, EB_STANDARD: { name: "Eb Standard", offset: -1, strings: ['d#', 'A#', 'F#', 'C#', 'G#', 'D#'] }, D_STANDARD: { name: "D Standard", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'D'] }, DROP_D: { name: "Drop D", offset: 0, strings: ['e', 'B', 'G', 'D', 'A', 'D'] }, DROP_C: { name: "Drop C", offset: -2, strings: ['d', 'A', 'F', 'C', 'G', 'C'] } };
+const PDF_FRETBOARD_CONFIG = { nutWidth: 15 };
+
+function renderTransposedTabForPDF(tabBlock, song) {
+    if (!tabBlock.data || !tabBlock.data.notes || tabBlock.data.notes.length === 0) {
+        return 'No tab data.';
+    }
+    const numStrings = tabBlock.strings || 6;
+    const tuningInfo = PDF_TUNINGS[song.tuning];
+    const stringNames = tuningInfo?.strings?.slice(0, numStrings) || Array(numStrings).fill('?');
+    const totalOffset = (tuningInfo?.offset ?? 0) + (song.capo ?? 0) + (song.transpose ?? 0);
+    const CHARACTER_WIDTH = 12;
+    const timeline = new Map();
+
+    tabBlock.data.notes.forEach(note => {
+        if (note.string >= numStrings) return;
+        const transposedFret = note.fret - totalOffset;
+        if (transposedFret < 0) return;
+        const charPosition = Math.max(0, Math.floor((note.position - PDF_FRETBOARD_CONFIG.nutWidth) / CHARACTER_WIDTH));
+        if (!timeline.has(charPosition)) {
+            timeline.set(charPosition, []);
+        }
+        timeline.get(charPosition).push({ string: note.string, fret: transposedFret.toString() });
+    });
+
+    if (timeline.size === 0) return 'Notes out of range for current settings.';
+    
+    const sortedPositions = [...timeline.keys()].sort((a, b) => a - b);
+    const lines = stringNames.map(name => `${name.padEnd(2, ' ')}|-`);
+    let lastCharPos = 0;
+    sortedPositions.forEach(charPos => {
+        const notesAtPos = timeline.get(charPos);
+        const maxWidth = notesAtPos.reduce((max, note) => Math.max(max, note.fret.length), 1);
+        const padding = charPos - lastCharPos - 1;
+        if (padding > 0) {
+            for (let i = 0; i < numStrings; i++) lines[i] += '-'.repeat(padding);
+        }
+        for (let i = 0; i < numStrings; i++) {
+            const noteOnString = notesAtPos.find(n => n.string === i);
+            const displayChar = noteOnString ? noteOnString.fret : '-';
+            lines[i] += displayChar.padEnd(maxWidth, '-');
+        }
+        lastCharPos = charPos + maxWidth - 1;
+    });
+    for (let i = 0; i < numStrings; i++) lines[i] += '-|';
+    return lines.join('\n');
+}
+// --- END HELPER FUNCTIONS ---
+
+
 function cacheDOMElements() {
     el.setlistBtn = document.getElementById('setlistBtn');
     el.setlistModal = document.getElementById('setlistModal');
@@ -376,17 +427,20 @@ async function handlePrintSetlist(drummerMode = false) {
                 printHtml += `<div class="song"><h2 class="song-title">${index + 1}. ${item.title}</h2><p class="song-meta">Artist: ${item.artist||'Unknown'} | ${getSongKeyInfo(item)}</p><div class="song-content">`;
                 const songBlocks = (typeof item.song_blocks === 'string') ? JSON.parse(item.song_blocks || '[]') : (item.song_blocks || []);
                 songBlocks.forEach(block => {
-                    if (block.type === 'lyrics') {
-                        printHtml += `<strong>${block.label}</strong>\n`;
-                        (block.content || '').split('\n').forEach(line => {
+                    printHtml += `<strong>${block.label}</strong>\n`;
+                    if (block.type === 'lyrics' && block.content) {
+                        block.content.split('\n').forEach(line => {
                             let lineToParse = drummerMode ? line.replace(/\[([^\]]+)\]/g, '') : line;
                             const { chordLine, lyricLine } = UI.parseLineForRender(lineToParse);
-                            if (chordLine.trim() && !drummerMode) printHtml += `<div class="chord">${chordLine}</div>`;
+                            if (chordLine.trim() && !drummerMode) printHtml += `<div class="chord">${chordLine.replace(/<span class="chord-span">/g, '').replace(/<\/span>/g, '')}</div>`;
                             printHtml += `<div>${lyricLine}</div>`;
                         });
                         printHtml += '\n';
+                    } else if (block.type === 'tab' && !drummerMode) {
+                        // THIS IS THE FIX: Render the tab block
+                        printHtml += renderTransposedTabForPDF(block, item) + '\n\n';
                     } else if (block.type === 'drum_tab' && drummerMode) {
-                        printHtml += `<strong>${block.label} (Drums)</strong>\n${block.content}\n\n`;
+                        printHtml += (block.content || '') + '\n\n';
                     }
                 });
                 printHtml += `</div></div>`;
