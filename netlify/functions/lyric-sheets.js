@@ -4,22 +4,19 @@ const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
-const FREE_TIER_SONG_LIMIT = 3;
-
 exports.handler = async (event) => {
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    let userEmail, bandId, userRole, subscriptionStatus;
+    let userEmail, bandId, permissions;
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userEmail = decoded.user.email;
         bandId = decoded.user.band_id;
-        userRole = decoded.user.role;
-        subscriptionStatus = decoded.user.subscription_status;
+        permissions = decoded.user.permissions;
         if (!bandId) throw new Error("Token is missing band_id.");
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
@@ -75,7 +72,7 @@ exports.handler = async (event) => {
             }
             if (event.httpMethod === 'PUT') {
                 const body = JSON.parse(event.body);
-                if (subscriptionStatus === 'free' && body.audio_url) {
+                if (!permissions.can_use_stems && body.audio_url) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Voice Memos are a premium feature. Please upgrade to save audio.' }) };
                 }
 
@@ -135,7 +132,7 @@ exports.handler = async (event) => {
                 }
             }
             if (event.httpMethod === 'DELETE') {
-                if (userRole !== 'admin' && userRole !== 'band_admin') {
+                if (!permissions.can_manage_band) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to delete songs.' }) };
                 }
                 
@@ -148,13 +145,14 @@ exports.handler = async (event) => {
                 return { statusCode: 200, body: JSON.stringify(result.rows) };
             }
             if (event.httpMethod === 'POST') {
-                if (subscriptionStatus === 'free') {
+                const songLimit = permissions.song_limit;
+                if (songLimit !== -1) {
                     const { rows: [countResult] } = await client.query('SELECT COUNT(*) FROM lyric_sheets WHERE band_id = $1', [bandId]);
                     const songCount = parseInt(countResult.count, 10);
-                    if (songCount >= FREE_TIER_SONG_LIMIT) {
+                    if (songCount >= songLimit) {
                         return { 
                             statusCode: 403, 
-                            body: JSON.stringify({ message: `You have reached the ${FREE_TIER_SONG_LIMIT}-song limit for the free plan. Please upgrade to save more songs.` }) 
+                            body: JSON.stringify({ message: `You have reached the ${songLimit}-song limit for your plan. Please upgrade.` }) 
                         };
                     }
                 }
@@ -186,4 +184,3 @@ exports.handler = async (event) => {
         await client.end();
     }
 };
-// --- END OF FILE netlify/functions/lyric-sheets.js ---
