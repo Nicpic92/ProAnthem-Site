@@ -16,11 +16,11 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    const { band_id: bandId, role: userRole } = decodedToken.user;
+    const { band_id: bandId, permissions } = decodedToken.user;
     if (!bandId) {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
-    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin';
+    const isAuthorizedToWrite = permissions.can_manage_band;
 
     const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     
@@ -70,4 +70,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-// --- END OF FILE netlify/functions/finances.js ---
