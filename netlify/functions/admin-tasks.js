@@ -17,7 +17,7 @@ exports.handler = async (event) => {
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.user.role !== 'admin') {
+        if (decoded.user.permissions.role !== 'admin') {
             return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required' }) };
         }
         adminEmail = decoded.user.email;
@@ -36,7 +36,7 @@ exports.handler = async (event) => {
         const resource = path.split('/')[2];
 
         if (event.httpMethod === 'GET' && resource === 'users') {
-            const query = `SELECT u.email, u.role, u.created_at, b.band_name, u.band_id FROM users u LEFT JOIN bands b ON u.band_id = b.id ORDER BY u.created_at DESC;`;
+            const query = `SELECT u.email, r.name as role, u.created_at, b.band_name, u.band_id FROM users u LEFT JOIN bands b ON u.band_id = b.id JOIN roles r ON u.role_id = r.id ORDER BY u.created_at DESC;`;
             const result = await client.query(query);
             return { statusCode: 200, body: JSON.stringify(result.rows) };
         }
@@ -69,25 +69,30 @@ exports.handler = async (event) => {
             }
 
             if (resource === 'update-role') {
-                const { email, newRole } = body;
-                if (!email || !newRole) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRole are required.' })};
+                const { email, newRoleName } = body;
+                if (!email || !newRoleName) return { statusCode: 400, body: JSON.stringify({ message: 'Email and newRoleName are required.' })};
 
-                if (email.toLowerCase() === adminEmail.toLowerCase() && newRole !== 'admin') {
+                if (email.toLowerCase() === adminEmail.toLowerCase() && newRoleName !== 'admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Admins cannot change their own role.' })};
                 }
-                const { rows: [userToUpdate] } = await client.query('SELECT role FROM users WHERE email = $1', [email]);
+                const { rows: [userToUpdate] } = await client.query('SELECT r.name as role FROM users u JOIN roles r on u.role_id = r.id WHERE u.email = $1', [email]);
                 if (userToUpdate && userToUpdate.role === 'admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Cannot change the role of another admin.' })};
                 }
 
-                await client.query('UPDATE users SET role = $1 WHERE email = $2', [newRole, email]);
-                return { statusCode: 200, body: JSON.stringify({ message: `User ${email}'s role updated to ${newRole}.`}) };
+                await client.query('UPDATE users SET role_id = (SELECT id FROM roles WHERE name = $1) WHERE email = $2', [newRoleName, email]);
+                return { statusCode: 200, body: JSON.stringify({ message: `User ${email}'s role updated to ${newRoleName}.`}) };
             }
 
             if (resource === 'add-user') {
-                const { email, firstName, lastName, role, bandId } = body;
-                if (!email || !firstName || !lastName || !role || !bandId) {
+                const { email, firstName, lastName, roleName, bandId } = body;
+                if (!email || !firstName || !lastName || !roleName || !bandId) {
                     return { statusCode: 400, body: JSON.stringify({ message: 'All fields are required to add a user.' })};
+                }
+                
+                const { rows: [role] } = await client.query('SELECT id, name FROM roles WHERE name = $1', [roleName]);
+                if (!role) {
+                    return { statusCode: 404, body: JSON.stringify({ message: 'The selected role was not found.' })};
                 }
 
                 const { rows: [band] } = await client.query('SELECT band_number FROM bands WHERE id = $1', [bandId]);
@@ -97,11 +102,11 @@ exports.handler = async (event) => {
                 const tempPassword = band.band_number.toString();
                 const password_hash = await bcrypt.hash(tempPassword, 10);
 
-                const subscriptionStatus = (role === 'admin' || role === 'band_admin') ? 'admin_granted' : null;
+                const subscriptionStatus = (role.name === 'admin' || role.name === 'band_admin') ? 'admin_granted' : null;
 
-                const query = `INSERT INTO users (email, password_hash, first_name, last_name, role, band_id, password_reset_required, subscription_status)
+                const query = `INSERT INTO users (email, password_hash, first_name, last_name, role_id, band_id, password_reset_required, subscription_status)
                                VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7) RETURNING email`;
-                await client.query(query, [email.toLowerCase(), password_hash, firstName, lastName, role, bandId, subscriptionStatus]);
+                await client.query(query, [email.toLowerCase(), password_hash, firstName, lastName, role.id, bandId, subscriptionStatus]);
                 
                 return { statusCode: 201, body: JSON.stringify({ message: 'User created successfully.', temporaryPassword: tempPassword }) };
             }
@@ -113,7 +118,7 @@ exports.handler = async (event) => {
                 if (email.toLowerCase() === adminEmail.toLowerCase()) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Admins cannot delete their own account.' })};
                 }
-                const { rows: [userToDelete] } = await client.query('SELECT role FROM users WHERE email = $1', [email]);
+                const { rows: [userToDelete] } = await client.query('SELECT r.name as role FROM users u JOIN roles r on u.role_id = r.id WHERE u.email = $1', [email]);
                 if (userToDelete && userToDelete.role === 'admin') {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Cannot delete another admin account.' })};
                 }
@@ -135,5 +140,3 @@ exports.handler = async (event) => {
         await client.end();
     }
 };
-
-// --- END OF FILE netlify/functions/admin-tasks.js ---
