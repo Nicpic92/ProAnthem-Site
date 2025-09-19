@@ -40,10 +40,46 @@
             </div>
 
             <!-- TAB CONTENT -->
+
+            <!-- Members Tab -->
             <div id="tab-content-members" class="tab-content mt-8">
-                <!-- Members content remains the same -->
+                <div id="add-member-section" class="bg-gray-900 p-6 rounded-lg shadow-md admin-only" style="display: none;">
+                    <h2 class="text-2xl font-bold mb-4">Add New Band Member</h2>
+                    <form id="add-member-form" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <label for="new-member-firstname" class="sr-only">First Name</label>
+                            <input type="text" id="new-member-firstname" name="firstName" required class="form-input" placeholder="First Name">
+                        </div>
+                        <div>
+                            <label for="new-member-lastname" class="sr-only">Last Name</label>
+                            <input type="text" id="new-member-lastname" name="lastName" required class="form-input" placeholder="Last Name">
+                        </div>
+                        <div>
+                            <label for="new-member-email" class="sr-only">Email Address</label>
+                            <input type="email" id="new-member-email" name="email" required class="form-input" placeholder="Email Address">
+                        </div>
+                        <div class="md:col-span-3 text-right"><button type="submit" class="btn btn-primary">Create Invite Link</button></div>
+                    </form>
+                    <div id="add-member-status-container" class="mt-3 hidden">
+                        <p id="add-member-status" class="text-sm h-5"></p>
+                        <div id="invite-link-container" class="mt-2 hidden">
+                            <label for="invite-link-input" class="sr-only">Invite Link</label>
+                            <input type="text" id="invite-link-input" name="inviteLink" readonly class="form-input w-full mt-1 bg-gray-800"><button id="copy-link-btn" class="btn btn-sm btn-secondary mt-2">Copy</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 bg-gray-900 p-8 rounded-lg shadow-md">
+                    <h2 class="text-2xl font-bold mb-4">Current Members</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full"><thead class="bg-gray-800"><tr>
+                            <th class="p-3 text-left">Email</th><th class="p-3 text-left">Name</th>
+                            <th class="p-3 text-left">Role</th><th class="p-3 text-left admin-only" style="display: none;">Actions</th>
+                        </tr></thead><tbody id="members-table-body"></tbody></table>
+                    </div>
+                </div>
             </div>
 
+            <!-- Profile Tab -->
             <div id="tab-content-profile" class="tab-content mt-8 hidden">
                  <form id="profile-form" class="bg-gray-900 p-8 rounded-lg shadow-md space-y-6">
                     <div class="flex justify-between items-start">
@@ -53,7 +89,7 @@
                             <input type="checkbox" id="press_kit_enabled" name="press_kit_enabled" class="h-5 w-5 rounded">
                         </div>
                     </div>
-
+                    
                     <!-- NEW: PUBLIC PROFILE LINK DISPLAY -->
                     <div id="public-profile-link-container" class="hidden">
                         <label class="block text-sm text-gray-400">Your Public Profile URL</label>
@@ -106,22 +142,112 @@
                 </form>
             </div>
             
-            <!-- Other tabs (Calendar, Finances, Merch) are unchanged -->
+            <!-- Calendar Tab -->
             <div id="tab-content-calendar" class="tab-content mt-8 hidden">
-                <!-- Calendar content -->
+                 <div class="bg-gray-900 p-8 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Band Calendar</h2>
+                        <button id="add-event-btn" class="btn btn-primary admin-only" style="display: none;">Add Event</button>
+                    </div>
+                    <div id="calendar-event-list" class="space-y-4"></div>
+                </div>
             </div>
+
+            <!-- Finances Tab -->
             <div id="tab-content-finances" class="tab-content mt-8 hidden">
-                <!-- Finances content -->
+                <div class="bg-gray-900 p-8 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Financial Ledger</h2>
+                        <button id="add-transaction-btn" class="btn btn-primary admin-only" style="display: none;">Add Transaction</button>
+                    </div>
+                    <p class="text-lg font-bold mb-4">Total Balance: <span id="total-balance" class="text-green-400">$0.00</span></p>
+                    <div class="overflow-x-auto"><table class="min-w-full">
+                        <thead class="bg-gray-800"><tr>
+                            <th class="p-3 text-left">Date</th><th class="p-3 text-left">Description</th>
+                            <th class="p-3 text-left">Category</th><th class="p-3 text-right">Amount</th>
+                            <th class="p-3 text-right admin-only" style="display: none;">Actions</th>
+                        </tr></thead>
+                        <tbody id="transactions-table-body"></tbody>
+                    </table></div>
+                </div>
             </div>
+
+            <!-- Merch Tab -->
             <div id="tab-content-merch" class="tab-content mt-8 hidden">
-                <!-- Merch content -->
+                 <div class="bg-gray-900 p-8 rounded-lg shadow-md">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold">Merchandise Inventory</h2>
+                        <button id="add-merch-btn" class="btn btn-primary admin-only" style="display: none;">Add Item</button>
+                    </div>
+                    <div class="overflow-x-auto"><table class="min-w-full">
+                        <thead class="bg-gray-800"><tr>
+                            <th class="p-3 text-left">Item</th><th class="p-3 text-left">Variant</th>
+                            <th class="p-3 text-right">Price</th><th class="p-3 text-right">Stock</th>
+                            <th class="p-3 text-right admin-only" style="display: none;">Actions</th>
+                        </tr></thead>
+                        <tbody id="merch-table-body"></tbody>
+                    </table></div>
+                </div>
             </div>
 
         </div>
         <div id="access-denied" class="text-center" style="display: none;"></div>
     </main>
+
+    <!-- MODALS -->
+    <div id="event-modal" class="modal-overlay hidden"><div class="modal-content">
+        <h2 id="event-modal-title" class="text-2xl font-bold">Add Event</h2>
+        <form id="event-form" class="space-y-4 mt-4">
+            <input type="hidden" id="event-id" name="id">
+            <div><label for="event-title" class="sr-only">Event Title</label><input type="text" id="event-title" name="title" required class="form-input" placeholder="Event Title"></div>
+            <div><label for="event-date" class="sr-only">Event Date</label><input type="datetime-local" id="event-date" name="event_date" required class="form-input"></div>
+            <div><label for="event-venue" class="sr-only">Venue Name</label><input type="text" id="event-venue" name="venue_name" class="form-input" placeholder="Venue Name"></div>
+            <div><label for="event-details" class="sr-only">Private Notes</label><textarea id="event-details" name="details" rows="3" class="form-input" placeholder="Private Notes"></textarea></div>
+            <div class="pt-4 border-t border-gray-700">
+                <div class="flex items-center">
+                    <input type="checkbox" id="event-public" name="is_public" class="h-4 w-4 rounded">
+                    <label for="event-public" class="ml-3 text-sm">Make this event public</label>
+                </div>
+                <div id="public-event-fields" class="mt-4 space-y-4 hidden">
+                     <label for="event-url" class="sr-only">Public Info/Ticket URL</label><input type="url" id="event-url" name="external_url" class="form-input" placeholder="Public Info/Ticket URL">
+                </div>
+            </div>
+            <div class="flex justify-between items-center pt-4"><button type="button" id="delete-event-btn" class="btn btn-danger hidden">Delete</button><div class="flex gap-4"><button type="button" id="cancel-event-btn" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Save Event</button></div></div>
+        </form>
+    </div></div>
+
+    <div id="transaction-modal" class="modal-overlay hidden"><div class="modal-content">
+        <h2 id="transaction-modal-title" class="text-2xl font-bold">Add Transaction</h2>
+        <form id="transaction-form" class="space-y-4 mt-4">
+            <input type="hidden" id="transaction-id" name="id">
+            <div><label for="transaction-date" class="sr-only">Date</label><input type="date" id="transaction-date" name="transaction_date" required class="form-input"></div>
+            <div><label for="transaction-description" class="sr-only">Description</label><input type="text" id="transaction-description" name="description" required class="form-input" placeholder="Description"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label for="transaction-amount" class="sr-only">Amount</label><input type="number" step="0.01" id="transaction-amount" name="amount" required class="form-input" placeholder="Amount"></div>
+                <div><label for="transaction-category" class="sr-only">Category</label><select id="transaction-category" name="category" required class="form-select">
+                    <option value="Venue Payout">Venue Payout</option><option value="Merch Sale">Merch Sale</option>
+                    <option value="Other Income">Other Income</option><option value="Fuel">Fuel</option>
+                    <option value="Food">Food</option><option value="Equipment">Equipment</option>
+                    <option value="Other Expense">Other Expense</option>
+                </select></div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4"><button type="button" class="btn btn-secondary" onclick="closeModal('transaction-modal')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+    </div></div>
     
-    <!-- All modals are unchanged -->
+    <div id="merch-modal" class="modal-overlay hidden"><div class="modal-content">
+        <h2 id="merch-modal-title" class="text-2xl font-bold">Add Merch Item</h2>
+        <form id="merch-form" class="space-y-4 mt-4">
+            <input type="hidden" id="merch-id" name="id">
+            <div><label for="merch-item-name" class="sr-only">Item Name</label><input type="text" id="merch-item-name" name="item_name" required class="form-input" placeholder="Item Name (e.g., Logo T-Shirt)"></div>
+            <div><label for="merch-variant-name" class="sr-only">Variant</label><input type="text" id="merch-variant-name" name="variant_name" class="form-input" placeholder="Variant (e.g., Small, Black)"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label for="merch-price" class="sr-only">Price</label><input type="number" step="0.01" id="merch-price" name="price" class="form-input" placeholder="Price (e.g., 20.00)"></div>
+                <div><label for="merch-stock" class="sr-only">Stock Quantity</label><input type="number" id="merch-stock" name="stock_quantity" required class="form-input" placeholder="Stock Quantity"></div>
+            </div>
+            <div class="flex justify-end gap-4 pt-4"><button type="button" class="btn btn-secondary" onclick="closeModal('merch-modal')">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+        </form>
+    </div></div>
     
     <footer class="text-center py-6 text-gray-500">
         <p>&copy; 2025 ProAnthem. A Spreadsheet Simplicity Product.</p>
