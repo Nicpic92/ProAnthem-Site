@@ -39,12 +39,7 @@ exports.handler = async (event) => {
         `;
         const { rows: [user] } = await client.query(userQuery, [email.toLowerCase()]);
 
-        if (!user) {
-            return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        if (!isMatch) {
+        if (!user || !await bcrypt.compare(password, user.password_hash)) {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
@@ -74,12 +69,10 @@ exports.handler = async (event) => {
         return { statusCode: 200, body: JSON.stringify({ message: 'Login successful.', token: token }) };
 
     } catch (error) {
-        // Log the actual error to the Netlify function logs for debugging
         console.error('Login Function Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
-        // This block ensures the database connection is ALWAYS closed,
-        // whether the function succeeds or fails. This is crucial for stability.
+        // This block ensures the database connection is ALWAYS closed.
         if (client) {
             await client.end();
         }
