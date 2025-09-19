@@ -25,7 +25,6 @@ export function getUserPayload() {
         }
         return payload.user || null;
     } catch (e) {
-        // If token is invalid, just remove it and return null.
         console.error('Failed to parse token, removing invalid token.', e);
         localStorage.removeItem('user_token');
         return null;
@@ -85,10 +84,9 @@ export function checkAccess() {
     if (user.role === 'admin' || validStatuses.includes(user.subscription_status)) {
         const content = document.querySelector('.main-content-area');
         if (content) {
-            // --- THIS IS THE FIX ---
-            // Instead of changing the style, we remove the class that hides it.
-            // This is more robust against CSS specificity issues.
+            // --- THIS IS THE ROBUST FIX ---
             content.classList.remove('hidden');
+            content.style.display = 'block'; // Or 'flex', 'grid' etc. as needed. Block is a safe default.
         }
         return true;
     } else {
