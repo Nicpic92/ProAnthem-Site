@@ -2,7 +2,7 @@
 
 import * as Fretboard from './fretboard.js';
 import { getSongData, updateBlockData } from './songDataManager.js';
-import { getUserPayload } from '/js/auth.js'; // Import auth to check permissions
+import { getUserPayload } from '/js/auth.js';
 
 let selectedNote = {};
 let isDraggingNote = false;
@@ -63,25 +63,20 @@ function handleFretboardClick(e) {
     if (!block) return;
     
     const user = getUserPayload();
-    const canEditTabs = user && user.permissions && user.permissions.can_use_setlists; // Tab editing is a premium feature
+    const canEditTabs = user && user.permissions && user.permissions.can_use_setlists;
 
-    // THIS IS THE FIX: If not in edit mode, automatically enter it if permitted.
     if (!block.editMode) {
         if (canEditTabs) {
             block.editMode = true;
-            renderCallback(); // Re-render the entire song UI to show "Done Editing" button etc.
-            // We don't proceed to add a note on this click, to prevent accidental notes.
-            // The user's next click will now work as expected.
+            renderCallback();
             return;
         } else {
-            // If the user can't edit, do nothing.
             return;
         }
     }
 
-    if (e.target.classList.contains('fretboard-note')) return; // Don't open modal if clicking an existing note
+    if (e.target.classList.contains('fretboard-note')) return;
 
-    // Unselect any previously selected note
     if (selectedNote.blockId) {
         const oldBlockId = selectedNote.blockId;
         selectedNote = {};
@@ -134,12 +129,18 @@ function confirmFretSelection() {
     const block = songData.song_blocks.find(b => b.id === blockId);
 
     if (block && string !== null && position !== null && fret >= 0) {
-        if (!block.data) block.data = { notes: [] };
+        if (!block.data) block.data = {};
         if (!block.data.notes) block.data.notes = [];
+        
+        // Push the new note to the block's data
         block.data.notes.push({ string, fret, position });
-        drawNotesOnFretboard(blockId);
-        updateBlockData(blockId, 'data', block.data); // Persist change
-        renderCallback(); // Full re-render might be needed for other components
+
+        // THIS IS THE CRITICAL FIX:
+        // Immediately update the central song data manager with the entire block.data object.
+        updateBlockData(blockId, 'data', block.data);
+        
+        // Then, trigger a full re-render of the song UI.
+        renderCallback(); 
     }
     document.getElementById('fret-selection-modal').classList.add('hidden');
 }
@@ -152,10 +153,12 @@ function handleDeleteNote(e) {
         const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
         if (block?.data?.notes?.[selectedNote.noteIndex]) {
             block.data.notes.splice(selectedNote.noteIndex, 1);
+            
             const oldBlockId = selectedNote.blockId;
             selectedNote = {};
             document.getElementById('notation-palette').classList.add('hidden');
-            drawNotesOnFretboard(oldBlockId);
+            
+            // CRITICAL FIX: Update the central data and re-render.
             updateBlockData(oldBlockId, 'data', block.data);
             renderCallback();
         }
@@ -173,7 +176,7 @@ function handleMouseMove(e) {
             if (clickData) {
                 note.position = clickData.position;
                 note.string = clickData.string;
-                drawNotesOnFretboard(selectedNote.blockId);
+                drawNotesOnFretboard(selectedNote.blockId); // Just redraw notes for smooth dragging
             }
         }
     }
@@ -182,13 +185,13 @@ function handleMouseMove(e) {
 function handleMouseUp() {
     if (isDraggingNote) {
         isDraggingNote = false;
-        // Persist the final dragged position
         const songData = getSongData();
         const block = songData.song_blocks.find(b => b.id === selectedNote.blockId);
         if (block) {
+            // CRITICAL FIX: Update central data and re-render after drag is finished.
             updateBlockData(selectedNote.blockId, 'data', block.data);
+            renderCallback();
         }
-        renderCallback();
     }
 }
 
