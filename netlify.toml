@@ -1,7 +1,5 @@
 # --- START OF FILE netlify.toml ---
 
-# This file configures your Netlify deployment settings.
-
 # Base build settings
 [build]
   # This tells Netlify where your site's publishable files are.
@@ -9,32 +7,5 @@
   # This tells Netlify where your serverless functions are located.
   functions = "netlify/functions"
 
-# Redirects and rewrites are crucial for Single Page Applications (SPAs)
-# and for handling "pretty URLs" (URLs without .html).
-[[redirects]]
-  # This is a general rule for your API endpoints.
-  # It rewrites any request to /api/* to the corresponding Netlify Function.
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
-  status = 200 # Use 200 for a rewrite, not a redirect.
-
-# --- THIS IS THE CRITICAL FIX ---
-# This rule handles all page requests that don't have a file extension.
-# It tells Netlify to try and find an .html file with the same name.
-# For example, a request to "/projectanthem" will be served by "/projectanthem.html".
-# The "force = false" is important; it means if a folder named "/projectanthem"
-# exists, it will be served instead of the file.
-[[redirects]]
-  from = "/*"
-  to = "/:splat.html"
-  status = 200
-  force = false
-
-# Fallback for 404 Not Found pages
-# If the above rule fails (e.g., /nonexistentpage is requested and nonexistentpage.html
-# doesn't exist), this rule will serve your main index page.
-# This is standard for SPAs but also good practice.
-[[redirects]]
-  from = "/*"
-  to = "/proanthem_index.html"
-  status = 404
+# All redirect/rewrite rules have been moved to the public/_redirects file
+# to ensure they are processed correctly by Netlify's CDN.
