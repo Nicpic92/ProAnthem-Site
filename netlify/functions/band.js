@@ -22,11 +22,11 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    const { band_id: bandId, role: userRole, email: userEmail, name: userName } = decodedToken.user;
+    const { band_id: bandId, email: userEmail, name: userName, permissions } = decodedToken.user;
     if (!bandId) {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
-    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin';
+    const isAuthorizedToWrite = permissions.can_manage_band;
 
     const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false } });
     
@@ -43,9 +43,16 @@ exports.handler = async (event) => {
         
         if (resource === 'members') {
             if (event.httpMethod === 'GET') {
-                const { rows } = await client.query('SELECT email, first_name, last_name, role FROM users WHERE band_id = $1 ORDER BY role, first_name', [bandId]);
+                const query = `
+                    SELECT u.email, u.first_name, u.last_name, r.name as role 
+                    FROM users u 
+                    JOIN roles r ON u.role_id = r.id 
+                    WHERE u.band_id = $1 
+                    ORDER BY r.id, u.first_name`;
+                const { rows } = await client.query(query, [bandId]);
                 return { statusCode: 200, body: JSON.stringify(rows) };
             }
+
             if (!isAuthorizedToWrite) return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Admin access required.' }) };
             
             if (event.httpMethod === 'POST') {
@@ -76,10 +83,19 @@ exports.handler = async (event) => {
                 if (emailToRemove.toLowerCase() === userEmail.toLowerCase()) {
                     return { statusCode: 400, body: JSON.stringify({ message: 'You cannot remove yourself from the band.' }) };
                 }
+                
+                // FIXED QUERY: This now correctly sets band_id to NULL and the role_id to 'solo' (ID=3)
+                // It also correctly finds the IDs for 'admin' and 'band_admin' to prevent them from being removed.
                 const { rowCount } = await client.query(
-                    "UPDATE users SET band_id = NULL, role = 'solo' WHERE email = $1 AND band_id = $2 AND role NOT IN ('admin', 'band_admin')",
+                    `UPDATE users 
+                     SET band_id = NULL, role_id = (SELECT id FROM roles WHERE name = 'solo') 
+                     WHERE email = $1 AND band_id = $2 
+                     AND role_id NOT IN (
+                         SELECT id FROM roles WHERE name IN ('admin', 'band_admin')
+                     )`,
                     [emailToRemove, bandId]
                 );
+
                 if (rowCount === 0) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Cannot remove this user. They may be a band admin or not in this band.' }) };
                 }
@@ -115,5 +131,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-
-// --- END OF FILE netlify/functions/band.js ---
