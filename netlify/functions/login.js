@@ -24,9 +24,10 @@ exports.handler = async (event) => {
     try {
         await client.connect();
         
+        // NEW, SIMPLIFIED QUERY JOINING THE 'roles' TABLE
         const userQuery = `
             SELECT 
-                u.email, u.password_hash, u.first_name, u.band_id, u.password_reset_required,
+                u.email, u.password_hash, u.first_name, u.band_id, u.password_reset_required, u.subscription_status,
                 r.name AS role_name,
                 r.can_access_tool,
                 r.song_limit,
@@ -43,12 +44,14 @@ exports.handler = async (event) => {
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
+        // NEW JWT PAYLOAD WITH A DEDICATED 'permissions' OBJECT
         const tokenPayload = {
             user: {
                 email: user.email, 
                 name: user.first_name,
                 band_id: user.band_id,
                 force_reset: user.password_reset_required || false,
+                subscription_status: user.subscription_status, // Keep for UI logic (e.g., "Upgrade" banner)
                 permissions: {
                     role: user.role_name,
                     can_access_tool: user.can_access_tool,
@@ -72,7 +75,6 @@ exports.handler = async (event) => {
         console.error('Login Function Error:', error);
         return { statusCode: 500, body: JSON.stringify({ message: `Internal Server Error: ${error.message}` }) };
     } finally {
-        // This block ensures the database connection is ALWAYS closed.
         if (client) {
             await client.end();
         }
