@@ -3,8 +3,7 @@
 const { Client } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-// We no longer need Stripe in the login function at all.
-// Its job is moved to the webhook, where it belongs.
+// Stripe is no longer needed here.
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -43,11 +42,13 @@ exports.handler = async (event) => {
         const { rows: [user] } = await client.query(userQuery, [email.toLowerCase()]);
 
         if (!user) {
+            await client.end();
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
 
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
+            await client.end();
             return { statusCode: 401, body: JSON.stringify({ message: 'Invalid credentials.' }) };
         }
         
@@ -58,8 +59,7 @@ exports.handler = async (event) => {
                 name: user.first_name,
                 band_id: user.band_id,
                 force_reset: user.password_reset_required || false,
-                // Embed the permissions object directly in the token.
-                permissions: {
+                permissions: { // Embed the permissions object directly in the token.
                     role: user.role_name,
                     can_access_tool: user.can_access_tool,
                     song_limit: user.song_limit,
@@ -76,14 +76,12 @@ exports.handler = async (event) => {
             await client.query('UPDATE users SET password_reset_required = FALSE WHERE email = $1', [user.email]);
         }
         
+        await client.end();
         return { statusCode: 200, body: JSON.stringify({ message: 'Login successful.', token: token }) };
 
     } catch (error) {
         console.error('Login Error:', error);
+        if (client) await client.end();
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error' }) };
-    } finally {
-        if(client) {
-            await client.end();
-        }
     }
 };
