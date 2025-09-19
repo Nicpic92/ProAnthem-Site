@@ -5,7 +5,6 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 
 exports.handler = async (event) => {
-    // 1. Authentication & Authorization
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
@@ -19,15 +18,12 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Invalid or expired token.' }) };
     }
 
-    // A user must be part of a band to access this feature.
-    const { band_id: bandId, role: userRole } = decodedToken.user;
+    const { band_id: bandId, permissions } = decodedToken.user;
     if (!bandId) {
         return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: User is not part of a band.' }) };
     }
     
-    // Only band admins or system admins can create, update, or delete plots.
-    // Any band member can view them.
-    const isAuthorizedToWrite = userRole === 'admin' || userRole === 'band_admin';
+    const isAuthorizedToWrite = permissions.can_manage_band;
 
     const client = new Client({
         connectionString: process.env.DATABASE_URL,
@@ -39,16 +35,12 @@ exports.handler = async (event) => {
         const pathParts = event.path.split('/').filter(Boolean);
         const plotId = pathParts.length > 2 ? parseInt(pathParts[2], 10) : null;
 
-        // 2. Handle different HTTP Methods (CRUD)
-
         if (event.httpMethod === 'GET') {
             if (plotId) {
-                // Get a single plot by its ID
                 const { rows: [plot] } = await client.query('SELECT * FROM stage_plots WHERE id = $1 AND band_id = $2', [plotId, bandId]);
                 if (!plot) return { statusCode: 404, body: JSON.stringify({ message: 'Plot not found or access denied.' }) };
                 return { statusCode: 200, body: JSON.stringify(plot) };
             } else {
-                // Get all plots for the user's band
                 const { rows } = await client.query('SELECT id, plot_name, updated_at FROM stage_plots WHERE band_id = $1 ORDER BY updated_at DESC', [bandId]);
                 return { statusCode: 200, body: JSON.stringify(rows) };
             }
@@ -90,5 +82,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-
-// --- END OF FILE netlify/functions/stage-plots.js ---
