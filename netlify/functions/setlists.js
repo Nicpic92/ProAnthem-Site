@@ -10,19 +10,19 @@ exports.handler = async (event) => {
         return { statusCode: 401, body: JSON.stringify({ message: 'Authorization Denied' }) };
     }
 
-    let userEmail, bandId, subscriptionStatus;
+    let userEmail, bandId, permissions;
     try {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, JWT_SECRET);
         userEmail = decoded.user.email;
         bandId = decoded.user.band_id;
-        subscriptionStatus = decoded.user.subscription_status;
+        permissions = decoded.user.permissions;
         if (!bandId) throw new Error("Token is missing band_id.");
     } catch (err) {
         return { statusCode: 401, body: JSON.stringify({ message: `Invalid or expired token: ${err.message}` }) };
     }
     
-    if (subscriptionStatus === 'free') {
+    if (!permissions.can_use_setlists) {
         return { statusCode: 403, body: JSON.stringify({ message: 'The Show Builder is a premium feature. Please upgrade to create and manage setlists.' }) };
     }
 
@@ -178,4 +178,3 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
-// --- END OF FILE netlify/functions/setlists.js ---
