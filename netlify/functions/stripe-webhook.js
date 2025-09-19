@@ -1,7 +1,16 @@
+// --- START OF FILE netlify/functions/stripe-webhook.js ---
+
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { Client } = require('pg');
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+// --- MAP YOUR STRIPE PRICE IDs AND DATABASE ROLE IDs ---
+const SOLO_PLAN_PRICE_ID = process.env.STRIPE_SOLO_PRICE_ID;
+const BAND_PLAN_PRICE_ID = process.env.STRIPE_BAND_PRICE_ID;
+const ROLE_ID_BAND_ADMIN = 2;
+const ROLE_ID_SOLO = 3;
+const ROLE_ID_INACTIVE = 7;
 
 exports.handler = async ({ body, headers }) => {
     const sig = headers['stripe-signature'];
@@ -14,7 +23,6 @@ exports.handler = async ({ body, headers }) => {
         return { statusCode: 400, body: `Webhook Error: ${err.message}` };
     }
 
-    // --- Only handle the events we care about ---
     if (!event.type.startsWith('customer.subscription.')) {
         console.log(`Ignoring irrelevant Stripe event type: ${event.type}`);
         return { statusCode: 200, body: JSON.stringify({ received: true, message: "Event ignored." }) };
@@ -32,16 +40,33 @@ exports.handler = async ({ body, headers }) => {
         const stripeCustomerId = subscription.customer;
         const newStatus = subscription.status; // e.g., 'trialing', 'active', 'canceled'
         const subscriptionId = subscription.id;
+        const priceId = subscription.items.data[0]?.price.id;
+
+        let roleIdToSet;
+
+        if (newStatus === 'active' || newStatus === 'trialing') {
+            if (priceId === BAND_PLAN_PRICE_ID) {
+                roleIdToSet = ROLE_ID_BAND_ADMIN;
+            } else if (priceId === SOLO_PLAN_PRICE_ID) {
+                roleIdToSet = ROLE_ID_SOLO;
+            } else {
+                console.warn(`Unrecognized price ID ${priceId} for active subscription. Defaulting to inactive.`);
+                roleIdToSet = ROLE_ID_INACTIVE; 
+            }
+        } else {
+            // If subscription is canceled, past_due, etc., downgrade them to the inactive role.
+            roleIdToSet = ROLE_ID_INACTIVE;
+        }
         
-        console.log(`HANDLING STRIPE EVENT: Type=${event.type}, Customer=${stripeCustomerId}, New Status=${newStatus}`);
+        console.log(`HANDLING STRIPE EVENT: Type=${event.type}, Customer=${stripeCustomerId}, New Status=${newStatus}, Setting Role ID=${roleIdToSet}`);
 
         const result = await client.query(
-            `UPDATE users SET subscription_status = $1, subscription_id = $2 WHERE stripe_customer_id = $3`, 
-            [newStatus, subscriptionId, stripeCustomerId]
+            `UPDATE users SET subscription_status = $1, subscription_id = $2, role_id = $3 WHERE stripe_customer_id = $4`, 
+            [newStatus, subscriptionId, roleIdToSet, stripeCustomerId]
         );
         
         if (result.rowCount > 0) {
-            console.log(`SUCCESS: User status updated for customer ${stripeCustomerId}.`);
+            console.log(`SUCCESS: User status and role updated for customer ${stripeCustomerId}.`);
         } else {
             console.warn(`WARNING: No user found with stripe_customer_id ${stripeCustomerId}. Update failed.`);
         }
