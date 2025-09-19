@@ -13,11 +13,8 @@
 
 #### **Step 2: The Final, Robust `login.js`**
 
-This version adds a `finally` block. This is a crucial best practice. It guarantees that the database connection is closed, whether the function succeeds, fails, or times out. This prevents your database from running out of available connections.
 
-**Replace the entire contents of `netlify/functions/login.js` with this:**
 
-```javascript
 // --- START OF FILE netlify/functions/login.js ---
 
 const { Client } = require('pg');
