@@ -31,12 +31,22 @@ function initializeDemoSongData() {
  * Creates the data structure for a blank new song.
  */
 function initializeNewSongData() {
-    const initialDrumTab = drumEditor.DEFAULT_INSTRUMENTS
-        .map(i => `${i.shortName.padEnd(2)}|${'-'.repeat(16)}|`)
-        .join('\n');
+    // NEW: Start with a helpful lyrics block instead of a drum tab.
+    const welcomeContent = 
+`[Verse 1]
+[G]This is where your lyrics go.
+Put chords in [C]brackets, right where they should [G]be.
+The [D]live preview below will update as you [G]type.`;
+
     songData = { 
         id: null, title: '', artist: '', duration: '', audio_url: null, 
-        song_blocks: [{ id: `block_${Date.now()}`, type: 'drum_tab', label: 'Drums 1', content: initialDrumTab }], 
+        song_blocks: [{ 
+            id: `block_${Date.now()}`, 
+            type: 'lyrics', 
+            label: 'Verse 1', 
+            content: welcomeContent,
+            height: 120 
+        }], 
         tuning: 'E_STANDARD', capo: 0, transpose: 0 
     };
 }
