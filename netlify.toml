@@ -1,8 +1,11 @@
 # --- START OF FILE netlify.toml ---
+# This is the final, syntactically correct version.
 
 [build]
   publish = "public"
   functions = "netlify/functions"
 
-[functions]
+# This block applies settings to ALL serverless functions.
+[functions."*"]
+  # Increase the function timeout to 20 seconds.
   timeout = 20
