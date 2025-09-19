@@ -11,21 +11,34 @@ let plotDataState = {
 };
 let isDirty = false;
 let draggedItemId = null; 
+let canWrite = false; // NEW: Permission state for editing
 
-// Use the 'load' event to ensure all scripts and modules are ready before executing.
 window.addEventListener('load', () => {
     const user = getUserPayload();
-    if (checkAccess() && user && user.band_id) {
+    // Use the specific permission to check access
+    if (checkAccess() && user && user.permissions && user.permissions.can_use_stage_plots) {
         const editorContent = document.getElementById('editor-content');
         if (editorContent) editorContent.style.display = 'grid';
-        init();
+        init(user); // Pass the user object to init
     } else {
         const accessDenied = document.getElementById('access-denied');
         if (accessDenied) accessDenied.style.display = 'block';
     }
 });
 
-function init() {
+function init(user) {
+    // NEW: Set write permission based on user's role
+    canWrite = user.permissions.role === 'admin' || user.permissions.role === 'band_admin';
+    
+    // NEW: Show/hide UI elements based on write permission
+    document.querySelectorAll('.write-permission-only').forEach(el => {
+        if (canWrite) {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    });
+
     loadPlotList();
     setupEventListeners();
     populateItemPalette();
@@ -37,8 +50,8 @@ function setupEventListeners() {
     document.getElementById('new-plot-btn').addEventListener('click', handleNewPlot);
     document.getElementById('save-plot-btn').addEventListener('click', handleSavePlot);
     document.getElementById('delete-plot-btn').addEventListener('click', handleDeletePlot);
-    document.getElementById('plot-name-input').addEventListener('input', () => isDirty = true);
-    document.getElementById('rider-form').addEventListener('input', () => isDirty = true);
+    document.getElementById('plot-name-input').addEventListener('input', () => { if (canWrite) isDirty = true; });
+    document.getElementById('rider-form').addEventListener('input', () => { if (canWrite) isDirty = true; });
     document.getElementById('export-pdf-btn').addEventListener('click', handleExportPdf);
 }
 
@@ -99,8 +112,10 @@ async function loadPlotForEditing(plotId) {
 
     try {
         const plot = await getStagePlot(plotId);
-        document.getElementById('plot-name-input').value = plot.plot_name;
-        
+        const plotNameInput = document.getElementById('plot-name-input');
+        plotNameInput.value = plot.plot_name;
+        plotNameInput.disabled = !canWrite; // Disable input if not allowed to write
+
         const riderForm = document.getElementById('rider-form');
         riderForm.reset();
         if(plot.tech_rider_data) {
@@ -110,6 +125,9 @@ async function loadPlotForEditing(plotId) {
                 }
             }
         }
+
+        // NEW: Disable all form fields if user cannot write
+        Array.from(riderForm.elements).forEach(el => el.disabled = !canWrite);
         
         plotDataState = plot.plot_data && Array.isArray(plot.plot_data.items) 
             ? plot.plot_data 
@@ -139,7 +157,7 @@ async function handleNewPlot() {
 }
 
 async function handleSavePlot() {
-    if (!currentPlotId) return;
+    if (!currentPlotId || !canWrite) return;
     setStatus('Saving...');
 
     const riderForm = document.getElementById('rider-form');
@@ -159,6 +177,7 @@ async function handleSavePlot() {
         const activePlotEl = document.querySelector(`#plot-list [data-plot-id='${currentPlotId}']`);
         if(activePlotEl) {
             activePlotEl.classList.add('bg-indigo-600', 'text-white');
+            activePlotEl.textContent = payload.plot_name; // Update name in the list
         }
     } catch (error) {
         setStatus(`Save failed: ${error.message}`, true);
@@ -166,7 +185,7 @@ async function handleSavePlot() {
 }
 
 async function handleDeletePlot() {
-    if (!currentPlotId || !confirm('Are you sure you want to permanently delete this plot?')) return;
+    if (!currentPlotId || !canWrite || !confirm('Are you sure you want to permanently delete this plot?')) return;
 
     try {
         await deleteStagePlot(currentPlotId);
@@ -182,7 +201,7 @@ async function handleDeletePlot() {
 
 function populateItemPalette() {
     const paletteEl = document.getElementById('item-palette');
-    paletteEl.innerHTML = '<h3 class="font-bold mb-2">Drag to Stage</h3>';
+    paletteEl.innerHTML = `<h3 class="font-bold mb-2 ${canWrite ? '' : 'text-gray-500'}">${canWrite ? 'Drag to Stage' : 'Item Library'}</h3>`;
     const items = [
         { type: 'mic', label: 'Vocal Mic' },
         { type: 'amp', label: 'Guitar Amp' },
@@ -196,22 +215,21 @@ function populateItemPalette() {
 
     items.forEach(item => {
         const itemEl = document.createElement('div');
-        itemEl.className = 'p-2 flex items-center gap-2 bg-gray-700 rounded-md cursor-grab text-sm select-none hover:bg-gray-600';
-        itemEl.draggable = true;
+        itemEl.className = `p-2 flex items-center gap-2 bg-gray-700 rounded-md text-sm select-none ${canWrite ? 'cursor-grab hover:bg-gray-600' : 'opacity-50'}`;
+        itemEl.draggable = canWrite;
         
         const iconData = ICONS[item.type];
         if (iconData) {
-            itemEl.innerHTML = `
-                <svg width="24" height="24" viewBox="${iconData.viewBox}">${iconData.svg}</svg>
-                <span>${item.label}</span>
-            `;
+            itemEl.innerHTML = `<svg width="24" height="24" viewBox="${iconData.viewBox}">${iconData.svg}</svg><span>${item.label}</span>`;
         } else {
             itemEl.textContent = item.label;
         }
 
-        itemEl.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('application/json', JSON.stringify(item));
-        });
+        if (canWrite) {
+            itemEl.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify(item));
+            });
+        }
         paletteEl.appendChild(itemEl);
     });
 }
@@ -219,9 +237,12 @@ function populateItemPalette() {
 function setupStageAreaEvents() {
     const stageArea = document.getElementById('stage-area');
     
-    stageArea.addEventListener('dragover', (e) => e.preventDefault());
+    stageArea.addEventListener('dragover', (e) => {
+        if (canWrite) e.preventDefault();
+    });
     
     stageArea.addEventListener('drop', (e) => {
+        if (!canWrite) return;
         e.preventDefault();
         const stageRect = stageArea.getBoundingClientRect();
 
@@ -268,7 +289,8 @@ function renderStagePlot() {
 
     plotDataState.items.forEach(item => {
         const itemEl = document.createElement('div');
-        itemEl.className = 'stage-item absolute flex flex-col items-center justify-center cursor-move p-1 group';
+        const cursorClass = canWrite ? 'cursor-move' : 'cursor-default';
+        itemEl.className = `stage-item absolute flex flex-col items-center justify-center ${cursorClass} p-1 group`;
         itemEl.style.width = '60px';
         itemEl.style.height = '60px';
         
@@ -278,50 +300,57 @@ function renderStagePlot() {
         itemEl.style.transform = `translate(-50%, -50%) rotate(${currentRotation}deg)`;
         
         itemEl.dataset.itemId = item.id;
-        itemEl.draggable = true;
+        itemEl.draggable = canWrite;
         
         const iconData = ICONS[item.type];
         const iconSVG = iconData ? `<svg width="30" height="30" viewBox="${iconData.viewBox}">${iconData.svg}</svg>` : '';
-
-        itemEl.innerHTML = `
-            <div class="icon-container">${iconSVG}</div>
-            <span class="item-label text-xs font-bold whitespace-nowrap text-white mt-1">${item.label}</span>
+        
+        // NEW: Only show item controls if user can write
+        const itemControlsHTML = canWrite ? `
             <div class="item-controls absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1" style="transform: rotate(${-currentRotation}deg)">
                 <button data-action="rotate" title="Rotate" class="bg-green-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center shadow-lg">R</button>
                 <button data-action="edit" title="Edit Label" class="bg-blue-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center shadow-lg">E</button>
                 <button data-action="delete" title="Delete" class="bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center shadow-lg">X</button>
             </div>
+        ` : '';
+
+        itemEl.innerHTML = `
+            <div class="icon-container">${iconSVG}</div>
+            <span class="item-label text-xs font-bold whitespace-nowrap text-white mt-1">${item.label}</span>
+            ${itemControlsHTML}
         `;
 
-        itemEl.addEventListener('dragstart', (e) => {
-            draggedItemId = item.id;
-            e.dataTransfer.effectAllowed = 'move';
-        });
+        if (canWrite) {
+            itemEl.addEventListener('dragstart', (e) => {
+                draggedItemId = item.id;
+                e.dataTransfer.effectAllowed = 'move';
+            });
 
-        itemEl.querySelector('[data-action="rotate"]').addEventListener('click', () => {
-            let newRotation = (item.rotation || 0) + 45;
-            if (newRotation >= 360) newRotation = 0;
-            item.rotation = newRotation;
-            isDirty = true;
-            renderStagePlot();
-        });
-
-        itemEl.querySelector('[data-action="edit"]').addEventListener('click', () => {
-            const newLabel = prompt('Enter new label:', item.label);
-            if (newLabel && newLabel.trim() !== '') {
-                item.label = newLabel.trim();
+            itemEl.querySelector('[data-action="rotate"]')?.addEventListener('click', () => {
+                let newRotation = (item.rotation || 0) + 45;
+                if (newRotation >= 360) newRotation = 0;
+                item.rotation = newRotation;
                 isDirty = true;
                 renderStagePlot();
-            }
-        });
+            });
 
-        itemEl.querySelector('[data-action="delete"]').addEventListener('click', () => {
-            if (confirm(`Delete "${item.label}"?`)) {
-                plotDataState.items = plotDataState.items.filter(i => i.id !== item.id);
-                isDirty = true;
-                renderStagePlot();
-            }
-        });
+            itemEl.querySelector('[data-action="edit"]')?.addEventListener('click', () => {
+                const newLabel = prompt('Enter new label:', item.label);
+                if (newLabel && newLabel.trim() !== '') {
+                    item.label = newLabel.trim();
+                    isDirty = true;
+                    renderStagePlot();
+                }
+            });
+
+            itemEl.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
+                if (confirm(`Delete "${item.label}"?`)) {
+                    plotDataState.items = plotDataState.items.filter(i => i.id !== item.id);
+                    isDirty = true;
+                    renderStagePlot();
+                }
+            });
+        }
 
         stageArea.appendChild(itemEl);
     });
