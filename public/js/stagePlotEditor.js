@@ -11,15 +11,14 @@ let plotDataState = {
 };
 let isDirty = false;
 let draggedItemId = null; 
-let canWrite = false; // NEW: Permission state for editing
+let canWrite = false; // Permission state for editing
 
 window.addEventListener('load', () => {
     const user = getUserPayload();
-    // Use the specific permission to check access
     if (checkAccess() && user && user.permissions && user.permissions.can_use_stage_plots) {
         const editorContent = document.getElementById('editor-content');
         if (editorContent) editorContent.style.display = 'grid';
-        init(user); // Pass the user object to init
+        init(user);
     } else {
         const accessDenied = document.getElementById('access-denied');
         if (accessDenied) accessDenied.style.display = 'block';
@@ -27,10 +26,8 @@ window.addEventListener('load', () => {
 });
 
 function init(user) {
-    // NEW: Set write permission based on user's role
     canWrite = user.permissions.role === 'admin' || user.permissions.role === 'band_admin';
     
-    // NEW: Show/hide UI elements based on write permission
     document.querySelectorAll('.write-permission-only').forEach(el => {
         if (canWrite) {
             el.classList.remove('hidden');
@@ -100,42 +97,48 @@ function confirmSwitchPlot(plotId) {
 }
 
 async function loadPlotForEditing(plotId) {
-    currentPlotId = plotId;
-    isDirty = false;
-    document.getElementById('no-plot-selected').classList.add('hidden');
-    document.getElementById('editor-panel').classList.remove('hidden');
-
-    document.querySelectorAll('#plot-list > div').forEach(el => {
-        el.classList.toggle('bg-indigo-600', el.dataset.plotId == plotId);
-        el.classList.toggle('text-white', el.dataset.plotId == plotId);
-    });
-
     try {
         const plot = await getStagePlot(plotId);
+        currentPlotId = plotId;
+        isDirty = false;
+        
+        document.querySelectorAll('#plot-list > div').forEach(el => {
+            el.classList.toggle('bg-indigo-600', el.dataset.plotId == plotId);
+            el.classList.toggle('text-white', el.dataset.plotId == plotId);
+        });
+        
         const plotNameInput = document.getElementById('plot-name-input');
         plotNameInput.value = plot.plot_name;
-        plotNameInput.disabled = !canWrite; // Disable input if not allowed to write
+        plotNameInput.disabled = !canWrite;
 
         const riderForm = document.getElementById('rider-form');
         riderForm.reset();
-        if(plot.tech_rider_data) {
+        
+        // THIS IS THE ROBUST FIX: Check if tech_rider_data exists before looping
+        if(plot.tech_rider_data && typeof plot.tech_rider_data === 'object') {
             for (const key in plot.tech_rider_data) {
                 if (riderForm.elements[key]) {
-                    riderForm.elements[key].value = plot.tech_rider_data[key];
+                    riderForm.elements[key].value = plot.tech_rider_data[key] || '';
                 }
             }
         }
 
-        // NEW: Disable all form fields if user cannot write
         Array.from(riderForm.elements).forEach(el => el.disabled = !canWrite);
         
         plotDataState = plot.plot_data && Array.isArray(plot.plot_data.items) 
             ? plot.plot_data 
             : { items: [] };
+        
         renderStagePlot();
+        
+        // This now happens LAST, after all data is processed successfully
+        document.getElementById('no-plot-selected').classList.add('hidden');
+        document.getElementById('editor-panel').classList.remove('hidden');
 
     } catch (error) {
         setStatus(`Error loading plot: ${error.message}`, true);
+        document.getElementById('editor-panel').classList.add('hidden');
+        document.getElementById('no-plot-selected').classList.remove('hidden');
     }
 }
 
@@ -173,11 +176,9 @@ async function handleSavePlot() {
         await updateStagePlot(currentPlotId, payload);
         setStatus('Saved successfully!', false);
         isDirty = false;
-        await loadPlotList();
         const activePlotEl = document.querySelector(`#plot-list [data-plot-id='${currentPlotId}']`);
         if(activePlotEl) {
-            activePlotEl.classList.add('bg-indigo-600', 'text-white');
-            activePlotEl.textContent = payload.plot_name; // Update name in the list
+            activePlotEl.textContent = payload.plot_name;
         }
     } catch (error) {
         setStatus(`Save failed: ${error.message}`, true);
@@ -305,7 +306,6 @@ function renderStagePlot() {
         const iconData = ICONS[item.type];
         const iconSVG = iconData ? `<svg width="30" height="30" viewBox="${iconData.viewBox}">${iconData.svg}</svg>` : '';
         
-        // NEW: Only show item controls if user can write
         const itemControlsHTML = canWrite ? `
             <div class="item-controls absolute top-0 right-0 -mt-2 -mr-2 hidden group-hover:flex gap-1" style="transform: rotate(${-currentRotation}deg)">
                 <button data-action="rotate" title="Rotate" class="bg-green-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center shadow-lg">R</button>
