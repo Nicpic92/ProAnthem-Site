@@ -43,7 +43,7 @@ function updateNav() {
 
     if (user) {
         let buttonHtml = `<a href="/dashboard.html" class="btn btn-secondary">Dashboard</a>`;
-        if (user.role === 'admin') {
+        if (user.permissions && user.permissions.role === 'admin') {
              buttonHtml = `<a href="/admin.html" class="btn btn-primary mr-4">Admin Panel</a>` + buttonHtml;
         }
         buttonHtml += `<button id="logout-button" class="ml-4 text-gray-400 hover:text-white">Log Out</button>`;
@@ -80,13 +80,11 @@ export function checkAccess() {
         return false;
     }
 
-    const validStatuses = ['active', 'trialing', 'admin_granted', 'free'];
-    if (user.role === 'admin' || validStatuses.includes(user.subscription_status)) {
+    if (user.permissions && user.permissions.can_access_tool) {
         const content = document.querySelector('.main-content-area');
         if (content) {
-            // --- THIS IS THE ROBUST FIX ---
             content.classList.remove('hidden');
-            content.style.display = 'block'; // Or 'flex', 'grid' etc. as needed. Block is a safe default.
+            content.style.display = 'block';
         }
         return true;
     } else {
