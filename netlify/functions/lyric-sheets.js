@@ -131,14 +131,35 @@ exports.handler = async (event) => {
                     return { statusCode: 500, body: JSON.stringify({ message: `Update failed: ${error.message}` }) };
                 }
             }
+            // --- THIS IS THE CORRECTED DELETE LOGIC ---
             if (event.httpMethod === 'DELETE') {
                 if (!permissions.can_manage_band) {
                     return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: You do not have permission to delete songs.' }) };
                 }
                 
-                await client.query('DELETE FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
-                return { statusCode: 204, body: '' };
+                await client.query('BEGIN');
+                try {
+                    // Step 1: Verify the song belongs to the band before doing anything.
+                    const { rowCount } = await client.query('SELECT 1 FROM lyric_sheets WHERE id = $1 AND band_id = $2', [id, bandId]);
+                    if (rowCount === 0) {
+                        throw new Error('Song not found or access denied.');
+                    }
+
+                    // Step 2: Delete all references to this song from the setlist join table.
+                    await client.query('DELETE FROM setlist_songs WHERE song_id = $1', [id]);
+
+                    // Step 3: Delete the song itself.
+                    await client.query('DELETE FROM lyric_sheets WHERE id = $1', [id]);
+
+                    await client.query('COMMIT');
+                    return { statusCode: 204, body: '' };
+                } catch(error) {
+                    await client.query('ROLLBACK');
+                    console.error("Error during transactional song delete:", error);
+                    return { statusCode: 500, body: JSON.stringify({ message: `Delete failed: ${error.message}` }) };
+                }
             }
+            // --- END OF CORRECTION ---
         } else { // Operations on the collection
             if (event.httpMethod === 'GET') {
                 const result = await client.query('SELECT id, title, artist, updated_at, duration, capo, tuning, transpose FROM lyric_sheets WHERE band_id = $1 ORDER BY updated_at DESC', [bandId]);
@@ -184,3 +205,4 @@ exports.handler = async (event) => {
         await client.end();
     }
 };
+// --- END OF FILE netlify/functions/lyric-sheets.js ---
