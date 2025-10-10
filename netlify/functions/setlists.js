@@ -106,9 +106,22 @@ exports.handler = async (event) => {
             if (setlistId && resourceType === 'songs') {
                 await client.query('BEGIN');
                 try {
-                    const checkQuery = `SELECT 1 FROM setlists s JOIN lyric_sheets ls ON s.id = $1 AND ls.id = $2 WHERE s.band_id = $3 AND ls.band_id = $3`;
-                    const checkResult = await client.query(checkQuery, [setlistId, body.song_id, bandId]);
-                    if (checkResult.rows.length === 0) throw new Error('Forbidden');
+                    // --- THIS IS THE FIX ---
+                    // The original query used a faulty JOIN. This new query correctly and
+                    // efficiently checks that both the setlist and the song exist and belong to the user's band.
+                    const checkQuery = `
+                        SELECT EXISTS (
+                            SELECT 1 FROM setlists WHERE id = $1 AND band_id = $3
+                        ) AND EXISTS (
+                            SELECT 1 FROM lyric_sheets WHERE id = $2 AND band_id = $3
+                        ) AS authorized;
+                    `;
+                    const { rows: [checkResult] } = await client.query(checkQuery, [setlistId, body.song_id, bandId]);
+
+                    if (!checkResult.authorized) {
+                        throw new Error('Forbidden');
+                    }
+                    // --- END OF FIX ---
                     
                     const maxOrderQuery = 'SELECT MAX(song_order) as max_order FROM setlist_songs WHERE setlist_id = $1';
                     const maxOrderResult = await client.query(maxOrderQuery, [setlistId]);
@@ -178,3 +191,4 @@ exports.handler = async (event) => {
         if (client) await client.end();
     }
 };
+// --- END OF FILE netlify/functions/setlists.js ---
