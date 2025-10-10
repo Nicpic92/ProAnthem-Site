@@ -103,39 +103,59 @@ exports.handler = async (event) => {
                 }
             }
             
+            // --- START OF FULLY REWRITTEN AND CORRECTED LOGIC ---
             if (setlistId && resourceType === 'songs') {
                 await client.query('BEGIN');
                 try {
-                    // --- THIS IS THE FIX ---
-                    // The original query used a faulty JOIN. This new query correctly and
-                    // efficiently checks that both the setlist and the song exist and belong to the user's band.
-                    const checkQuery = `
-                        SELECT EXISTS (
-                            SELECT 1 FROM setlists WHERE id = $1 AND band_id = $3
-                        ) AND EXISTS (
-                            SELECT 1 FROM lyric_sheets WHERE id = $2 AND band_id = $3
-                        ) AS authorized;
-                    `;
-                    const { rows: [checkResult] } = await client.query(checkQuery, [setlistId, body.song_id, bandId]);
-
-                    if (!checkResult.authorized) {
-                        throw new Error('Forbidden');
+                    const { song_id: songIdToAdd } = body;
+                    if (!songIdToAdd) {
+                        throw new Error("Song ID is missing from the request.");
                     }
-                    // --- END OF FIX ---
-                    
+
+                    // 1. Authorize access to the setlist.
+                    const { rows: [setlist] } = await client.query('SELECT 1 FROM setlists WHERE id = $1 AND band_id = $2', [setlistId, bandId]);
+                    if (!setlist) {
+                        throw new Error('Forbidden: You do not have access to this setlist.');
+                    }
+
+                    // 2. Authorize access to the song and ensure it belongs to the same band.
+                    const { rows: [song] } = await client.query('SELECT 1 FROM lyric_sheets WHERE id = $1 AND band_id = $2', [songIdToAdd, bandId]);
+                    if (!song) {
+                        throw new Error('Forbidden: The selected song was not found in your band\'s library.');
+                    }
+
+                    // 3. Explicitly check if the song is already in the setlist to prevent duplicate errors.
+                    const { rowCount } = await client.query('SELECT 1 FROM setlist_songs WHERE setlist_id = $1 AND song_id = $2', [setlistId, songIdToAdd]);
+                    if (rowCount > 0) {
+                        await client.query('ROLLBACK'); // End the transaction before returning.
+                        return { statusCode: 409, body: JSON.stringify({ message: 'This song is already in the setlist.' }) };
+                    }
+
+                    // 4. If all checks pass, proceed with insertion.
                     const maxOrderQuery = 'SELECT MAX(song_order) as max_order FROM setlist_songs WHERE setlist_id = $1';
-                    const maxOrderResult = await client.query(maxOrderQuery, [setlistId]);
-                    const nextOrder = (maxOrderResult.rows[0].max_order === null) ? 0 : maxOrderResult.rows[0].max_order + 1;
+                    const { rows: [maxOrderResult] } = await client.query(maxOrderQuery, [setlistId]);
+                    const nextOrder = (maxOrderResult.max_order === null) ? 0 : maxOrderResult.max_order + 1;
 
                     const insertQuery = 'INSERT INTO setlist_songs (setlist_id, song_id, song_order) VALUES ($1, $2, $3) RETURNING *';
-                    const result = await client.query(insertQuery, [setlistId, body.song_id, nextOrder]);
+                    const { rows: [newEntry] } = await client.query(insertQuery, [setlistId, songIdToAdd, nextOrder]);
+                    
                     await client.query('COMMIT');
-                    return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
+                    return { statusCode: 201, body: JSON.stringify(newEntry) };
+
                 } catch (e) {
                     await client.query('ROLLBACK');
-                    return { statusCode: 403, body: JSON.stringify({ message: 'Forbidden: Setlist or song does not belong to the band.' }) };
+                    console.error('API Error in /api/setlists/songs POST:', e);
+                    
+                    const isForbiddenError = e.message.startsWith('Forbidden:');
+                    const statusCode = isForbiddenError ? 403 : 500;
+                    const errorMessage = isForbiddenError ? e.message : 'An unexpected error occurred while adding the song.';
+
+                    return { statusCode, body: JSON.stringify({ message: errorMessage }) };
                 }
-            } else if (!setlistId) {
+            } 
+            // --- END OF CORRECTED LOGIC ---
+            
+            else if (!setlistId) {
                 const query = 'INSERT INTO setlists (name, user_email, band_id) VALUES ($1, $2, $3) RETURNING *';
                 const result = await client.query(query, [body.name, userEmail, bandId]);
                 return { statusCode: 201, body: JSON.stringify(result.rows[0]) };
@@ -185,7 +205,10 @@ exports.handler = async (event) => {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     } catch (error) {
         console.error('API Error in /api/setlists:', error);
-        await client.query('ROLLBACK').catch(console.error);
+        // Ensure rollback is attempted only if a transaction might have started.
+        if (client.inTransaction) {
+            await client.query('ROLLBACK').catch(console.error);
+        }
         return { statusCode: 500, body: JSON.stringify({ message: 'Internal Server Error', error: error.message }) };
     } finally {
         if (client) await client.end();
