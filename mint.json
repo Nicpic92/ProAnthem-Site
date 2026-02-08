@@ -1,16 +1,61 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Documentation",
-  "colors": {
-    "primary": "#0D9373"
+  "name": "ProAnthem",
+  "logo": {
+    "dark": "/assets/logo_pa.jpg",
+    "light": "/assets/logo_pa.jpg"
   },
-  "navigation": {
-    "groups": [
-      {
-        "group": "Getting Started",
-        "pages": []
-      }
-    ]
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#dc2626",
+    "light": "#3b82f6",
+    "dark": "#111827"
+  },
+  "topbarLinks": [
+    {
+      "name": "Live Demo",
+      "url": "https://proanthem.com/demo"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction"
+      ]
+    },
+    {
+      "group": "Performance Tools",
+      "pages": [
+        "tools/fretboard-editor",
+        "tools/drum-tab-editor",
+        "tools/stage-plot-designer"
+      ]
+    },
+    {
+      "group": "Band Management",
+      "pages": [
+        "management/setlists",
+        "management/finances",
+        "management/merch-inventory"
+      ]
+    },
+    {
+      "group": "Audio Engineering",
+      "pages": [
+        "audio/stem-mixer",
+        "audio/voice-memos"
+      ]
+    },
+    {
+      "group": "Admin & API",
+      "pages": [
+        "api-reference/authentication",
+        "api-reference/admin-tasks"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "website": "https://proanthem.com"
   }
 }
