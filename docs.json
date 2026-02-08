@@ -1,0 +1,61 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "ProAnthem",
+  "logo": {
+    "dark": "/assets/logo_pa.jpg",
+    "light": "/assets/logo_pa.jpg"
+  },
+  "favicon": "/favicon.png",
+  "colors": {
+    "primary": "#dc2626",
+    "light": "#3b82f6",
+    "dark": "#111827"
+  },
+  "topbarLinks": [
+    {
+      "name": "App Dashboard",
+      "url": "https://proanthem.com/dashboard"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "introduction"
+      ]
+    },
+    {
+      "group": "Interactive Editors",
+      "pages": [
+        "tools/fretboard-editor",
+        "tools/drum-tab-editor",
+        "tools/stage-plot-designer"
+      ]
+    },
+    {
+      "group": "Band Management",
+      "pages": [
+        "management/setlists",
+        "management/finances",
+        "management/merch-inventory"
+      ]
+    },
+    {
+      "group": "Audio Engineering",
+      "pages": [
+        "audio/stem-mixer",
+        "audio/voice-memos"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/authentication",
+        "api-reference/admin-tasks"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "website": "https://proanthem.com"
+  }
+}
